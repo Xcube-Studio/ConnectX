@@ -1,4 +1,5 @@
-﻿using Hive.Codec.Shared;
+﻿using ConnectX.Shared.Models;
+using Hive.Codec.Shared;
 using MemoryPack;
 
 namespace ConnectX.Shared.Messages.Group;

@@ -4,16 +4,10 @@ using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Server;
 
-public class NatTestService : BackgroundService
+public class NatTestService(ILogger<NatTestService> logger) : BackgroundService
 {
-    private readonly ILogger _logger;
-    
-    public NatTestService(
-        ILogger<NatTestService> logger)
-    {
-        _logger = logger;
-    }
-    
+    private readonly ILogger _logger = logger;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("[NAT] Starting NAT test service...");

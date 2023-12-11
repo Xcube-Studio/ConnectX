@@ -28,8 +28,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         IConnector<TcpSession> tcpConnector,
         ILogger<ServerLinkHolder> logger)
     {
-        InitHelper.Init();
-        
         _dispatcher = dispatcher;
         _settingProvider = settingProvider;
         _tcpConnector = tcpConnector;
@@ -86,7 +84,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         {
             BindingTestResult = natType.BindingTestResult,
             FilteringBehavior = natType.FilteringBehavior,
-            MappingBehavior = natType.MappingBehavior
+            MappingBehavior = natType.MappingBehavior,
+            JoinP2PNetwork = _settingProvider.JoinP2PNetwork
         });
         await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
         

@@ -4,6 +4,7 @@ using ConnectX.Shared;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Messages.Identity;
+using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
@@ -20,7 +21,7 @@ public class GroupManager
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionIdMapping = new ();
     private readonly ConcurrentDictionary<Guid, User> _userMapping = new ();
     private readonly ConcurrentDictionary<Guid, Group> _groupMappings = new();
-    private readonly ConcurrentDictionary<Guid, string> _shortIdGroupMappings = new();
+    private readonly ConcurrentDictionary<string, Guid> _shortIdGroupMappings = new();
     
     public GroupManager(
         IDispatcher dispatcher,
@@ -37,6 +38,28 @@ public class GroupManager
         _dispatcher.AddHandler<JoinGroup>(OnJoinGroupReceived);
         _dispatcher.AddHandler<LeaveGroup>(OnLeaveGroupReceived);
         _dispatcher.AddHandler<KickUser>(OnKickUserReceived);
+        _dispatcher.AddHandler<AcquireGroupInfo>(OnAcquireGroupInfoReceived);
+    }
+    
+    public IReadOnlyList<User> GetAllUsers()
+    {
+        return _userMapping.Values.ToList();
+    }
+    
+    public bool TryGetUser(SessionId sessionId, out User? user)
+    {
+        if (!_sessionIdMapping.TryGetValue(sessionId, out var userId))
+        {
+            user = null;
+            return false;
+        }
+
+        return _userMapping.TryGetValue(userId, out user);
+    }
+    
+    public bool TryGetUser(Guid userId, out User? user)
+    {
+        return _userMapping.TryGetValue(userId, out user);
     }
 
     /// <summary>
@@ -98,7 +121,7 @@ public class GroupManager
         dispatcher.SendAsync(session, err).Forget();
 
         _logger.LogWarning(
-            "[GROUP_MANAGER] Received create group message from unattached session, session id: {sessionId}",
+            "[GROUP_MANAGER] Received group op message from unattached session, session id: {sessionId}",
             session.Id.Id);
 
         return true;
@@ -114,7 +137,7 @@ public class GroupManager
         dispatcher.SendAsync(session, err).Forget();
             
         _logger.LogWarning(
-            "[GROUP_MANAGER] Received create group message from unattached session, session id: {sessionId}",
+            "[GROUP_MANAGER] Received group op message from unattached session, session id: {sessionId}",
             session.Id.Id);
             
         return false;
@@ -142,8 +165,7 @@ public class GroupManager
         IDispatcher dispatcher,
         ISession session)
     {
-        var isAlreadyInGroup = _groupMappings.ContainsKey(userId) ||
-                               _groupMappings.Values
+        var isAlreadyInGroup = _groupMappings.Values
                                    .Select(g => g.Users)
                                    .SelectMany(u => u)
                                    .Any(u => u.UserId == userId);
@@ -154,7 +176,7 @@ public class GroupManager
         dispatcher.SendAsync(session, err).Forget();
 
         _logger.LogWarning(
-            "[GROUP_MANAGER] A user who is already in a group are trying to create a new group, session id: {sessionId}",
+            "[GROUP_MANAGER] A user who is already in a group are trying to perform group op, session id: {sessionId}",
             session.Id.Id);
 
         return true;
@@ -232,17 +254,15 @@ public class GroupManager
         if (IsAlreadyInGroup(userId, ctx.Dispatcher, ctx.FromSession)) return;
 
         var message = ctx.Message;
-        var group = new Group(message.RoomName, message.RoomPassword)
+        var group = new Group(message.RoomName, message.RoomPassword, [_userMapping[userId]])
         {
             IsPrivate = message.IsPrivate,
-            MaxUserCount = message.MaxUserCount,
+            MaxUserCount = message.MaxUserCount <= 0 ? 10 : message.MaxUserCount,
             RoomDescription = message.RoomDescription
         };
         
-        group.Users.Add(_userMapping[userId]);
-        
-        if (!_groupMappings.TryAdd(userId, group) ||
-            !_shortIdGroupMappings.TryAdd(userId, group.RoomShortId))
+        if (!_groupMappings.TryAdd(group.RoomId, group) ||
+            !_shortIdGroupMappings.TryAdd(group.RoomShortId, group.RoomId))
         {
             var err = new GroupOpResult(false, "Failed to add group to the group mapping.");
             ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
@@ -254,7 +274,7 @@ public class GroupManager
             return;
         }
         
-        var success = new GroupOpResult(true);
+        var success = new GroupOpResult(true){GroupId = group.RoomId};
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
         
         _logger.LogInformation(
@@ -270,17 +290,23 @@ public class GroupManager
         if (IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession)) return;
         
         var message = ctx.Message;
-        var (hasGroup, group) = TryGetGroup(message.GroupId, ctx.Dispatcher, ctx.FromSession);
+        var groupId = string.IsNullOrEmpty(message.RoomShortId)
+            ? message.GroupId
+            : _shortIdGroupMappings.TryGetValue(message.RoomShortId, out var id)
+                ? id
+                : Guid.Empty;
+        var (hasGroup, group) = TryGetGroup(groupId, ctx.Dispatcher, ctx.FromSession);
         
         if (!hasGroup) return;
-        if (group!.MaxUserCount == group.Users.Count)
+        if (group!.MaxUserCount != 0 &&
+            group.MaxUserCount == group.Users.Count)
         {
             var err = new GroupOpResult(false, "Group is full.");
             ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
             
             _logger.LogWarning(
                 "[GROUP_MANAGER] User [{sessionId}] tried to join group [{groupId}], but it is full.",
-                ctx.FromSession.Id.Id, message.GroupId);
+                ctx.FromSession.Id.Id, groupId);
             
             return;
         }
@@ -292,7 +318,7 @@ public class GroupManager
             
             _logger.LogWarning(
                 "[GROUP_MANAGER] User [{sessionId}] tried to join group [{groupId}], but the password is wrong.",
-                ctx.FromSession.Id.Id, message.GroupId);
+                ctx.FromSession.Id.Id, groupId);
             
             return;
         }
@@ -301,6 +327,13 @@ public class GroupManager
         
         group.Users.Add(user);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, user)).Forget();
+        
+        var success = new GroupOpResult(true);
+        ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
+        
+        _logger.LogInformation(
+            "[GROUP_MANAGER] User [{userId}] joined group [{groupName}]({shortId})",
+            ctx.FromSession.Id.Id, group.RoomName, group.RoomShortId);
     }
 
     private void RemoveUser(
@@ -341,6 +374,13 @@ public class GroupManager
         }
         
         RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Left);
+        
+        var success = new GroupOpResult(true);
+        ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
+        
+        _logger.LogInformation(
+            "[GROUP_MANAGER] User [{userId}] left group [{groupName}]({shortId})",
+            ctx.FromSession.Id.Id, group.RoomName, group.RoomShortId);
     }
     
     private void OnKickUserReceived(MessageContext<KickUser> ctx)
@@ -352,5 +392,38 @@ public class GroupManager
         
         var message = ctx.Message;
         RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Kicked);
+
+        var group = _groupMappings[message.GroupId];
+        var success = new GroupOpResult(true);
+        ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
+        
+        _logger.LogInformation(
+            "[GROUP_MANAGER] User [{userId}] has been kicked from group [{groupName}]({shortId})",
+            ctx.FromSession.Id.Id, group.RoomName, group.RoomShortId);
+    }
+
+    private void OnAcquireGroupInfoReceived(MessageContext<AcquireGroupInfo> ctx)
+    {
+        var session = ctx.FromSession;
+        
+        if (!_clientManager.IsSessionAttached(session.Id) ||
+            !_sessionIdMapping.TryGetValue(session.Id, out var userId) ||
+            !_userMapping.ContainsKey(userId) ||
+            !_groupMappings.TryGetValue(ctx.Message.GroupId, out var group))
+        {
+            ctx.Dispatcher.SendAsync(session, GroupInfo.Invalid).Forget();
+            return;
+        }
+        
+        var isInGroup = group.Users.Any(u => u.UserId == userId);
+
+        if (isInGroup)
+        {
+            ctx.Dispatcher.SendAsync(session, (GroupInfo) group).Forget();
+            return;
+        }
+
+        var groupWithEmptyUserInfo = ((GroupInfo)group) with { Users = [] };
+        ctx.Dispatcher.SendAsync(session, (GroupInfo) group).Forget();
     }
 }

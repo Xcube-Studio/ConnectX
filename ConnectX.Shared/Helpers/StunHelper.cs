@@ -1,9 +1,9 @@
 ﻿using System.Net;
+using ConnectX.Shared.Models;
 using DnsClient;
 using STUN;
 using STUN.Client;
 using STUN.Enums;
-using STUN.Proxy;
 using STUN.StunResult;
 
 namespace ConnectX.Shared.Helpers;

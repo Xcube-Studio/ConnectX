@@ -11,8 +11,6 @@ public class Program
 {
     static void Main(string[] args)
     {
-        InitHelper.Init();
-
         var builder = Host
             .CreateDefaultBuilder(args)
             .UseSerilog((hostingContext, loggerConfiguration) => loggerConfiguration

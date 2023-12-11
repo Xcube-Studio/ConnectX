@@ -7,4 +7,5 @@ public class DefaultClientSettingProvider : IClientSettingProvider
 {
     public required IPAddress ServerAddress { get; init; }
     public required ushort ServerPort { get; init; }
+    public required bool JoinP2PNetwork { get; init; }
 }

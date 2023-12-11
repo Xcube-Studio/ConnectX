@@ -6,4 +6,5 @@ public interface IClientSettingProvider
 {
     IPAddress ServerAddress { get; }
     ushort ServerPort { get; }
+    bool JoinP2PNetwork { get; }
 }

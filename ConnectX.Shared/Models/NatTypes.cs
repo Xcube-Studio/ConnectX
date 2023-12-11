@@ -1,4 +1,4 @@
-﻿namespace ConnectX.Shared;
+﻿namespace ConnectX.Shared.Models;
 
 public enum NatTypes
 {

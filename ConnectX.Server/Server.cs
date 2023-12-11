@@ -16,7 +16,7 @@ namespace ConnectX.Server;
 public class Server : BackgroundService
 {
     private long _currentSessionCount;
-    private const int MaxSessionLoginTimeout = 10;
+    private const int MaxSessionLoginTimeout = 600;
 
     private readonly CancellationTokenSource _cts = new ();
     private readonly IDispatcher _dispatcher;
@@ -24,6 +24,7 @@ public class Server : BackgroundService
     private readonly IServerSettingProvider _serverSettingProvider;
     private readonly GroupManager _groupManager;
     private readonly ClientManager _clientManager;
+    private readonly P2PManager _p2PManager;
     private readonly ILogger _logger;
 
     private readonly ConcurrentDictionary<SessionId, (DateTime AddTime, ISession Session)>
@@ -35,6 +36,7 @@ public class Server : BackgroundService
         IServerSettingProvider serverSettingProvider,
         GroupManager groupManager,
         ClientManager clientManager,
+        P2PManager p2PManager,
         ILogger<Server> logger)
     {
         _dispatcher = dispatcher;
@@ -42,6 +44,7 @@ public class Server : BackgroundService
         _serverSettingProvider = serverSettingProvider;
         _groupManager = groupManager;
         _clientManager = clientManager;
+        _p2PManager = p2PManager;
         _logger = logger;
         
         _acceptor.BindTo(_dispatcher);
@@ -129,6 +132,7 @@ public class Server : BackgroundService
         
         _clientManager.AttachSession(session.Id, session);
         var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
+        _p2PManager.AttachSession(session, ctx.Message);
         
         _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
     }

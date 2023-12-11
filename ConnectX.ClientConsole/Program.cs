@@ -15,18 +15,19 @@ namespace ConnectX.ClientConsole
         {
             var listenAddressStr = configuration.GetValue<string>("Server:ListenAddress");
             var port = configuration.GetValue<ushort>("Server:ListenPort");
+            
+            ArgumentException.ThrowIfNullOrEmpty(listenAddressStr);
 
             return new DefaultClientSettingProvider
             {
                 ServerAddress = IPAddress.Parse(listenAddressStr),
-                ServerPort = port
+                ServerPort = port,
+                JoinP2PNetwork = true
             };
         }
         
         static void Main(string[] args)
         {
-            InitHelper.Init();
-
             var builder = Host
                 .CreateDefaultBuilder(args)
                 .UseSerilog((hostingContext, loggerConfiguration) => loggerConfiguration
