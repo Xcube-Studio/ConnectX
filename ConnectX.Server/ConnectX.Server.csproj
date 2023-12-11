@@ -4,6 +4,30 @@
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <OutputType>Exe</OutputType>
+    <StartupObject>ConnectX.Server.Program</StartupObject>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ConnectX.Shared\ConnectX.Shared.csproj" />
+    <ProjectReference Include="..\Hive.Framework\Hive.Both.General\Hive.Both.General.csproj" />
+    <ProjectReference Include="..\Hive.Framework\Hive.Codec.MemoryPack\Hive.Codec.MemoryPack.csproj" />
+    <ProjectReference Include="..\Hive.Framework\Hive.Common.Shared\Hive.Common.Shared.csproj" />
+    <ProjectReference Include="..\Hive.Framework\Hive.Network.Tcp\Hive.Network.Tcp.csproj" />
+    <ProjectReference Include="..\Hive.Framework\Hive.Network.Udp\Hive.Network.Udp.csproj" />
+  </ItemGroup>
 
 </Project>

@@ -6,4 +6,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Hive.Framework\Hive.Both.General\Hive.Both.General.csproj" />
+    <ProjectReference Include="..\Hive.Framework\Hive.Codec.MemoryPack\Hive.Codec.MemoryPack.csproj" />
+    <ProjectReference Include="..\Hive.Framework\Hive.Network.Abstractions\Hive.Network.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DnsClient" Version="1.7.0" />
+    <PackageReference Include="Stun.Net" Version="8.0.0" />
+  </ItemGroup>
+
 </Project>
