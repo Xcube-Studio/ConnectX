@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using ConnectX.Shared.Helpers;
 using ConnectX.Server.Interfaces;
+using ConnectX.Server.Managers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
 using Hive.Both.General.Dispatchers;
@@ -21,6 +22,7 @@ public class Server : BackgroundService
     private readonly IDispatcher _dispatcher;
     private readonly IAcceptor<TcpSession> _acceptor;
     private readonly IServerSettingProvider _serverSettingProvider;
+    private readonly GroupManager _groupManager;
     private readonly ClientManager _clientManager;
     private readonly ILogger _logger;
 
@@ -31,12 +33,14 @@ public class Server : BackgroundService
         IDispatcher dispatcher,
         IAcceptor<TcpSession> acceptor,
         IServerSettingProvider serverSettingProvider,
+        GroupManager groupManager,
         ClientManager clientManager,
         ILogger<Server> logger)
     {
         _dispatcher = dispatcher;
         _acceptor = acceptor;
         _serverSettingProvider = serverSettingProvider;
+        _groupManager = groupManager;
         _clientManager = clientManager;
         _logger = logger;
         
@@ -124,7 +128,9 @@ public class Server : BackgroundService
             session.Id.Id);
         
         _clientManager.AttachSession(session.Id, session);
-        _dispatcher.SendAsync(session, new SigninSucceeded()).Forget();
+        var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
+        
+        _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

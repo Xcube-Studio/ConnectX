@@ -6,13 +6,17 @@ using Hive.Network.Abstractions.Session;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.Threading;
 
-namespace ConnectX.Server;
+namespace ConnectX.Server.Managers;
+
+public delegate void SessionDisconnectedHandler(SessionId sessionId);
 
 public class ClientManager
 {
     private readonly ConcurrentDictionary<SessionId, WatchDog> _watchDogMapping = new ();
     private readonly IDispatcher _dispatcher;
     private readonly ILogger _logger;
+    
+    public event SessionDisconnectedHandler? OnSessionDisconnected;
 
     public ClientManager(
         IDispatcher dispatcher,
@@ -21,6 +25,7 @@ public class ClientManager
         _dispatcher = dispatcher;
         _logger = logger;
 
+        _dispatcher.AddHandler<ShutdownMessage>(OnReceivedShutdownMessage);
         _dispatcher.AddHandler<HeartBeat>(OnReceivedHeartBeat);
     }
 
@@ -51,6 +56,16 @@ public class ClientManager
     public bool IsSessionAttached(SessionId id)
     {
         return _watchDogMapping.ContainsKey(id);
+    }
+
+    private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
+    {
+        _logger.LogInformation(
+            "[CLIENT_MANAGER] Received shutdown message from session, session id: {sessionId}",
+            ctx.FromSession.Id.Id);
+
+        _watchDogMapping.TryRemove(ctx.FromSession.Id, out _);
+        OnSessionDisconnected?.Invoke(ctx.FromSession.Id);
     }
 
     private void OnReceivedHeartBeat(MessageContext<HeartBeat> ctx)
@@ -93,6 +108,7 @@ public class ClientManager
                 watchDog.Session.Close();
                 
                 _watchDogMapping.TryRemove(id, out _);
+                OnSessionDisconnected?.Invoke(id);
             }
 
             await Task.Delay(500, token);

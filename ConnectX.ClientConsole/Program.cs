@@ -5,6 +5,7 @@ using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using Serilog;
 
 namespace ConnectX.ClientConsole
 {
@@ -26,10 +27,17 @@ namespace ConnectX.ClientConsole
         {
             InitHelper.Init();
 
-            var builder = Host.CreateApplicationBuilder(args);
-            var services = builder.Services;
-            
-            services.UseConnectX(() => GetSettings(builder.Configuration));
+            var builder = Host
+                .CreateDefaultBuilder(args)
+                .UseSerilog((hostingContext, loggerConfiguration) => loggerConfiguration
+                    .ReadFrom.Configuration(hostingContext.Configuration)
+                    .Enrich.FromLogContext()
+                    .WriteTo.Console());
+
+            builder.ConfigureServices((ctx, services) =>
+            {
+                services.UseConnectX(() => GetSettings(ctx.Configuration));
+            });
             
             var app = builder.Build();
             

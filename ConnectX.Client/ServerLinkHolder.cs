@@ -117,7 +117,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> ctx)
     {
-        _logger.LogInformation("[CLIENT] Heartbeat received from server.");
+        _logger.LogDebug("[CLIENT] Heartbeat received from server.");
     }
     
     private void OnShutdownMessageReceived(MessageContext<ShutdownMessage> ctx)
@@ -133,7 +133,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         while (!stoppingToken.IsCancellationRequested && IsConnected && ServerSession != null)
         {
             await _dispatcher.SendAsync(ServerSession, new HeartBeat());
-            await Task.Delay(2000, stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
         
         _logger.LogInformation("[CLIENT] Stop sending heartbeat.");
