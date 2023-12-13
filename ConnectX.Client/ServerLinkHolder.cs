@@ -8,6 +8,7 @@ using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using STUN.StunResult;
 
 namespace ConnectX.Client;
 
@@ -21,6 +22,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public ISession? ServerSession { get; private set; }
     public bool IsConnected { get; private set; }
     public bool IsSignedIn { get; private set; }
+    public Guid UserId { get; private set; }
+    public StunResult5389? NatType { get; private set; }
     
     public ServerLinkHolder(
         IDispatcher dispatcher,
@@ -58,6 +61,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         _logger.LogInformation("[CLIENT] Getting client NAT type...");
 
         var natType = await StunHelper.GetNatTypeAsync(cancellationToken: cancellationToken);
+
+        NatType = natType;
         
         _logger.LogInformation("[CLIENT] Client NAT type: {natType}", natType);
         _logger.LogInformation(
@@ -105,12 +110,16 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         ServerSession.Close();
         
         _logger.LogInformation("[CLIENT] Disconnected from server.");
+
+        IsSignedIn = false;
         IsConnected = false;
     }
     
     private void OnSigninSucceededReceived(MessageContext<SigninSucceeded> obj)
     {
         IsSignedIn = true;
+        UserId = obj.Message.UserId;
+        
         _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
     }
 

@@ -23,6 +23,7 @@ public class Program
             services.AddSingleton<IServerSettingProvider, ConfigSettingProvider>();
             services.AddConnectX();
 
+            services.AddSingleton<QueryManager>();
             services.AddSingleton<ClientManager>();
             services.AddSingleton<GroupManager>();
             services.AddSingleton<P2PManager>();

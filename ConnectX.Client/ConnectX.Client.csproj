@@ -19,6 +19,11 @@
     <ProjectReference Include="..\Hive.Framework\Hive.Network.Shared\Hive.Network.Shared.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Network.Tcp\Hive.Network.Tcp.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Network.Udp\Hive.Network.Udp.csproj" />
+    <ProjectReference Include="..\Open.NAT\Open.Nat\Open.Nat.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Messages\" />
   </ItemGroup>
 
 </Project>

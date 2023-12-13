@@ -21,6 +21,15 @@ public sealed partial class P2PConReady : P2PConContext
         Time = time;
     }
     
+    public P2PConReady(
+        Guid recipientId,
+        long time,
+        P2PConContextInit context) : base(context)
+    {
+        RecipientId = recipientId;
+        Time = time;
+    }
+    
     public Guid RecipientId { get; init; }
     public long Time { get; init; }
     public int Bargain { get; init; }

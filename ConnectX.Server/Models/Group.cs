@@ -6,9 +6,11 @@ namespace ConnectX.Server.Models;
 public class Group(
     string roomName,
     string? roomPassword,
+    User roomOwner,
     List<User> users)
 {
     public Guid RoomId { get; } = Guid.NewGuid();
+    public User RoomOwner { get; } = roomOwner;
     public string RoomShortId { get; } = RandomHelper.GetRandomString();
     public bool IsPrivate { get; set; }
     public string RoomName { get; set; } = roomName;
@@ -27,6 +29,7 @@ public class Group(
             RoomDescription = group.RoomDescription,
             RoomId = group.RoomId,
             RoomName = group.RoomName,
+            RoomOwnerId = group.RoomOwner.UserId,
             RoomShortId = group.RoomShortId,
             Users = group.Users.Select(x => (UserInfo) x).ToArray()
         };

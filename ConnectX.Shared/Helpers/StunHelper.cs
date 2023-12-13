@@ -1,6 +1,14 @@
 ﻿using System.Net;
+using System.Net.Sockets;
+using ConnectX.Shared.Messages.Query;
+using ConnectX.Shared.Messages.Query.Response;
 using ConnectX.Shared.Models;
 using DnsClient;
+using Hive.Both.General.Dispatchers;
+using Hive.Network.Abstractions.Session;
+using Hive.Network.Tcp;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using STUN;
 using STUN.Client;
 using STUN.Enums;
@@ -88,5 +96,108 @@ public static class StunHelper
                    stun.FilteringBehavior is FilteringBehavior.None => NatTypes.Direct,
             _ => NatTypes.Unknown
         };
+    }
+
+    public static async Task<PortPredictResult> PredictPublicPortAsync(
+        IServiceProvider serviceProvider,
+        ILogger logger,
+        IPEndPoint serverEndPoint,
+        CancellationToken ct)
+    {
+        const int sampleCount = 20;
+        List<(int, int)> results = [];
+        List<int> dist = [];
+
+        int? prevPort = null;
+
+        for (var i = 1000; i < 1000 + sampleCount && !ct.IsCancellationRequested; i++)
+        {
+            if (!NetworkHelper.PortIsAvailable(i))
+                continue;
+            try
+            {
+                var port = await QueryPublicPortAsync(serviceProvider, serverEndPoint, i, ct);
+
+                logger.LogDebug("Port {I} map to {Port}", i, port);
+
+                if (prevPort != null)
+                {
+                    dist.Add(port - prevPort.Value);
+                    results.Add((i, port));
+                }
+
+                prevPort = port;
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Error when querying port {I}", i);
+            }
+        }
+
+        var distMean = dist.Average();
+        var sameCount = 0; //统计privatePort和publicPort相同的次数
+        foreach (var (privatePort, publicPort) in results) sameCount += privatePort == publicPort ? 1 : 0;
+
+        var sameRate = (double)sameCount / results.Count;
+
+        var changeLaw = distMean switch
+        {
+            <= 1 => ChangeLaws.Decrease,
+            >= 1 => ChangeLaws.Increase,
+            _ => ChangeLaws.Random
+        };
+        var testMin = results.Min(t => t.Item2);
+        var testMax = results.Max(t => t.Item2);
+        
+        var lower = changeLaw switch
+        {
+            ChangeLaws.Decrease or ChangeLaws.Random => testMin - 500,
+            ChangeLaws.Increase => testMin - 100,
+            _ => throw new ArgumentOutOfRangeException()
+        };
+
+        var upper = changeLaw switch
+        {
+            ChangeLaws.Increase or ChangeLaws.Random => testMin + 500,
+            ChangeLaws.Decrease => testMax + 100,
+            _ => throw new ArgumentOutOfRangeException()
+        };
+
+        return new PortPredictResult(
+            lower,
+            upper,
+            (int)distMean,
+            changeLaw,
+            sameRate > 0.5,
+            results.Last().Item2
+        );
+    }
+
+
+    public static async Task<int> QueryPublicPortAsync(
+        IServiceProvider serviceProvider,
+        IPEndPoint serverEndPoint,
+        int privatePort,
+        CancellationToken ct)
+    {
+        var tmpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        tmpSocket.Bind(new IPEndPoint(IPAddress.Any, privatePort));
+
+        await tmpSocket.ConnectAsync(serverEndPoint, ct);
+        
+        var session = ActivatorUtilities.CreateInstance<TcpSession>(serviceProvider, 0, tmpSocket);
+        var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(serviceProvider);
+        var dispatchSession = new DispatchableSession(session, dispatcher, ct);
+
+        var query = new TempQuery(QueryOps.PublicPort);
+        var result =
+            await dispatchSession.Dispatcher.SendAndListenOnce<TempQuery, PublicPortQueryResult>(session, query, ct);
+
+        if (result == null) return 0;
+        
+        session.Close();
+        dispatchSession.Dispose();
+
+        return result.Port;
     }
 }

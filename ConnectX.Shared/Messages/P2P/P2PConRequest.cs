@@ -11,13 +11,26 @@ public sealed partial class P2PConRequest : P2PConContext
     private P2PConRequest()
     {
     }
-
+    
     public P2PConRequest(
         int bargain,
         Guid targetId,
         Guid selfId,
         ushort selfPrivatePort,
         P2PConContext context) : base(context)
+    {
+        Bargain = bargain;
+        TargetId = targetId;
+        SelfPrivatePort = selfPrivatePort;
+        SelfId = selfId;
+    }
+
+    public P2PConRequest(
+        int bargain,
+        Guid targetId,
+        Guid selfId,
+        ushort selfPrivatePort,
+        P2PConContextInit context) : base(context)
     {
         Bargain = bargain;
         TargetId = targetId;

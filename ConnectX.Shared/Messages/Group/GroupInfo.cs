@@ -8,6 +8,7 @@ namespace ConnectX.Shared.Messages.Group;
 public partial record GroupInfo
 {
     public required Guid RoomId { get; init; }
+    public required Guid RoomOwnerId { get; init; }
     public required string RoomShortId { get; init; }
     public required bool IsPrivate { get; init; }
     public required string RoomName { get; init; }
@@ -16,9 +17,10 @@ public partial record GroupInfo
     public required int MaxUserCount { get; init; }
     public required UserInfo[] Users { get; init; }
 
-    public static readonly GroupInfo Invalid = new GroupInfo
+    public static readonly GroupInfo Invalid = new ()
     {
         RoomId = Guid.Empty,
+        RoomOwnerId = Guid.Empty,
         RoomShortId = string.Empty,
         IsPrivate = false,
         RoomName = string.Empty,

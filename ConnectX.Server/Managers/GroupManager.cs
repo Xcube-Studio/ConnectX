@@ -254,7 +254,8 @@ public class GroupManager
         if (IsAlreadyInGroup(userId, ctx.Dispatcher, ctx.FromSession)) return;
 
         var message = ctx.Message;
-        var group = new Group(message.RoomName, message.RoomPassword, [_userMapping[userId]])
+        var owner = _userMapping[userId];
+        var group = new Group(message.RoomName, message.RoomPassword, owner, [owner])
         {
             IsPrivate = message.IsPrivate,
             MaxUserCount = message.MaxUserCount <= 0 ? 10 : message.MaxUserCount,
@@ -362,8 +363,9 @@ public class GroupManager
         if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession)) return;
         
         var message = ctx.Message;
+        var group = _groupMappings.Values.First(g => g.Users.Any(u => u.UserId == message.UserId));
 
-        if (_groupMappings.TryRemove(message.GroupId, out var group))
+        if (group.RoomOwner.UserId == message.UserId)
         {
             _logger.LogInformation(
                 "[GROUP_MANAGER] Group [{groupId}] has been dismissed by [{userId}]",
@@ -391,9 +393,19 @@ public class GroupManager
         if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession)) return;
         
         var message = ctx.Message;
-        RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Kicked);
-
         var group = _groupMappings[message.GroupId];
+
+        if (group.RoomOwner.UserId != message.UserId)
+        {
+            _logger.LogWarning(
+                "[GROUP_MANAGER] User [{sessionId}] tried to kick user [{userId}] from group [{groupId}], but the user is not the owner.",
+                ctx.FromSession.Id.Id, message.UserId, message.GroupId);
+
+            return;
+        }
+        
+        RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Kicked);
+        
         var success = new GroupOpResult(true);
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
         
@@ -423,7 +435,7 @@ public class GroupManager
             return;
         }
 
-        var groupWithEmptyUserInfo = ((GroupInfo)group) with { Users = [] };
-        ctx.Dispatcher.SendAsync(session, (GroupInfo) group).Forget();
+        var groupWithEmptyUserInfo = (GroupInfo)group with { Users = [] };
+        ctx.Dispatcher.SendAsync(session, groupWithEmptyUserInfo).Forget();
     }
 }

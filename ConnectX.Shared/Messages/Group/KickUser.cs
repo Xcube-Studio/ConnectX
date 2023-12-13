@@ -9,5 +9,6 @@ namespace ConnectX.Shared.Messages.Group;
 public partial class KickUser : IRequireAssignedUserId
 {
     public required Guid UserId { get; init; }
+    public required Guid UserToKick { get; init; }
     public required Guid GroupId { get; init; }
 }
