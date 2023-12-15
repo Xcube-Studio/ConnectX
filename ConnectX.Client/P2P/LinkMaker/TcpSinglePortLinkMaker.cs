@@ -9,23 +9,26 @@ using Microsoft.Extensions.Logging;
 namespace ConnectX.Client.P2P.LinkMaker;
 
 public class TcpSinglePortLinkMaker(
-    IServiceProvider serviceProvider,
-    ILogger<TcpSinglePortLinkMaker> logger,
     long startTimeTick,
     Guid partnerId,
-    int localPort,
+    ushort localPort,
     IPEndPoint remoteIpe,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    IServiceProvider serviceProvider,
+    ILogger<TcpSinglePortLinkMaker> logger)
     : SingleToSingleLinkMaker(serviceProvider, logger, startTimeTick, partnerId, localPort, remoteIpe,
         cancellationToken)
 {
     public override async Task<ISession?> BuildLinkAsync()
     {
-        var connector = ServiceProvider.GetRequiredService<IConnector<TcpSession>>();
         TcpSession? link = null;
-
+        var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        receiveSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        
+        Socket conSocket;
         await Task.Run(async () =>
         {
+            receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
             var tryTime = 10;
             
             Logger.LogInformation(
@@ -44,17 +47,22 @@ public class TcpSinglePortLinkMaker(
                 try
                 {
                     tryTime--;
-                    link = await connector.ConnectAsync(RemoteIpe, Token);
+                    
+                    await receiveSocket.ConnectAsync(RemoteIpe, Token);
+                    
+                    conSocket = receiveSocket;
+                    link = ActivatorUtilities.CreateInstance<TcpSession>(ServiceProvider,
+                        0, conSocket);
                     
                     if (link == null)
                         throw new SocketException((int)SocketError.Fault, "Link is null");
 
                     InvokeOnConnected(link);
                 }
-                catch (SocketException)
+                catch (SocketException e)
                 {
-                    Logger.LogWarning(
-                        "[TCP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
+                    Logger.LogError(
+                        e, "[TCP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
                         LocalPort, RemoteIpe, tryTime);
 
                     if (tryTime == 0)

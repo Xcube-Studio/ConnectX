@@ -2,6 +2,7 @@
 using System.Net.Sockets;
 using Hive.Common.Shared.Helpers;
 using Hive.Network.Abstractions.Session;
+using Hive.Network.Shared.HandShake;
 using Hive.Network.Udp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -9,20 +10,20 @@ using Microsoft.Extensions.Logging;
 namespace ConnectX.Client.P2P.LinkMaker;
 
 public class UdpSinglePortLinkMaker(
-    IServiceProvider serviceProvider,
-    ILogger<UdpSinglePortLinkMaker> logger,
     long startTimeTick,
     Guid partnerId,
-    int localPort,
+    ushort localPort,
     IPEndPoint remoteIpe,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    IServiceProvider serviceProvider,
+    ILogger<UdpSinglePortLinkMaker> logger)
     : SingleToSingleLinkMaker(serviceProvider, logger, startTimeTick, partnerId, localPort, remoteIpe,
         cancellationToken)
 {
     public override async Task<ISession?> BuildLinkAsync()
     {
         using var handshakeTokenSource = new CancellationTokenSource();
-        var connector = ServiceProvider.GetRequiredService<IConnector<UdpSession>>();
+        
         UdpSession? link = null;
         
         Logger.LogInformation(
@@ -45,17 +46,31 @@ public class UdpSinglePortLinkMaker(
                 try
                 {
                     tryTime--;
-                    link = await connector.ConnectAsync(RemoteIpe, handshakeTokenSource.Token);
+                    
+                    var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                    receiveSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
+                    receiveSocket.Ttl = 32;
+
+                    var shakeResult = await receiveSocket.HandShakeWith(RemoteIpe);
+
+                    if (!shakeResult.HasValue) continue;
+
+                    var sessionId = shakeResult.Value.SessionId;
+                    
+                    link = ActivatorUtilities.CreateInstance<UdpSession>(
+                        ServiceProvider,
+                        sessionId, receiveSocket, RemoteIpe);
                     
                     if (link == null)
                         throw new SocketException((int)SocketError.Fault, "Link is null");
 
                     InvokeOnConnected(link);
                 }
-                catch (SocketException)
+                catch (SocketException e)
                 {
-                    Logger.LogWarning(
-                        "[UDP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
+                    Logger.LogError(
+                        e, "[UDP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
                         LocalPort, RemoteIpe, tryTime);
                     
                     if (tryTime == 0)

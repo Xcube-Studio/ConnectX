@@ -9,15 +9,15 @@ using Microsoft.Extensions.Logging;
 namespace ConnectX.Client.P2P.LinkMaker;
 
 public class TcpSingleToManyLinkMaker(
-    IServiceProvider serviceProvider,
-    ILogger<TcpSingleToManyLinkMaker> logger,
     long startTimeTick,
     Guid partnerId,
     int selfSocketCount,
     int[] targetPredictPort,
     IPAddress targetIp,
-    int selfPort,
-    CancellationToken cancellationToken)
+    ushort selfPort,
+    CancellationToken cancellationToken,
+    IServiceProvider serviceProvider,
+    ILogger<TcpSingleToManyLinkMaker> logger)
     : SingleToManyLinkMaker(serviceProvider, logger,
         startTimeTick, partnerId, selfSocketCount, targetPredictPort, targetIp,
         selfPort, cancellationToken)
@@ -28,7 +28,6 @@ public class TcpSingleToManyLinkMaker(
 
     public override async Task<ISession?> BuildLinkAsync()
     {
-        var connector = ServiceProvider.GetRequiredService<IConnector<TcpSession>>();
         var unusedPredictPort = new Queue<int>(TargetPredictPort);
         var handshakeTokenSource = new CancellationTokenSource();
         TcpSession? link = null;
@@ -42,6 +41,13 @@ public class TcpSingleToManyLinkMaker(
                 Logger.LogInformation(
                     "[TCP_S2M] Start time {DateTime}",
                     new DateTime(StartTimeTick).ToLongTimeString());
+                
+                var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                
+                receiveSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                receiveSocket.Bind(new IPEndPoint(IPAddress.Any, SelfPort));
+
+                Socket conSocket;
 
                 await TaskHelper.WaitUtil(() => !handshakeTokenSource.IsCancellationRequested &&
                                                 DateTime.UtcNow.Ticks < StartTimeTick, handshakeTokenSource.Token);
@@ -66,7 +72,12 @@ public class TcpSingleToManyLinkMaker(
                             using var cts = new CancellationTokenSource();
                             cts.CancelAfter(TimeSpan.FromSeconds(1));
 
-                            link = await connector.ConnectAsync(remoteIpe, cts.Token);
+                            await receiveSocket.ConnectAsync(remoteIpe, cts.Token);
+                            
+                            conSocket = receiveSocket;
+                            link = ActivatorUtilities.CreateInstance<TcpSession>(
+                                ServiceProvider,
+                                0, conSocket);
                             
                             if (link == null)
                                 throw new SocketException((int)SocketError.Fault, "Link is null");
@@ -80,10 +91,10 @@ public class TcpSingleToManyLinkMaker(
                             await handshakeTokenSource.CancelAsync();
                             break;
                         }
-                        catch (SocketException)
+                        catch (SocketException e)
                         {
                             Logger.LogError(
-                                "[TCP_S2M] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
+                                e, "[TCP_S2M] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
                                 SelfPort, remoteIpe, tryTime);
                         }
                     }

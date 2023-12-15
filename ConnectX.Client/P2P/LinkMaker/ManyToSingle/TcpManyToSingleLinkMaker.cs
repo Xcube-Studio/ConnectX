@@ -9,19 +9,18 @@ using Microsoft.Extensions.Logging;
 namespace ConnectX.Client.P2P.LinkMaker.ManyToSingle;
 
 public class TcpManyToSingleLinkMaker(
-    IServiceProvider serviceProvider,
-    ILogger<TcpManyToSingleLinkMaker> logger,
     long startTimeTick,
     Guid partnerId,
     IPEndPoint remoteIpe,
     int[] selfPredictPorts,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    IServiceProvider serviceProvider,
+    ILogger<TcpManyToSingleLinkMaker> logger)
     : ManyToSinglePortLinkMaker(serviceProvider, logger, startTimeTick, partnerId, remoteIpe, selfPredictPorts,
         cancellationToken)
 {
     public override async Task<ISession?> BuildLinkAsync()
     {
-        var connector = ServiceProvider.GetRequiredService<IConnector<TcpSession>>();
         var handshakeTokenSource = new CancellationTokenSource();
         TcpSession? link = null;
 
@@ -31,8 +30,15 @@ public class TcpManyToSingleLinkMaker(
                 List<Task> allConnectTasks = [];
                 foreach (var port in SelfPredictPorts)
                 {
+                    Socket conSocket;
+                    
                     var connectTask = Task.Run(async () =>
                     {
+                        var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                        
+                        receiveSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                        receiveSocket.Bind(new IPEndPoint(IPAddress.Any, port));
+                        
                         var tryTime = 100;
                         
                         Logger.LogInformation(
@@ -54,8 +60,13 @@ public class TcpManyToSingleLinkMaker(
 
                             try
                             {
-                                link = await connector.ConnectAsync(RemoteIpEndPoint!, handshakeTokenSource.Token);
+                                await receiveSocket.ConnectAsync(RemoteIpEndPoint!, handshakeTokenSource.Token);
                                 await handshakeTokenSource.CancelAsync();
+
+                                conSocket = receiveSocket;
+                                link = ActivatorUtilities.CreateInstance<TcpSession>(
+                                    ServiceProvider,
+                                    0, conSocket);
                                 
                                 if (link == null)
                                     throw new SocketException((int)SocketError.Fault, "Link is null");
@@ -64,10 +75,10 @@ public class TcpManyToSingleLinkMaker(
 
                                 succeedThisConnect = true;
                             }
-                            catch (SocketException)
+                            catch (SocketException e)
                             {
-                                Logger.LogWarning(
-                                    "[TCP_M2S] {LocalPort} Failed to connect {RemoteIpEndPoint}, remaining try time {TryTime}",
+                                Logger.LogError(
+                                    e, "[TCP_M2S] {LocalPort} Failed to connect {RemoteIpEndPoint}, remaining try time {TryTime}",
                                     port, RemoteIpEndPoint, tryTime);
 
                                 if (tryTime == 0)

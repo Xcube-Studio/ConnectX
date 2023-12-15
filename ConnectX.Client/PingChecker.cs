@@ -1,0 +1,106 @@
+﻿using System.Collections.Concurrent;
+using ConnectX.Client.Messages;
+using ConnectX.Shared.Helpers;
+using ConnectX.Shared.Models;
+using Hive.Both.General.Dispatchers;
+using Microsoft.Extensions.Logging;
+
+namespace ConnectX.Client;
+
+public class PingChecker
+{
+    private readonly Guid _selfId;
+    private readonly Guid _targetId;
+    private readonly DispatchableSession _session;
+    private readonly ILogger _logger;
+    
+    private uint _lastPingId;
+    private readonly ConcurrentDictionary<uint, Pong> _pongPackets = new();
+    
+    public PingChecker(
+        Guid selfId,
+        Guid targetId,
+        DispatchableSession session,
+        ILogger<PingChecker> logger)
+    {
+        _selfId = selfId;
+        _targetId = targetId;
+        _session = session;
+        _logger = logger;
+
+        session.Dispatcher.AddHandler<Ping>(OnPingReceived);
+        session.Dispatcher.AddHandler<Pong>(OnPongReceived);
+    }
+
+    private void OnPingReceived(MessageContext<Ping> ctx)
+    {
+        _logger.LogDebug(
+            "[PING_CHECKER] Ping received from {From}, receive time: {ReceiveTime}",
+            ctx.FromSession.RemoteEndPoint, DateTime.Now.Ticks);
+
+        var ping = ctx.Message;
+        var pong = new Pong
+        {
+            From = _selfId,
+            To = ping.From,
+            SeqId = ping.SeqId,
+            Ttl = 32
+        };
+        
+        _logger.LogDebug(
+            "[PING_CHECKER] Send Pong to {To}",
+            ctx.FromSession.RemoteEndPoint);
+        
+        _session.Dispatcher.SendAsync(_session.Session, pong).Forget();
+    }
+    
+    private void OnPongReceived(MessageContext<Pong> ctx)
+    {
+        _logger.LogDebug(
+            "[PING_CHECKER] Pong received from {From}",
+            ctx.FromSession.RemoteEndPoint);
+        
+        var pong = ctx.Message;
+        pong.SelfReceiveTime = DateTime.Now.Ticks;
+        
+        if (_pongPackets.ContainsKey(pong.SeqId))
+            _pongPackets.TryRemove(pong.SeqId, out _);
+        
+        _pongPackets.TryAdd(pong.SeqId, pong);
+    }
+
+    public async Task<int> CheckPingAsync()
+    {
+        _logger.LogDebug(
+            "[PING_CHECKER] Check ping to {To}",
+            _session.Session.RemoteEndPoint);
+        
+        var pingId = Interlocked.Increment(ref _lastPingId) - 1;
+        var ping = new Ping
+        {
+            From = _selfId,
+            To = _targetId,
+            SendTime = DateTime.Now.Ticks,
+            SeqId = pingId,
+            Ttl = 32
+        };
+
+        await _session.Dispatcher.SendAsync(_session.Session, ping);
+        
+        _logger.LogDebug(
+            "[PING_CHECKER] Send Ping to {To}",
+            _session.Session.RemoteEndPoint);
+
+        await TaskHelper.WaitUntilAsync(() => _pongPackets.ContainsKey(pingId));
+        
+        var result = int.MaxValue;
+        if (_pongPackets.TryRemove(pingId, out var receivedPong))
+            result = TimeSpan.FromTicks(receivedPong.SelfReceiveTime - ping.SendTime).Milliseconds;
+
+        _logger.LogDebug(
+            "[PING_CHECKER] Ping to {To} result: {Result}",
+            _session.Session.RemoteEndPoint, result);
+        
+        return result;
+    }
+}

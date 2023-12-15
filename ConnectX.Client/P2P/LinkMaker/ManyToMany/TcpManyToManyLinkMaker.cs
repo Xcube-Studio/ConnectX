@@ -9,14 +9,14 @@ using Microsoft.Extensions.Logging;
 namespace ConnectX.Client.P2P.LinkMaker.ManyToMany;
 
 public class TcpManyToManyLinkMaker(
-    IServiceProvider serviceProvider,
-    ILogger<TcpManyToManyLinkMaker> logger,
     long startTimeTick,
     Guid partnerId,
     IPAddress targetIp,
     int[] selfPredictPorts,
     int[] targetPredictPorts,
-    CancellationToken cancellationToken)
+    CancellationToken cancellationToken,
+    IServiceProvider serviceProvider,
+    ILogger<TcpManyToManyLinkMaker> logger)
     : ManyToManyPortLinkMaker(serviceProvider, logger, startTimeTick,
         partnerId, targetIp, selfPredictPorts, targetPredictPorts, cancellationToken)
 {
@@ -29,7 +29,6 @@ public class TcpManyToManyLinkMaker(
     {
         var unusedPredictPort = new Queue<int>(TargetPredictPorts);
         var handshakeTokenSource = new CancellationTokenSource();
-        var connector = ServiceProvider.GetRequiredService<IConnector<TcpSession>>();
 
         TcpSession? link = null;
 
@@ -40,11 +39,16 @@ public class TcpManyToManyLinkMaker(
                 while (unusedPredictPort.Count > 0)
                 {
                     var remotePort = unusedPredictPort.Dequeue();
+                    var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    
+                    receiveSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+                    
+                    Socket conSocket;
+                    
                     var connectTask = Task.Run(async () =>
                     {
                         var localPort = Shared.Helpers.NetworkHelper.GetAvailablePrivatePort();
                         var remoteIpe = new IPEndPoint(TargetIp, remotePort);
-
                         var tryTime = 10;
                         
                         Logger.LogInformation(
@@ -66,8 +70,13 @@ public class TcpManyToManyLinkMaker(
 
                             try
                             {
-                                link = await connector.ConnectAsync(remoteIpe, handshakeTokenSource.Token);
+                                await receiveSocket.ConnectAsync(remoteIpe, handshakeTokenSource.Token);
                                 await handshakeTokenSource.CancelAsync();
+
+                                conSocket = receiveSocket;
+                                link = ActivatorUtilities.CreateInstance<TcpSession>(
+                                    ServiceProvider,
+                                    0, conSocket);
 
                                 if (link == null)
                                     throw new SocketException((int)SocketError.Fault, "Link is null");
@@ -82,10 +91,10 @@ public class TcpManyToManyLinkMaker(
 
                                 break;
                             }
-                            catch (SocketException)
+                            catch (SocketException e)
                             {
-                                Logger.LogWarning(
-                                    "[TCP_M2M] {LocalPort} Failed to connect {RemoteIpe}, remaining try time {TryTime}",
+                                Logger.LogError(
+                                    e, "[TCP_M2M] {LocalPort} Failed to connect {RemoteIpe}, remaining try time {TryTime}",
                                     localPort, remoteIpe, tryTime);
                                 
                                 if (tryTime != 0) continue;

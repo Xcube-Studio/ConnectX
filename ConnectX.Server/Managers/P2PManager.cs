@@ -18,7 +18,11 @@ public class P2PManager
     private readonly GroupManager _groupManager;
     private readonly ILogger _logger;
 
-    private readonly ConcurrentDictionary<Guid, ISession> _userSessionMappings = new();
+    private readonly ConcurrentDictionary<Guid, SessionId> _userIdMappings = new();
+    private readonly ConcurrentDictionary<SessionId, Guid> _userSessionIdMappings = new();
+    private readonly ConcurrentDictionary<SessionId, ISession> _userSessionMappings = new();
+    
+    private readonly ConcurrentDictionary<Guid, ISession> _tempLinkMappings = new();
     private readonly ConcurrentDictionary<int, (ISession, P2PConRequest)> _conRequests = new();
     
     public P2PManager(
@@ -37,27 +41,41 @@ public class P2PManager
         _dispatcher.AddHandler<P2PConRequest>(OnReceivedP2PConRequest);
         _dispatcher.AddHandler<P2PConAccept>(OnReceivedP2PConAccept);
     }
+    
+    public event SessionDisconnectedHandler? OnSessionDisconnected;
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
-        if (!_groupManager.TryGetUser(sessionId, out var user))
+        if (!_userSessionIdMappings.TryRemove(sessionId, out var userId))
             return;
         
         _logger.LogInformation(
             "[P2P_MANAGER] User {userId} disconnected, session id: {sessionId}",
-            user!.UserId, sessionId.Id);
+            userId, sessionId.Id);
         
-        _userSessionMappings.TryRemove(user.UserId, out _);
+        _userSessionMappings.TryRemove(sessionId, out _);
+
+        if (_tempLinkMappings.TryRemove(userId, out var tempSession))
+        {
+            tempSession.Close();
+            OnSessionDisconnected?.Invoke(tempSession.Id);
+        }
     }
 
     private void OnReceivedP2PConRequest(MessageContext<P2PConRequest> ctx)
     {
+        _logger.LogInformation(
+            "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], session id: {sessionId}",
+            ctx.FromSession.Id.Id, ctx.Message.TargetId, ctx.FromSession.Id.Id);
+        
         var session = ctx.FromSession;
         var message = ctx.Message;
         
         _conRequests.TryAdd(message.Bargain, (session, message));
 
-        if (_userSessionMappings.TryGetValue(message.TargetId, out var targetConnection))
+        if (!_userIdMappings.TryGetValue(message.TargetId, out var sessionId) ||
+            !_tempLinkMappings.TryGetValue(message.SelfId, out _) ||
+            !_userSessionMappings.TryGetValue(sessionId, out var targetConnection))
         {
             _logger.LogWarning(
                 "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], but the target does not exist",
@@ -68,7 +86,7 @@ public class P2PManager
             
             return;
         }
-        
+
         _dispatcher.SendAsync(
             targetConnection!,
             new P2PConNotification
@@ -88,30 +106,33 @@ public class P2PManager
     
     private void OnReceivedP2PConAccept(MessageContext<P2PConAccept> ctx)
     {
-        var session = ctx.FromSession;
+        _logger.LogInformation(
+            "[P2P_MANAGER] User {userId} accepted P2P conn, session id: {sessionId}",
+            ctx.FromSession.Id.Id, ctx.FromSession.Id.Id);
+        
+        var from = ctx.FromSession;
         var message = ctx.Message;
 
-        if (!_conRequests.TryGetValue(message.Bargain, out var value))
+        if (!_conRequests.TryRemove(message.Bargain, out var value))
         {
             _logger.LogWarning(
                 "[P2P_MANAGER] User {userId} trying to accept P2P conn, but the request does not exist, session id: {sessionId}",
                 message.SelfId, ctx.FromSession.Id.Id);
             
             var err = new P2POpResult(false, "Request does not exist");
-            ctx.Dispatcher.SendAsync(session, err).Forget();
+            ctx.Dispatcher.SendAsync(from, err).Forget();
             
             return;
         }
         
         var (requesterCon, request) = value;
-        _conRequests.TryRemove(message.Bargain, out _);
 
         var time = DateTime.UtcNow.AddSeconds(5).Ticks;
-        var recipientIpBelievable = Equals(message.PublicAddress, session.RemoteEndPoint?.Address);
+        var recipientIpBelievable = Equals(message.PublicAddress, from.RemoteEndPoint?.Address);
         var requesterIpBelievable = Equals(request.PublicAddress, requesterCon.RemoteEndPoint?.Address);
 
         if (message.PortDeterminationMode == PortDeterminationMode.UseTempLinkPort)
-            message.PublicPort = (ushort)session.RemoteEndPoint!.Port;
+            message.PublicPort = (ushort)from.RemoteEndPoint!.Port;
         if (request.PortDeterminationMode == PortDeterminationMode.UseTempLinkPort)
             request.PublicPort = (ushort)requesterCon.RemoteEndPoint!.Port;
 
@@ -119,7 +140,7 @@ public class P2PManager
             requesterCon,
             new P2PConReady(message.SelfId, time, message)
             {
-                PublicAddress = recipientIpBelievable ? message.PublicAddress : session.RemoteEndPoint?.Address,
+                PublicAddress = recipientIpBelievable ? message.PublicAddress : from.RemoteEndPoint?.Address,
                 Bargain = message.Bargain
             }).Forget();
 
@@ -131,70 +152,84 @@ public class P2PManager
                 Bargain = message.Bargain
             }
         };
-        ctx.Dispatcher.SendAsync(session, result).Forget();
+        ctx.Dispatcher.SendAsync(from, result).Forget();
         
         _logger.LogInformation(
             "[P2P_MANAGER] User {userId} accepted P2P conn, session id: {sessionId}",
             message.SelfId, ctx.FromSession.Id.Id);
     }
 
-    private IEnumerable<Guid> GetPossibleInterconnectUsers(SigninMessage user)
+    private IEnumerable<Guid> GetPossibleInterconnectUsers(Guid selfUserId)
     {
-        foreach (var tempUser in _groupManager.GetAllUsers())
+        foreach (var (sessionId, _) in _userSessionMappings)
         {
-            if (tempUser.UserId == user.Id) continue;
+            if (!_groupManager.TryGetUser(sessionId, out var user)) continue;
+            if (user!.UserId == selfUserId) continue;
             
             switch (user.MappingBehavior)
             {
                 case MappingBehavior.EndpointIndependent:
-                    if (tempUser.MappingBehavior
+                    if (user.MappingBehavior
                         is MappingBehavior.EndpointIndependent
                         or MappingBehavior.AddressDependent
                         or MappingBehavior.AddressAndPortDependent)
-                        yield return tempUser.UserId;
+                        yield return user.UserId;
                     break;
                 case MappingBehavior.AddressDependent:
                 case MappingBehavior.AddressAndPortDependent:
-                    if (tempUser.MappingBehavior == MappingBehavior.EndpointIndependent)
-                        yield return tempUser.UserId;
+                    if (user.MappingBehavior == MappingBehavior.EndpointIndependent)
+                        yield return user.UserId;
                     break;
             }
         }
     }
+
+    public void AttachTempSession(
+        ISession session,
+        SigninMessage signinMessage)
+    {
+        _logger.LogInformation(
+            "[P2P_MANAGER] User requested to join the P2P network, session id: {sessionId}",
+            signinMessage.Id);
+
+        _tempLinkMappings.AddOrUpdate(signinMessage.Id, session, (_, _) => session);
+        
+        _logger.LogInformation(
+            "[P2P_MANAGER] User {userId} requested to join the P2P network, session id: {sessionId}",
+            signinMessage.Id,
+            session.Id.Id);
+    }
     
     public void AttachSession(
         ISession session,
+        Guid userId,
         SigninMessage signinMessage)
     {
         if (!signinMessage.JoinP2PNetwork)
         {
             _logger.LogInformation(
-                "[P2P_MANAGER] User {userId} requested to not join the P2P network, session id: {sessionId}",
-                signinMessage.Id,
+                "[P2P_MANAGER] User requested to not join the P2P network, session id: {sessionId}",
                 session.Id.Id);
             return;
         }
         
-        if (!_userSessionMappings.TryAdd(signinMessage.Id, session))
+        if (!_userSessionMappings.TryAdd(session.Id, session) ||
+            !_userSessionIdMappings.TryAdd(session.Id, userId) ||
+            !_userIdMappings.TryAdd(userId, session.Id))
         {
             _logger.LogError(
                 "[P2P_MANAGER] Failed to add session to the session mapping, session id: {sessionId}",
                 session.Id.Id);
             return;
         }
+
+        var possibleInterconnectUsers = GetPossibleInterconnectUsers(userId).ToArray();
         
-        _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} requested to join the P2P network, session id: {sessionId}",
-            signinMessage.Id,
-            session.Id.Id);
-
-        var possibleInterconnectUsers =
-            GetPossibleInterconnectUsers(signinMessage)
-                .ToArray();
+        if (possibleInterconnectUsers.Length == 0) return;
 
         _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} has {count} possible interconnect users, session id: {sessionId}",
-            signinMessage.Id, possibleInterconnectUsers.Length, session.Id.Id);
+            "[P2P_MANAGER] User has {count} possible interconnect users, session id: {sessionId}",
+            possibleInterconnectUsers.Length, session.Id.Id);
 
         var message = new P2PInterconnect(possibleInterconnectUsers);
         

@@ -11,7 +11,15 @@ public static class TaskHelper
     {
         while (!predicate())
         {
-            await Task.Delay(100, cancellationToken);
+            try
+            {
+                await Task.Delay(100, cancellationToken);
+            }
+            catch (TaskCanceledException e)
+            {
+                Console.WriteLine(e);
+                break;
+            }
         }
     }
 }

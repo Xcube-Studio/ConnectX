@@ -7,7 +7,7 @@ namespace ConnectX.Shared.Messages.P2P;
 [MemoryPackable]
 public partial class P2POpResult(bool isSucceeded, string? errorMessage = null)
 {
-    public bool IsSucceeded { get; init; }
-    public string? ErrorMessage { get; init; }
+    public bool IsSucceeded { get; init; } = isSucceeded;
+    public string? ErrorMessage { get; init; } = errorMessage;
     public P2PConContext? Context { get; init; }
 }

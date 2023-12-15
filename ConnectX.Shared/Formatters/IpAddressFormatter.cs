@@ -19,13 +19,14 @@ public class IpAddressFormatter : MemoryPackFormatter<IPAddress>
 
     public override void Deserialize(ref MemoryPackReader reader, scoped ref IPAddress? value)
     {
-        if (!reader.TryReadObjectHeader(out var count))
+        var arr = reader.ReadArray<byte>();
+
+        if (arr == null || arr.Length == 0)
         {
             value = null;
             return;
         }
 
-        var arr = reader.ReadArray<byte>()!;
         value = new IPAddress(arr);
     }
 }

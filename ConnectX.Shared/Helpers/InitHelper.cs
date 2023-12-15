@@ -15,6 +15,7 @@ public static class InitHelper
 {
     public static void AddConnectX(this IServiceCollection services)
     {
+        MemoryPackFormatterProvider.Register(new IPEndPointFormatter());
         MemoryPackFormatterProvider.Register(new IpAddressFormatter());
         
         services.AddSingleton<ICustomCodecProvider, DefaultCustomCodecProvider>();

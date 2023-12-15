@@ -51,9 +51,20 @@ public class Server : BackgroundService
         _p2PManager = p2PManager;
         _logger = logger;
         
+        _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
+        _p2PManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
+        
         _acceptor.BindTo(_dispatcher);
         _dispatcher.AddHandler<SigninMessage>(OnSigninMessageReceived);
         _dispatcher.AddHandler<TempQuery>(OnTempQueryReceived);
+    }
+
+    private void ClientManagerOnSessionDisconnected(SessionId sessionid)
+    {
+        var newVal = Interlocked.Decrement(ref _currentSessionCount);
+        _logger.LogInformation(
+            "[SERVER] Current online [{count}]",
+            newVal);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -100,7 +111,6 @@ public class Server : BackgroundService
 
     private void AcceptorOnOnSessionCreated(IAcceptor acceptor, SessionId id, TcpSession session)
     {
-        var newVal = Interlocked.Increment(ref _currentSessionCount);
         var currentTime = DateTime.UtcNow;
 
         session.StartAsync(CancellationToken.None).Forget();
@@ -117,9 +127,6 @@ public class Server : BackgroundService
         _logger.LogInformation(
             "[CLIENT] New Session joined, EndPoint [{endPoint}] ID [{id}], wait for signin message.",
             session.RemoteEndPoint, id.Id);
-        _logger.LogInformation(
-            "[SERVER] Current online [{count}]",
-            newVal);
     }
 
     private void OnTempQueryReceived(MessageContext<TempQuery> ctx)
@@ -143,26 +150,34 @@ public class Server : BackgroundService
         // Remove temp session mapping
         if (!_tempSessionMapping.TryRemove(session.Id, out _))
             return;
+        
+        var newVal = Interlocked.Increment(ref _currentSessionCount);
+        _logger.LogInformation(
+            "[SERVER] Current online [{count}]",
+            newVal);
 
         _logger.LogInformation(
             "[CLIENT] SigninMessage received from [{endPoint}] ID [{id}]",
             session.RemoteEndPoint,
             session.Id.Id);
-        
-        _clientManager.AttachSession(session.Id, session);
-        
-        if (_groupManager.TryGetUser(ctx.Message.Id, out _))
+
+        if (ctx.Message.Id != default)
         {
             _logger.LogInformation(
                 "[CLIENT] User [{userId}] created a temp link for P2P connection. Attach session to P2PManager.",
                 ctx.Message.Id);
-            _p2PManager.AttachSession(session, ctx.Message);
-
-            return;
+            
+            _p2PManager.AttachTempSession(session, ctx.Message);
+            _dispatcher.SendAsync(session, new SigninSucceeded(ctx.Message.Id)).Forget();
         }
-        
-        var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
-        _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
+        else
+        {
+            _clientManager.AttachSession(session.Id, session);
+            var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
+            _p2PManager.AttachSession(session, userId, ctx.Message);
+            
+            _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
+        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

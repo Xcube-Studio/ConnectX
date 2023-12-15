@@ -1,4 +1,5 @@
 ﻿using ConnectX.Client.Interfaces;
+using ConnectX.Client.Managers;
 using ConnectX.Shared.Interfaces;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Models;
@@ -20,6 +21,7 @@ public class Client
     public event GroupStateChangedHandler? OnGroupStateChanged;
     
     public Client(
+        PartnerManager partnerManager,
         IDispatcher dispatcher,
         IServerLinkHolder serverLinkHolder,
         ILogger<Client> logger)

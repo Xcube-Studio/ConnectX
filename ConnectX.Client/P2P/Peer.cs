@@ -35,14 +35,17 @@ public record Peer(
         
         Task.Run(async () =>
         {
-            while (!HeartBeatCtSource.IsCancellationRequested ||
-                   (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds > 15)
+            while (!HeartBeatCtSource.IsCancellationRequested &&
+                   (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds <= 15)
             {
                 try
                 {
                     DirectLink.Dispatcher.SendAsync(
                         DirectLink.Session,
-                        new ChatMessage { Message = Random.Shared.Next().ToString() }).Forget();
+                        new ChatMessage
+                        {
+                            Message = $"Hello from {Id}[{DirectLink.Session.RemoteEndPoint}] with random message {Random.Shared.Next()}"
+                        }).Forget();
                     
                     await Task.Delay(TimeSpan.FromSeconds(10), HeartBeatCtSource.Token);
                 }

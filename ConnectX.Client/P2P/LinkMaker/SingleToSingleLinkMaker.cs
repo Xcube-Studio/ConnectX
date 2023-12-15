@@ -8,12 +8,12 @@ public abstract class SingleToSingleLinkMaker(
     ILogger<SingleToSingleLinkMaker> logger,
     long startTimeTick,
     Guid partnerId,
-    int localPort,
+    ushort localPort,
     IPEndPoint remoteIpe,
     CancellationToken cancellationToken)
     : P2PLinkMaker(startTimeTick, partnerId, serviceProvider, logger, cancellationToken)
 {
-    protected readonly int LocalPort = localPort;
+    protected readonly ushort LocalPort = localPort;
     protected readonly IPEndPoint RemoteIpe = remoteIpe;
 
     public override IPEndPoint RemoteIpEndPoint => RemoteIpe;

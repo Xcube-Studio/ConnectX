@@ -3,7 +3,10 @@ using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
+using ConnectX.Shared.Messages.P2P;
+using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
+using Hive.Codec.Abstractions;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
@@ -24,13 +27,15 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public bool IsSignedIn { get; private set; }
     public Guid UserId { get; private set; }
     public StunResult5389? NatType { get; private set; }
-    
+    private IPacketCodec _c;
     public ServerLinkHolder(
+        IPacketCodec c,
         IDispatcher dispatcher,
         IClientSettingProvider settingProvider,
         IConnector<TcpSession> tcpConnector,
         ILogger<ServerLinkHolder> logger)
     {
+        _c = c;
         _dispatcher = dispatcher;
         _settingProvider = settingProvider;
         _tcpConnector = tcpConnector;
@@ -92,6 +97,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
             MappingBehavior = natType.MappingBehavior,
             JoinP2PNetwork = _settingProvider.JoinP2PNetwork
         });
+
         await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
         
         _logger.LogInformation("[CLIENT] Connected and signed to server at endpoint {endPoint}", endPoint);

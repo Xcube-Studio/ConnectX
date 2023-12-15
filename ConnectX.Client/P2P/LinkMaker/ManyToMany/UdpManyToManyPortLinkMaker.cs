@@ -1,6 +1,8 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using ConnectX.Shared.Helpers;
 using Hive.Network.Abstractions.Session;
+using Hive.Network.Shared.HandShake;
 using Hive.Network.Udp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -8,15 +10,15 @@ using Microsoft.Extensions.Logging;
 namespace ConnectX.Client.P2P.LinkMaker.ManyToMany;
 
 public class UdpManyToManyPortLinkMaker(
-    IServiceProvider serviceProvider,
-    ILogger<UdpManyToManyPortLinkMaker> logger,
     long startTimeTick,
     Guid partnerId,
     int selfSocketCount,
     int[] targetPredictPort,
     IPAddress targetIp,
-    int selfPort,
-    CancellationToken cancellationToken)
+    ushort selfPort,
+    CancellationToken cancellationToken,
+    IServiceProvider serviceProvider,
+    ILogger<UdpManyToManyPortLinkMaker> logger)
     : SingleToManyLinkMaker(serviceProvider, logger,
         startTimeTick, partnerId, selfSocketCount, targetPredictPort, targetIp,
         selfPort, cancellationToken)
@@ -49,12 +51,24 @@ public class UdpManyToManyPortLinkMaker(
                         try
                         {
                             var remoteIp = new IPEndPoint(TargetIp, targetPort);
-
-                            succeedLink = await connector.ConnectAsync(remoteIp, tokenSource.Token);
-
+                            var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
+                                { Ttl = 8 };
+                            
                             Logger.LogInformation(
                                 "[UDP_S2M] {LocalPort} Started to try UDP connection with {RemoteIpe}",
                                 SelfPort, remoteIp);
+                            
+                            socket.Bind(new IPEndPoint(IPAddress.Any, NetworkHelper.GetAvailablePrivatePort()));
+                            
+                            var shakeResult = await socket.HandShakeWith(remoteIp);
+
+                            if (!shakeResult.HasValue) continue;
+                            
+                            var sessionId = shakeResult.Value.SessionId;
+
+                            succeedLink = ActivatorUtilities.CreateInstance<UdpClientSession>(
+                                ServiceProvider,
+                                sessionId, socket, remoteIp);
                             
                             if (succeedLink == null)
                                 throw new SocketException((int)SocketError.Fault, "Link is null");
@@ -64,8 +78,8 @@ public class UdpManyToManyPortLinkMaker(
                         catch (SocketException e)
                         {
                             Logger.LogError(
-                                "[UDP_S2M] {LocalPort} Failed to try UDP connection with {RemoteIpe}, {Exception}",
-                                SelfPort, RemoteIpEndPoint, e);
+                                e, "[UDP_S2M] {LocalPort} Failed to try UDP connection with {RemoteIpe}",
+                                SelfPort, RemoteIpEndPoint);
                         }
                     }
                 }

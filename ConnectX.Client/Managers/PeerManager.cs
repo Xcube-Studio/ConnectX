@@ -1,5 +1,7 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Collections;
+using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.P2P;
 using ConnectX.Shared.Helpers;
@@ -18,7 +20,7 @@ using TaskHelper = Hive.Common.Shared.Helpers.TaskHelper;
 
 namespace ConnectX.Client.Managers;
 
-public class PeerManager : BackgroundService
+public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Peer>>
 {
     private readonly UpnpManager _upnpManager;
     private readonly IDispatcher _dispatcher;
@@ -58,6 +60,12 @@ public class PeerManager : BackgroundService
     public event Action<Guid, Peer>? OnPeerAdded;
     public event Action<Guid, Peer>? OnPeerRemoved;
 
+    public Peer this[Guid userId]
+    {
+        get => _connectedPeers[userId];
+        set => _connectedPeers[userId] = value;
+    }
+    
     private void OnReceivedP2PInterconnect(MessageContext<P2PInterconnect> ctx)
     {
         var message = ctx.Message;
@@ -76,13 +84,34 @@ public class PeerManager : BackgroundService
                     continue;
                 if (_connectedPeers.ContainsKey(user))
                     continue;
+                
+                _logger.LogInformation(
+                    "[Peer] Trying to establish P2P connection with user {User}",
+                    user);
 
-                var conResult = await RequestConnectPartnerAsync(user, false, CancellationToken.None);
+                try
+                {
+                    var conResult = await RequestConnectPartnerAsync(user, false, CancellationToken.None);
 
-                if (conResult)
-                    _logger.LogInformation(
-                        "[Peer] Successfully established P2P connection with user {User}",
+                    if (conResult)
+                    {
+                        _logger.LogError(
+                            "[Peer] Successfully established P2P connection with user {User}",
+                            user);
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "[Peer] Failed to establish P2P connection with user {User}",
+                            user);
+                    }
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(
+                        e, "[Peer] Failed to establish P2P connection with user {User}",
                         user);
+                }
             }
         }).Forget();
     }
@@ -93,7 +122,7 @@ public class PeerManager : BackgroundService
         
         if (_bargainsDic.TryGetValue(message.PartnerIds, out var value))
         {
-            //说明本机也发送了P2pConRequest给对方
+            //说明本机也发送了P2PConRequest给对方
             if (value > message.Bargain)
             {
                 //本机发送的P2pConRequest的bargain值比对方的大，忽略这个P2PConNotification
@@ -122,11 +151,18 @@ public class PeerManager : BackgroundService
         
         Task.Run(async () =>
         {
-            var tmpLink = await CreateTempServerLinkAsync(partnerId, cts);
-            if (tmpLink == null) return;
+            var tmpLink = await CreateTempServerLinkAsync(partnerId, cts.Token);
+
+            if (tmpLink == null)
+            {
+                _logger.LogError(
+                    "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
+                    partnerId);
+
+                return;
+            }
 
             var privatePort = tmpLink.Session.LocalEndPoint?.Port ?? NetworkHelper.GetAvailablePrivatePort();
-
             var conContext = await GetSelfConContextAsync(privatePort, message.UseUdp, cts.Token);
             var conAccept = new P2PConAccept(message.Bargain, _serverLinkHolder.UserId, conContext);
             var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
@@ -161,10 +197,15 @@ public class PeerManager : BackgroundService
     private void CheckLinkState()
     {
         foreach (var (guid, _) in _connectedPeers.Where(p => !p.Value.IsConnected))
+        {
+            _logger.LogWarning(
+                "[Peer] Peer {PartnerId} is disconnected, removing it from connected peers",
+                guid);
             _connectedPeers.TryRemove(guid, out _);
+        }
     }
     
-    private async Task<DispatchableSession?> CreateTempServerLinkAsync(Guid partnerId, CancellationTokenSource cts)
+    private async Task<DispatchableSession?> CreateTempServerLinkAsync(Guid partnerId, CancellationToken cancellationToken)
     {
         if (_tmpLinkMakerDic.TryRemove(partnerId, out var old))
         {
@@ -176,18 +217,28 @@ public class PeerManager : BackgroundService
         }
         
         var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
-        var tmpLink = await _tcpConnector.ConnectAsync(endPoint, cts.Token);
-        
-        if (tmpLink == null)
+        var tmpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        tmpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+
+        try
         {
-            _logger.LogWarning(
-                "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
+            await tmpSocket.ConnectAsync(endPoint, cancellationToken);
+        }
+        catch (SocketException e)
+        {
+            _logger.LogError(
+                e, "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
                 partnerId);
+            
             return null;
         }
+        
+        var tmpLink = ActivatorUtilities.CreateInstance<TcpSession>(
+            _serviceProvider,
+            0, tmpSocket);
 
         var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
-        var dispatchSession = new DispatchableSession(tmpLink, dispatcher, cts.Token);
+        var dispatchSession = new DispatchableSession(tmpLink, dispatcher, cancellationToken);
         var signin = new SigninMessage
         {
             BindingTestResult = BindingTestResult.Unknown,
@@ -199,7 +250,7 @@ public class PeerManager : BackgroundService
         var signinSucceeded = await dispatchSession.Dispatcher.SendAndListenOnce<SigninMessage, SigninSucceeded>(
             dispatchSession.Session,
             signin,
-            cts.Token);
+            cancellationToken);
 
         if (signinSucceeded == null)
         {
@@ -208,6 +259,10 @@ public class PeerManager : BackgroundService
                 partnerId);
             return null;
         }
+        
+        _logger.LogInformation(
+            "[Peer] Successfully created a temp link with server to connect with partner {partnerId}, local endpoint: {LocalEndPoint}",
+            partnerId, dispatchSession.Session.LocalEndPoint);
         
         return dispatchSession;
     }
@@ -236,6 +291,7 @@ public class PeerManager : BackgroundService
         else if ((_serverLinkHolder.NatType?.MappingBehavior ?? MappingBehavior.Unknown)
                  is MappingBehavior.Direct or MappingBehavior.EndpointIndependent)
         {
+            _logger.LogInformation("[Peer] NAT's behavior is not symmetric, using the same port as the temp link.");
             conInfo = new P2PConContextInit
             {
                 PortDeterminationMode = PortDeterminationMode.UseTempLinkPort,
@@ -244,6 +300,7 @@ public class PeerManager : BackgroundService
         }
         else
         {
+            _logger.LogWarning("[Peer] NAT's behavior is symmetric, using port prediction to connect to partner.");
             var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
             var predictPorts =
                 await StunHelper.PredictPublicPortAsync(_serviceProvider, _logger, endPoint, cancellationToken);
@@ -253,6 +310,16 @@ public class PeerManager : BackgroundService
 
         conInfo = conInfo with {UseUdp = useUdp};
         return conInfo;
+    }
+    
+    /// <summary>
+    ///     添加指定ID的用户为Peer，PeerManager会在合适的时候与其建立Link
+    /// </summary>
+    /// <param name="userId"></param>
+    /// <returns></returns>
+    public bool AddLink(Guid userId)
+    {
+        return _allPeers.TryAdd(userId, false);
     }
     
     public bool AddLink(Peer peer)
@@ -288,13 +355,13 @@ public class PeerManager : BackgroundService
         var cts = new CancellationTokenSource();
         var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
         var session = new DispatchableSession(conInitiator.EstablishedConnection, dispatcher, cts.Token);
-
         var peer = ActivatorUtilities.CreateInstance<Peer>(
             _serviceProvider,
             partnerId,
             conInitiator.RemoteEndPoint!,
             session,
             cts);
+        
         peer.StartHeartBeat();
 
         AddLink(peer);
@@ -315,6 +382,10 @@ public class PeerManager : BackgroundService
                 _logger.LogWarning(
                     "[Peer] Failed to connect to partner {partnerId}",
                     partnerId);
+            else
+                _logger.LogInformation(
+                    "[Peer] Successfully connected to partner {partnerId}",
+                    partnerId);
             
             OnP2PConProcessorDone(partnerId, conInitiator);
         }
@@ -333,6 +404,11 @@ public class PeerManager : BackgroundService
         }
 
         return resultLink != null;
+    }
+    
+    public bool HasLink(Guid userId)
+    {
+        return _connectedPeers.ContainsKey(userId);
     }
     
     /// <summary>
@@ -355,10 +431,20 @@ public class PeerManager : BackgroundService
             return false;
         }
         
-        var cts = new CancellationTokenSource();
-        var tmpLink = await CreateTempServerLinkAsync(partnerId, cts);
+        _logger.LogInformation(
+            "[Peer] Trying to connect to partner {partnerId}",
+            partnerId);
         
-        if (tmpLink == null) return false;
+        var tmpLink = await CreateTempServerLinkAsync(partnerId, cancellationToken);
+
+        if (tmpLink == null)
+        {
+            _logger.LogError(
+                "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
+                partnerId);
+            
+            return false;
+        }
 
         var privatePort =
             tmpLink.Session.LocalEndPoint?.Port ?? NetworkHelper.GetAvailablePrivatePort();
@@ -381,7 +467,7 @@ public class PeerManager : BackgroundService
             endPoint,
             conRequest);
         
-        return await DoP2PConProcessorAsync(partnerId, conProcessor, cts.Token);
+        return await DoP2PConProcessorAsync(partnerId, conProcessor, cancellationToken);
     }
 
     private void EstablishLink(CancellationToken cancellationToken)
@@ -398,4 +484,7 @@ public class PeerManager : BackgroundService
             _allPeers.TryUpdate(key, true, false);
         }
     }
+
+    public IEnumerator<KeyValuePair<Guid, Peer>> GetEnumerator() => _connectedPeers.GetEnumerator();
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }

@@ -48,13 +48,25 @@ public class P2PConInitiator : IDisposable
         _logger = logger;
         _cancellationTokenSource = new CancellationTokenSource();
 
+        tmpLinkToServer.Dispatcher.AddHandler<P2POpResult>(OnP2POpResultReceived);
         tmpLinkToServer.Dispatcher.AddHandler<P2PConReady>(OnP2PConReadyReceived);
     }
     
     public Task<ISession?> StartAsync()
     {
         _completionSource = new TaskCompletionSource<ISession?>();
-        _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, _selfContext).Forget();
+        
+        switch (_selfContext)
+        {
+            case P2PConRequest req:
+                _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, req).Forget();
+                break;
+            case P2PConAccept accept:
+                _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, accept).Forget();
+                break;
+            default:
+                throw new InvalidOperationException("Invalid P2PConContext type");
+        }
         
         return _completionSource.Task;
     }
@@ -67,26 +79,55 @@ public class P2PConInitiator : IDisposable
         
         if (serverTmpSocket != null)
         {
-            serverTmpSocket.Session.Close();
-            serverTmpSocket.Dispose();
-
             _logger.LogInformation(
                 "[P2P_CONN_INIT] {LocalEndPoint} has closed the temp connection with server",
                 serverTmpSocket.Session.LocalEndPoint);
+            
+            serverTmpSocket.Session.Close();
+            serverTmpSocket.Dispose();
         }
 
         return directLink;
     }
+
+    private void OnP2POpResultReceived(MessageContext<P2POpResult> ctx)
+    {
+        var message = ctx.Message;
+
+        if (!message.IsSucceeded)
+        {
+            _logger.LogError(
+                "[P2P_CONN_INIT] Failed to establish P2P connection with {PartnerId}, reason: {Reason}",
+                _partnerId, message.ErrorMessage);
+
+            return;
+        }
+
+        switch (message.Context)
+        {
+            case P2PConReady ready:
+                P2PConReadyReceived(ready);
+                break;
+        }
+    }
+
+    private void OnP2PConReadyReceived(MessageContext<P2PConReady> ctx) => P2PConReadyReceived(ctx.Message);
     
-    private void OnP2PConReadyReceived(MessageContext<P2PConReady> ctx)
+    private void P2PConReadyReceived(P2PConReady message)
     {
         _logger.LogInformation(
             "[P2P_CONN_INIT] Received P2PConReady from {PartnerId}",
             _partnerId);
 
-        var message = ctx.Message;
+        if (message.RecipientId != _partnerId)
+        {
+            _logger.LogWarning(
+                "[P2P_CONN_INIT] Received P2PConReady from {PartnerId}, but the recipient is {RecipientId}",
+                _partnerId, message.RecipientId);
+            
+            return;
+        }
         
-        if (message.RecipientId != _partnerId) return;
         var connectionMaker = CreateLinkMaker(
             _partnerId,
             message.Time,
@@ -178,6 +219,9 @@ public class P2PConInitiator : IDisposable
             if (selfContext.PortDeterminationMode is
                 PortDeterminationMode.UseTempLinkPort or PortDeterminationMode.Upnp)
             {
+                _logger.LogInformation(
+                    "[P2P_CONN_INIT] Both sides can confirm their ports, using single port link maker");
+                
                 if (selfContext.UseUdp)
                     linkMaker = ActivatorUtilities.CreateInstance<UdpSinglePortLinkMaker>(
                         _serviceProvider,
@@ -197,6 +241,9 @@ public class P2PConInitiator : IDisposable
             }
             else
             {
+                _logger.LogInformation(
+                    "[P2P_CONN_INIT] Only target can confirm its port, using many to single port link maker");
+                
                 var selfPredictPort = ProducePredictPortArray(selfContext);
                 linkMaker = ActivatorUtilities.CreateInstance<TcpManyToSingleLinkMaker>(
                     _serviceProvider,
@@ -214,6 +261,9 @@ public class P2PConInitiator : IDisposable
             if (selfContext.PortDeterminationMode
                 is PortDeterminationMode.UseTempLinkPort or PortDeterminationMode.Upnp)
             {
+                _logger.LogInformation(
+                    "[P2P_CONN_INIT] Only self can confirm its port, using single to many port link maker");
+                
                 linkMaker = ActivatorUtilities.CreateInstance<TcpSingleToManyLinkMaker>(
                     _serviceProvider,
                     time,
@@ -227,6 +277,9 @@ public class P2PConInitiator : IDisposable
             }
             else //自己也是无法确认IP
             {
+                _logger.LogInformation(
+                    "[P2P_CONN_INIT] Both sides cannot confirm their ports, using many to many port link maker");
+                
                 var selfPredictPort = ProducePredictPortArray(selfContext);
                 // 寄了，但还是要尝试一下的
                 linkMaker = ActivatorUtilities.CreateInstance<TcpManyToManyLinkMaker>(
