@@ -18,11 +18,9 @@ public class P2PManager
     private readonly GroupManager _groupManager;
     private readonly ILogger _logger;
 
-    private readonly ConcurrentDictionary<Guid, SessionId> _userIdMappings = new();
-    private readonly ConcurrentDictionary<SessionId, Guid> _userSessionIdMappings = new();
-    private readonly ConcurrentDictionary<SessionId, ISession> _userSessionMappings = new();
-    
-    private readonly ConcurrentDictionary<Guid, ISession> _tempLinkMappings = new();
+    private readonly ConcurrentDictionary<SessionId, Guid> _sessionIdMapping = new();
+    private readonly ConcurrentDictionary<Guid, ISession> _userSessionMappings = new();
+    private readonly ConcurrentDictionary<SessionId, List<ISession>> _tempLinkMappings = new();
     private readonly ConcurrentDictionary<int, (ISession, P2PConRequest)> _conRequests = new();
     
     public P2PManager(
@@ -46,19 +44,22 @@ public class P2PManager
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
-        if (!_userSessionIdMappings.TryRemove(sessionId, out var userId))
-            return;
-        
         _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} disconnected, session id: {sessionId}",
-            userId, sessionId.Id);
-        
-        _userSessionMappings.TryRemove(sessionId, out _);
+            "[P2P_MANAGER] User disconnected, session id: {sessionId}",
+            sessionId.Id);
 
-        if (_tempLinkMappings.TryRemove(userId, out var tempSession))
+        if (_sessionIdMapping.TryRemove(sessionId, out var userId) &&
+            _userSessionMappings.TryRemove(userId, out var attachedSession))
         {
-            tempSession.Close();
-            OnSessionDisconnected?.Invoke(tempSession.Id);
+            attachedSession.Close();
+        }
+            
+        if (!_tempLinkMappings.TryRemove(sessionId, out var tempSessions)) return;
+        
+        foreach (var session in tempSessions)
+        {
+            session.Close();
+            OnSessionDisconnected?.Invoke(session.Id);
         }
     }
 
@@ -70,12 +71,15 @@ public class P2PManager
         
         var session = ctx.FromSession;
         var message = ctx.Message;
-        
-        _conRequests.TryAdd(message.Bargain, (session, message));
 
-        if (!_userIdMappings.TryGetValue(message.TargetId, out var sessionId) ||
-            !_tempLinkMappings.TryGetValue(message.SelfId, out _) ||
-            !_userSessionMappings.TryGetValue(sessionId, out var targetConnection))
+        if (!_conRequests.TryAdd(message.Bargain, (session, message)))
+        {
+            _logger.LogError(
+                "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], but the request already exists",
+                message.SelfId, message.TargetId);
+        }
+
+        if (!_userSessionMappings.TryGetValue(message.TargetId, out var targetConnection))
         {
             _logger.LogWarning(
                 "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], but the target does not exist",
@@ -88,7 +92,7 @@ public class P2PManager
         }
 
         _dispatcher.SendAsync(
-            targetConnection!,
+            targetConnection,
             new P2PConNotification
             {
                 Bargain = message.Bargain,
@@ -192,7 +196,11 @@ public class P2PManager
             "[P2P_MANAGER] User requested to join the P2P network, session id: {sessionId}",
             signinMessage.Id);
 
-        _tempLinkMappings.AddOrUpdate(signinMessage.Id, session, (_, _) => session);
+        _tempLinkMappings.AddOrUpdate(session.Id, [session], (_, list) =>
+        {
+            list.Add(session);
+            return list;
+        });
         
         _logger.LogInformation(
             "[P2P_MANAGER] User {userId} requested to join the P2P network, session id: {sessionId}",
@@ -213,9 +221,8 @@ public class P2PManager
             return;
         }
         
-        if (!_userSessionMappings.TryAdd(session.Id, session) ||
-            !_userSessionIdMappings.TryAdd(session.Id, userId) ||
-            !_userIdMappings.TryAdd(userId, session.Id))
+        if (!_userSessionMappings.TryAdd(userId, session) ||
+            !_sessionIdMapping.TryAdd(session.Id, userId))
         {
             _logger.LogError(
                 "[P2P_MANAGER] Failed to add session to the session mapping, session id: {sessionId}",

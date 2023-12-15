@@ -126,7 +126,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             if (value > message.Bargain)
             {
                 //本机发送的P2pConRequest的bargain值比对方的大，忽略这个P2PConNotification
-                _logger.LogInformation(
+                _logger.LogWarning(
                     "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with bigger bargain {Bigger}, ignore this request",
                     message.Bargain, message.PartnerIds, value);
                 return;
@@ -135,7 +135,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             if (value == message.Bargain) //2^31-1的概率
                 if (_serverLinkHolder.UserId.CompareTo(message.PartnerIds) < 0)
                 {
-                    _logger.LogInformation(
+                    _logger.LogWarning(
                         "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with same bargain {Bigger}, ignore this request",
                         message.Bargain, message.PartnerIds, value);
                     return;
@@ -209,6 +209,10 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     {
         if (_tmpLinkMakerDic.TryRemove(partnerId, out var old))
         {
+            _logger.LogWarning(
+                "[Peer] Canceling old temp link maker for partner {partnerId}",
+                partnerId);
+            
             var (oldSession, oldCts) = old;
 
             await oldCts.CancelAsync();
@@ -222,6 +226,10 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
         try
         {
+            _logger.LogInformation(
+                "[Peer] Creating a temp link with server to connect with partner {partnerId}",
+                partnerId);
+            
             await tmpSocket.ConnectAsync(endPoint, cancellationToken);
         }
         catch (SocketException e)
@@ -233,10 +241,13 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             return null;
         }
         
+        _logger.LogInformation(
+            "[Peer] Successfully connected to server to create a temp link with partner {partnerId}",
+            partnerId);
+        
         var tmpLink = ActivatorUtilities.CreateInstance<TcpSession>(
             _serviceProvider,
             0, tmpSocket);
-
         var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
         var dispatchSession = new DispatchableSession(tmpLink, dispatcher, cancellationToken);
         var signin = new SigninMessage
@@ -391,7 +402,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Fail to create link");
+            _logger.LogError(e, "[Peer] Failed to connect to partner {partnerId}", partnerId);
         }
         finally
         {
