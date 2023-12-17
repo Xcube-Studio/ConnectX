@@ -36,23 +36,23 @@ public record Peer(
         Task.Run(async () =>
         {
             while (!HeartBeatCtSource.IsCancellationRequested &&
-                   (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds <= 15)
+                   (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds <= 20)
             {
                 try
                 {
-                    DirectLink.Dispatcher.SendAsync(
+                    await DirectLink.Dispatcher.SendAsync(
                         DirectLink.Session,
                         new ChatMessage
                         {
-                            Message = $"Hello from {Id}[{DirectLink.Session.RemoteEndPoint}] with random message {Random.Shared.Next()}"
-                        }).Forget();
+                            Message = $"Hello from {Id}[{DirectLink.Session.RemoteEndPoint}]"
+                        });
                     
                     await Task.Delay(TimeSpan.FromSeconds(10), HeartBeatCtSource.Token);
                 }
                 catch (TaskCanceledException)
                 {
                     Logger.LogDebug(
-                        "[Peer] {RemoteEndPoint} HeartBeat stopped",
+                        "[Peer] {RemoteEndPoint} HeartBeat stopped by cancellation token",
                         DirectLink.Session.RemoteEndPoint);
 
                     break;
@@ -60,8 +60,8 @@ public record Peer(
             }
 
             Logger.LogWarning(
-                "[Peer] {RemoteEndPoint} HeartBeat stopped",
-                DirectLink.Session.RemoteEndPoint);
+                "[Peer] {RemoteEndPoint} HeartBeat stopped, last heart beat time: {LastHeartBeatTime}",
+                DirectLink.Session.RemoteEndPoint, _lastHeartBeatTime);
             
             IsConnected = false;
         }, HeartBeatCtSource.Token).Forget();

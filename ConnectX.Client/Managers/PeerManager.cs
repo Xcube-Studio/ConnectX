@@ -198,7 +198,9 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             _logger.LogWarning(
                 "[Peer] Peer {PartnerId} is disconnected, removing it from connected peers",
                 guid);
-            _connectedPeers.TryRemove(guid, out _);
+            
+            if (_connectedPeers.TryRemove(guid, out var peer))
+                peer.StopHeartBeat();
         }
     }
     
