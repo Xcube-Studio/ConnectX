@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 using ConnectX.Server.Models;
 using ConnectX.Shared;
 using ConnectX.Shared.Helpers;
@@ -57,7 +58,7 @@ public class GroupManager
         return _userMapping.TryGetValue(userId, out user);
     }
     
-    public bool TryGetUser(Guid userId, out User? user)
+    public bool TryGetUser(Guid userId, [MaybeNullWhen(false)] out User user)
     {
         return _userMapping.TryGetValue(userId, out user);
     }

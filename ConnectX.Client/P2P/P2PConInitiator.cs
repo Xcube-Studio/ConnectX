@@ -52,17 +52,23 @@ public class P2PConInitiator : IDisposable
         tmpLinkToServer.Dispatcher.AddHandler<P2PConReady>(OnP2PConReadyReceived);
     }
     
-    public Task<ISession?> StartAsync()
+    public async Task<ISession?> StartAsync()
     {
         _completionSource = new TaskCompletionSource<ISession?>();
         
         switch (_selfContext)
         {
             case P2PConRequest req:
-                _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, req).Forget();
+                _logger.LogInformation(
+                    "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConRequest to {PartnerId}",
+                    _localEndPoint, _partnerId);
+                await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, req);
                 break;
             case P2PConAccept accept:
-                _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, accept).Forget();
+                _logger.LogInformation(
+                    "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConAccept to {PartnerId}",
+                    _localEndPoint, _partnerId);
+                await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, accept);
                 break;
             default:
                 throw new InvalidOperationException("Invalid P2PConContext type");
@@ -72,7 +78,7 @@ public class P2PConInitiator : IDisposable
             "[P2P_CONN_INIT] {LocalEndPoint} Started to establish P2P connection with {PartnerId}",
             _localEndPoint, _partnerId);
         
-        return _completionSource.Task;
+        return await _completionSource.Task;
     }
 
     private async Task<ISession?> CreateDirectLinkToPartnerAsync(
@@ -111,6 +117,13 @@ public class P2PConInitiator : IDisposable
         {
             case P2PConReady ready:
                 P2PConReadyReceived(ready);
+                break;
+            case null:
+                break;
+            default:
+                _logger.LogWarning(
+                    "[P2P_CONN_INIT] Received P2POpResult from {PartnerId}, but the context type is not been processed, type: {Type}",
+                    _partnerId, message.Context?.GetType());
                 break;
         }
     }

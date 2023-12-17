@@ -168,7 +168,7 @@ public class P2PManager
         foreach (var (sessionId, _) in _userSessionMappings)
         {
             if (!_groupManager.TryGetUser(sessionId, out var user)) continue;
-            if (user!.UserId == selfUserId) continue;
+            if (user.UserId == selfUserId) continue;
             
             switch (user.MappingBehavior)
             {

@@ -24,7 +24,6 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 {
     private readonly UpnpManager _upnpManager;
     private readonly IDispatcher _dispatcher;
-    private readonly IConnector<TcpSession> _tcpConnector;
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IClientSettingProvider _clientSettingProvider;
     private readonly IServiceProvider _serviceProvider;
@@ -33,13 +32,12 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     private readonly ConcurrentDictionary<Guid, int> _bargainsDic = [];
     private readonly ConcurrentDictionary<Guid, Peer> _connectedPeers = [];
     private readonly ConcurrentDictionary<Guid, bool> _allPeers = new();
-    private readonly ConcurrentDictionary<Guid, (ISession, CancellationTokenSource)> _tmpLinkMakerDic = new ();
+    private readonly ConcurrentDictionary<Guid, (DispatchableSession, CancellationToken)> _tmpLinkMakerDic = new ();
     private readonly ConcurrentDictionary<Guid, P2PConInitiator> _initiator = [];
     
     public PeerManager(
         UpnpManager upnpManager,
         IDispatcher dispatcher,
-        IConnector<TcpSession> tcpConnector,
         IServerLinkHolder serverLinkHolder,
         IClientSettingProvider clientSettingProvider,
         IServiceProvider serviceProvider,
@@ -47,7 +45,6 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     {
         _upnpManager = upnpManager;
         _dispatcher = dispatcher;
-        _tcpConnector = tcpConnector;
         _serverLinkHolder = serverLinkHolder;
         _clientSettingProvider = clientSettingProvider;
         _serviceProvider = serviceProvider;
@@ -95,7 +92,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
                     if (conResult)
                     {
-                        _logger.LogError(
+                        _logger.LogInformation(
                             "[Peer] Successfully established P2P connection with user {User}",
                             user);
                     }
@@ -213,11 +210,10 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
                 "[Peer] Canceling old temp link maker for partner {partnerId}",
                 partnerId);
             
-            var (oldSession, oldCts) = old;
+            var (oldSession, _) = old;
 
-            await oldCts.CancelAsync();
-            oldSession.Close();
-            oldCts.Dispose();
+            oldSession.Dispose();
+            oldSession.Session.Close();
         }
         
         var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
@@ -231,6 +227,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
                 partnerId);
             
             await tmpSocket.ConnectAsync(endPoint, cancellationToken);
+            await Task.Delay(150, cancellationToken);
         }
         catch (SocketException e)
         {
@@ -258,6 +255,11 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             JoinP2PNetwork = false,
             Id = _serverLinkHolder.UserId
         };
+        
+        _logger.LogInformation(
+            "[Peer] Sending a signin message to server to create a temp link with partner {partnerId}, waiting for the signin response",
+            partnerId);
+        
         var signinSucceeded = await dispatchSession.Dispatcher.SendAndListenOnce<SigninMessage, SigninSucceeded>(
             dispatchSession.Session,
             signin,
@@ -270,6 +272,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
                 partnerId);
             return null;
         }
+
+        _tmpLinkMakerDic.TryAdd(partnerId, (dispatchSession, cancellationToken));
         
         _logger.LogInformation(
             "[Peer] Successfully created a temp link with server to connect with partner {partnerId}, local endpoint: {LocalEndPoint}",

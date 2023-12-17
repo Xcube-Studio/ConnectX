@@ -174,9 +174,9 @@ public class Server : BackgroundService
         {
             _clientManager.AttachSession(session.Id, session);
             var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
-            _p2PManager.AttachSession(session, userId, ctx.Message);
             
             _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
+            _p2PManager.AttachSession(session, userId, ctx.Message);
         }
     }
 
