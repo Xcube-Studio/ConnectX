@@ -52,7 +52,7 @@ public class RouterPacketDispatcher
     ///     发送并接收，使用processor处理结果，如果processor返回true，则停止等待并返回true，否则继续接收下一个包，直到超时返回false
     /// </summary>
     /// <returns>返回处理结果，如果processor返回了true，则为true<br />如果processor一直没返回true，超时了则返回false</returns>
-    public async Task<bool> SendAndListenOnce<T>(
+    public async Task<bool> SendAndListenOnceAsync<T>(
         Guid target,
         object data,
         Func<T, bool> processor,
@@ -84,9 +84,9 @@ public class RouterPacketDispatcher
 
     private void OnReceiveTransDatagram(P2PPacket packet)
     {
-        void InvokeCallback(MethodBase actMethod, object receiver, object message1)
+        void InvokeCallback(MethodBase? actMethod, object receiver, object message1)
         {
-            actMethod.Invoke(receiver, new[] { message1, new PacketContext(packet.From, this) });
+            actMethod?.Invoke(receiver, new[] { message1, new PacketContext(packet.From, this) });
         }
         
         using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream(packet.Payload.Span);

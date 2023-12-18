@@ -38,8 +38,8 @@ public class Partner
         KeepConnectAsync().Forget();
     }
     
-    public event Action<Partner> OnDisconnected;
-    public event Action<Partner> OnConnected;
+    public event Action<Partner>? OnDisconnected;
+    public event Action<Partner>? OnConnected;
 
     private async Task KeepConnectAsync()
     {

@@ -46,7 +46,7 @@ public class Router : BackgroundService
         peerManager.OnPeerRemoved += OnPeerRemoved;
     }
     
-    public event Action<P2PPacket> OnDelivery;
+    public event Action<P2PPacket>? OnDelivery;
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -323,7 +323,7 @@ public class Router : BackgroundService
             "[ROUTER] Broadcast link state to all peers, current peer count: {PeerCount}",
             _currentPeerCount);
         
-        foreach (var (guid, peer) in _peerManager)
+        foreach (var (_, peer) in _peerManager)
         {
             peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, linkStatePacket).Forget();
             _logger.LogTrace(

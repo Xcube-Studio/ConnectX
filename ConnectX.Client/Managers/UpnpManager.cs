@@ -81,7 +81,7 @@ public class UpnpManager : BackgroundService
         return mapping;
     }
 
-    public async Task DeleteMapping(Mapping mapping)
+    public async Task DeleteMappingAsync(Mapping mapping)
     {
         if (Device == null)
             return;

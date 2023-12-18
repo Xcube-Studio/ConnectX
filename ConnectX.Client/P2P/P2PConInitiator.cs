@@ -74,7 +74,7 @@ public class P2PConInitiator : IDisposable
                 throw new InvalidOperationException("Invalid P2PConContext type");
         }
 
-        _logger.LogWarning(
+        _logger.LogInformation(
             "[P2P_CONN_INIT] {LocalEndPoint} Started to establish P2P connection with {PartnerId}",
             _localEndPoint, _partnerId);
         
