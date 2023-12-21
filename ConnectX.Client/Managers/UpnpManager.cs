@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using ConnectX.Shared.Helpers;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Open.Nat;
 
@@ -49,6 +50,14 @@ public class UpnpManager : BackgroundService
             
             _mappings = (await device.GetAllMappingsAsync())?.ToList() ?? [];
             await RemoveOldMappingsAsync(device, _mappings);
+
+            var externalIp = await device.GetExternalIPAsync();
+            if (NetworkHelper.IsPrivateIpAddress(externalIp))
+            {
+                _logger.LogError("[UPNP_MANAGER] Failed to fetch UPnP status, external IP is private.");
+                IsUpnpAvailable = false;
+                return;
+            }
             
             Device = device;
             IsUpnpAvailable = true;

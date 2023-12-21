@@ -135,6 +135,9 @@ public class P2PManager
         var recipientIpBelievable = Equals(message.PublicAddress, from.RemoteEndPoint?.Address);
         var requesterIpBelievable = Equals(request.PublicAddress, requesterCon.RemoteEndPoint?.Address);
 
+        message.UseUdp = true;
+        request.UseUdp = true;
+        
         if (message.PortDeterminationMode == PortDeterminationMode.UseTempLinkPort)
             message.PublicPort = (ushort)from.RemoteEndPoint!.Port;
         if (request.PortDeterminationMode == PortDeterminationMode.UseTempLinkPort)

@@ -290,7 +290,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         CancellationToken cancellationToken)
     {
         await TaskHelper.WaitUtil(() => !_upnpManager.IsFetchingStatus, cancellationToken);
-        
+
         var portMap = await _upnpManager.CreatePortMapAsync(Protocol.Tcp, privatePort);
         P2PConContextInit conInfo;
         
