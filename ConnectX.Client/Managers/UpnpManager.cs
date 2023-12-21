@@ -73,7 +73,7 @@ public class UpnpManager : BackgroundService
         if (Device == null) return null;
 
         var publicPort = GetAvailablePublicPort();
-        var mapping = new Mapping(protocol, privatePort, publicPort, 0, $"P2P.NET {_idInc++}");
+        var mapping = new Mapping(protocol, privatePort, publicPort, 0, $"{MappingPrefix} {_idInc++}");
         await Device.CreatePortMapAsync(mapping);
 
         _mappings?.Add(mapping);
