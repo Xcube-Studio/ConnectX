@@ -7,7 +7,7 @@ namespace ConnectX.Shared.Messages.Group;
 [MemoryPackable]
 public partial class GroupOpResult(bool isSucceeded, string? errorMessage = null)
 {
-    public bool IsSucceeded { get; init; }
-    public string? ErrorMessage { get; init; }
+    public bool IsSucceeded { get; init; } = isSucceeded;
+    public string? ErrorMessage { get; init; } = errorMessage;
     public Guid GroupId { get; init; }
 }
