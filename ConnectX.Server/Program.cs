@@ -21,7 +21,7 @@ public class Program
         builder.ConfigureServices(services =>
         {
             services.AddSingleton<IServerSettingProvider, ConfigSettingProvider>();
-            services.AddConnectX();
+            services.AddConnectXEssentials();
 
             services.AddSingleton<QueryManager>();
             services.AddSingleton<ClientManager>();

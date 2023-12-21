@@ -23,7 +23,6 @@ public class Router : BackgroundService
     
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly PeerManager _peerManager;
-    private readonly RouteTable _routeTable;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger _logger;
     
@@ -38,7 +37,7 @@ public class Router : BackgroundService
     {
         _serverLinkHolder = serverLinkHolder;
         _peerManager = peerManager;
-        _routeTable = routeTable;
+        RouteTable = routeTable;
         _serviceProvider = serviceProvider;
         _logger = logger;
         
@@ -46,6 +45,7 @@ public class Router : BackgroundService
         peerManager.OnPeerRemoved += OnPeerRemoved;
     }
     
+    public RouteTable RouteTable { get; }
     public event Action<P2PPacket>? OnDelivery;
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -97,8 +97,8 @@ public class Router : BackgroundService
         
         _pingCheckers.AddOrUpdate(peer.Id, pingChecker, (_, _) => pingChecker);
         
-        if (_routeTable.GetForwardInterface(id) == Guid.Empty)
-            _routeTable.ForceAdd(id, id);
+        if (RouteTable.GetForwardInterface(id) == Guid.Empty)
+            RouteTable.ForceAdd(id, id);
 
         _logger.LogInformation(
             "[ROUTER] Peer {PeerId} added, current peer count: {PearCount}",
@@ -121,7 +121,7 @@ public class Router : BackgroundService
             "[ROUTER] Peer {PeerId} removed, current peer count: {PearCount}",
             peer.Id, _currentPeerCount);
 
-        var selfLinkState = _routeTable.GetSelfLinkState();
+        var selfLinkState = RouteTable.GetSelfLinkState();
         if (selfLinkState != null)
         {
             for (var i = 0; i < selfLinkState.Interfaces.Length; i++)
@@ -134,7 +134,7 @@ public class Router : BackgroundService
                 break;
             }
 
-            _routeTable.Update(selfLinkState);
+            RouteTable.Update(selfLinkState);
         }
 
         CheckLinkStateAsync().CatchException();
@@ -210,7 +210,7 @@ public class Router : BackgroundService
             return;
         }
         
-        _routeTable.Update(linkState);
+        RouteTable.Update(linkState);
 
         foreach (var (_, peer) in _peerManager)
             if (peer.DirectLink.Session != ctx.FromSession)
@@ -239,7 +239,7 @@ public class Router : BackgroundService
     
     public void Send(RouteLayerPacket packet)
     {
-        var interfaceId = _routeTable.GetForwardInterface(packet.To);
+        var interfaceId = RouteTable.GetForwardInterface(packet.To);
         if (_peerManager.HasLink(interfaceId))
         {
             var peer = _peerManager[interfaceId];
@@ -314,7 +314,7 @@ public class Router : BackgroundService
 
         LogLinkState(linkState);
         BroadcastLinkState(linkState);
-        _routeTable.Update(linkState);
+        RouteTable.Update(linkState);
     }
     
     private void BroadcastLinkState(LinkStatePacket linkStatePacket)

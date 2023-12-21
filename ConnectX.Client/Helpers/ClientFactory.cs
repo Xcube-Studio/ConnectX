@@ -13,7 +13,7 @@ public static class ClientFactory
         Func<IClientSettingProvider> settingGetter)
     {
         services.AddSingleton(_ => settingGetter());
-        services.AddConnectX();
+        services.AddConnectXEssentials();
         
         // Router
         services.AddSingleton<RouterPacketDispatcher>();

@@ -13,7 +13,7 @@ namespace ConnectX.Shared.Helpers;
 
 public static class InitHelper
 {
-    public static void AddConnectX(this IServiceCollection services)
+    public static void AddConnectXEssentials(this IServiceCollection services)
     {
         MemoryPackFormatterProvider.Register(new IPEndPointFormatter());
         MemoryPackFormatterProvider.Register(new IpAddressFormatter());

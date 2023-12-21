@@ -1,5 +1,6 @@
 ﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
+using ConnectX.Client.Route;
 using ConnectX.Shared.Interfaces;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Models;
@@ -13,7 +14,8 @@ public delegate void GroupStateChangedHandler(GroupUserStates state, UserInfo? u
 public class Client
 {
     private bool _isInGroup;
-    
+
+    private readonly Router _router;
     private readonly IDispatcher _dispatcher;
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly ILogger _logger;
@@ -21,11 +23,13 @@ public class Client
     public event GroupStateChangedHandler? OnGroupStateChanged;
     
     public Client(
-        PartnerManager partnerManager,
+        Router router,
+        PartnerManager _,
         IDispatcher dispatcher,
         IServerLinkHolder serverLinkHolder,
         ILogger<Client> logger)
     {
+        _router = router;
         _dispatcher = dispatcher;
         _serverLinkHolder = serverLinkHolder;
         _logger = logger;
@@ -148,5 +152,37 @@ public class Client
         var result = await PerformGroupOpAsync(kickUser);
 
         return (result.Item1?.IsSucceeded ?? false, result.Item2);
+    }
+    
+    /// <summary>
+    ///     获取和目标用户的连接情况
+    /// </summary>
+    /// <param name="partnerId">目标用户的ID</param>
+    /// <returns>(是否可以连通，是否直连，ping)</returns>
+    public (bool, bool, int) GetPartnerConState(Guid partnerId)
+    {
+        var forwardInterface = _router.RouteTable.GetForwardInterface(partnerId);
+
+        if (forwardInterface == Guid.Empty) return (false, false, int.MaxValue);
+
+        var linkState = _router.RouteTable.GetSelfLinkState();
+        var ping = -1;
+
+        if (linkState == null)
+            return (true, forwardInterface == partnerId, ping);
+
+        var guidList = linkState.Interfaces;
+        for (var index = 0; index < guidList.Length; index++)
+        {
+            var guid = guidList[index];
+
+            if (guid != partnerId) continue;
+
+            ping = linkState.Costs[index];
+            break;
+            // todo 现在只能获取能直接连接的用户的ping
+        }
+
+        return (true, forwardInterface == partnerId, ping);
     }
 }

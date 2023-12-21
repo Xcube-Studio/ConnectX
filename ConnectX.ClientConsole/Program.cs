@@ -2,7 +2,6 @@
 using ConnectX.Client;
 using ConnectX.Client.Helpers;
 using ConnectX.Client.Interfaces;
-using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Serilog;

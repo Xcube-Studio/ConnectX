@@ -116,7 +116,7 @@ public class GroupManager
         IDispatcher dispatcher,
         ISession session)
     {
-        if (_clientManager.IsSessionAttached(session.Id)) return false;
+        if (_clientManager.IsSessionAttached(session.Id)) return true;
         
         var err = new GroupOpResult(false, "Session does not attached to SM.");
         dispatcher.SendAsync(session, err).Forget();
