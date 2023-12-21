@@ -164,7 +164,8 @@ public class GroupManager
     private bool IsAlreadyInGroup(
         Guid userId,
         IDispatcher dispatcher,
-        ISession session)
+        ISession session,
+        bool sendErr = true)
     {
         var isAlreadyInGroup = _groupMappings.Values
                                    .Select(g => g.Users)
@@ -172,6 +173,7 @@ public class GroupManager
                                    .Any(u => u.UserId == userId);
 
         if (!isAlreadyInGroup) return false;
+        if (!sendErr) return true;
         
         var err = new GroupOpResult(false, "User is already in a group.");
         dispatcher.SendAsync(session, err).Forget();
@@ -391,7 +393,7 @@ public class GroupManager
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
-        if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession)) return;
+        if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession, false)) return;
         
         var message = ctx.Message;
         var group = _groupMappings[message.GroupId];
