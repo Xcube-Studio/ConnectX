@@ -330,7 +330,7 @@ public class GroupManager
         group.Users.Add(user);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, user)).Forget();
         
-        var success = new GroupOpResult(true);
+        var success = new GroupOpResult(true){GroupId = group.RoomId};
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
         
         _logger.LogInformation(
