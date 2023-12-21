@@ -27,15 +27,13 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public bool IsSignedIn { get; private set; }
     public Guid UserId { get; private set; }
     public StunResult5389? NatType { get; private set; }
-    private IPacketCodec _c;
+    
     public ServerLinkHolder(
-        IPacketCodec c,
         IDispatcher dispatcher,
         IClientSettingProvider settingProvider,
         IConnector<TcpSession> tcpConnector,
         ILogger<ServerLinkHolder> logger)
     {
-        _c = c;
         _dispatcher = dispatcher;
         _settingProvider = settingProvider;
         _tcpConnector = tcpConnector;
