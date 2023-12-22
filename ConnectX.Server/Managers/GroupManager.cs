@@ -363,7 +363,7 @@ public class GroupManager
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
-        if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession)) return;
+        if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession, false)) return;
         
         var message = ctx.Message;
         var group = _groupMappings.Values.First(g => g.Users.Any(u => u.UserId == message.UserId));
