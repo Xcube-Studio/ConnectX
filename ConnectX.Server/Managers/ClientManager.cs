@@ -101,15 +101,16 @@ public class ClientManager
             {
                 if (!watchDog.IsTimeoutExceeded()) continue;
                 
+                OnSessionDisconnected?.Invoke(id);
+                
                 _logger.LogWarning(
                     "[CLIENT_MANAGER] Session timeout, session id: {sessionId}, removed from session mapping.",
-                    id);
+                    id.Id);
                     
                 await _dispatcher.SendAsync(watchDog.Session, new ShutdownMessage());
                 watchDog.Session.Close();
                 
                 _watchDogMapping.TryRemove(id, out _);
-                OnSessionDisconnected?.Invoke(id);
             }
 
             await Task.Delay(500, token);

@@ -117,12 +117,12 @@ public class P2PConInitiator : IDisposable
             return;
         }
 
+        if (message.Context == null) return;
+
         switch (message.Context)
         {
             case P2PConReady ready:
                 P2PConReadyReceived(ready);
-                break;
-            case null:
                 break;
             default:
                 _logger.LogWarning(
