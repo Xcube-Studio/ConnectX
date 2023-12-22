@@ -55,8 +55,6 @@ public class P2PManager
         {
             attachedSession.Close();
         }
-
-        OnSessionDisconnected?.Invoke(sessionId);
             
         if (!_tempLinkMappings.TryRemove(userId, out var tempSessions)) return;
         
@@ -234,6 +232,13 @@ public class P2PManager
 
         _tempLinkMappings.AddOrUpdate(signinMessage.Id, [session], (_, list) =>
         {
+            var old = list.FirstOrDefault(s => s.Id == session.Id);
+            if (old != null)
+            {
+                list.Remove(old);
+                old.Close();
+            }
+            
             list.Add(session);
             return list;
         });

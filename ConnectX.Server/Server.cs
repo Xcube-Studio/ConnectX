@@ -19,7 +19,6 @@ public class Server : BackgroundService
     private long _currentSessionCount;
     private const int MaxSessionLoginTimeout = 600;
 
-    private readonly CancellationTokenSource _cts = new ();
     private readonly IDispatcher _dispatcher;
     private readonly IAcceptor<TcpSession> _acceptor;
     private readonly IServerSettingProvider _serverSettingProvider;
@@ -27,6 +26,7 @@ public class Server : BackgroundService
     private readonly GroupManager _groupManager;
     private readonly ClientManager _clientManager;
     private readonly P2PManager _p2PManager;
+    private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger _logger;
 
     private readonly ConcurrentDictionary<SessionId, (DateTime AddTime, ISession Session)>
@@ -40,6 +40,7 @@ public class Server : BackgroundService
         GroupManager groupManager,
         ClientManager clientManager,
         P2PManager p2PManager,
+        IHostApplicationLifetime lifetime,
         ILogger<Server> logger)
     {
         _dispatcher = dispatcher;
@@ -49,6 +50,7 @@ public class Server : BackgroundService
         _groupManager = groupManager;
         _clientManager = clientManager;
         _p2PManager = p2PManager;
+        _lifetime = lifetime;
         _logger = logger;
         
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
@@ -113,7 +115,7 @@ public class Server : BackgroundService
     {
         var currentTime = DateTime.UtcNow;
 
-        session.StartAsync(CancellationToken.None).Forget();
+        session.StartAsync(_lifetime.ApplicationStopping).Forget();
 
         _tempSessionMapping.AddOrUpdate(
             id,
@@ -182,7 +184,6 @@ public class Server : BackgroundService
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await _cts.CancelAsync();
         await _acceptor.TryCloseAsync(cancellationToken);
 
         _logger.LogInformation("Server stopped.");
