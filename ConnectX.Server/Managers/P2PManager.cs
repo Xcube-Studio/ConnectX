@@ -55,6 +55,8 @@ public class P2PManager
         {
             attachedSession.Close();
         }
+
+        OnSessionDisconnected?.Invoke(sessionId);
             
         if (!_tempLinkMappings.TryRemove(userId, out var tempSessions)) return;
         

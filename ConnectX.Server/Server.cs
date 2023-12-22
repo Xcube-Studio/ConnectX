@@ -59,7 +59,7 @@ public class Server : BackgroundService
         _dispatcher.AddHandler<TempQuery>(OnTempQueryReceived);
     }
 
-    private void ClientManagerOnSessionDisconnected(SessionId sessionid)
+    private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         var newVal = Interlocked.Decrement(ref _currentSessionCount);
         _logger.LogInformation(
