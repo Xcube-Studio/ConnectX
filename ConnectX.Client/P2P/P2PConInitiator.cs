@@ -95,6 +95,8 @@ public class P2PConInitiator : IDisposable
                 serverTmpSocket.Session.LocalEndPoint);
 
             await serverTmpSocket.Dispatcher.SendAsync(serverTmpSocket.Session, new ShutdownMessage());
+            await Task.Delay(500);
+            
             serverTmpSocket.Session.Close();
             serverTmpSocket.Dispose();
         }

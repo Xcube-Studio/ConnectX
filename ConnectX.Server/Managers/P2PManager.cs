@@ -21,7 +21,7 @@ public class P2PManager
 
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionIdMapping = new();
     private readonly ConcurrentDictionary<Guid, ISession> _userSessionMappings = new();
-    private readonly ConcurrentDictionary<SessionId, List<ISession>> _tempLinkMappings = new();
+    private readonly ConcurrentDictionary<Guid, List<ISession>> _tempLinkMappings = new();
     private readonly ConcurrentDictionary<int, (ISession, P2PConRequest)> _conRequests = new();
     
     public P2PManager(
@@ -56,7 +56,7 @@ public class P2PManager
             attachedSession.Close();
         }
             
-        if (!_tempLinkMappings.TryRemove(sessionId, out var tempSessions)) return;
+        if (!_tempLinkMappings.TryRemove(userId, out var tempSessions)) return;
         
         foreach (var session in tempSessions)
         {
@@ -67,7 +67,7 @@ public class P2PManager
     
     private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
     {
-        SessionId key = default;
+        Guid key = default;
         ISession? sessionToRemove = null;
 
         foreach (var (id, list) in _tempLinkMappings)
@@ -93,7 +93,7 @@ public class P2PManager
                 "[P2P_MANAGER] Temp link disconnected, session id: {sessionId}",
                 ctx.FromSession.Id.Id);
             
-            OnSessionDisconnected?.Invoke(key);
+            OnSessionDisconnected?.Invoke(sessionToRemove.Id);
         }
     }
 
@@ -230,7 +230,7 @@ public class P2PManager
             "[P2P_MANAGER] User requested to join the P2P network, session id: {sessionId}",
             signinMessage.Id);
 
-        _tempLinkMappings.AddOrUpdate(session.Id, [session], (_, list) =>
+        _tempLinkMappings.AddOrUpdate(signinMessage.Id, [session], (_, list) =>
         {
             list.Add(session);
             return list;
