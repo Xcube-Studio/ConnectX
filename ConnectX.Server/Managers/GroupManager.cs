@@ -407,7 +407,7 @@ public class GroupManager
             return;
         }
         
-        RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Kicked);
+        RemoveUser(message.GroupId, message.UserToKick, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Kicked);
         
         var success = new GroupOpResult(true);
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
