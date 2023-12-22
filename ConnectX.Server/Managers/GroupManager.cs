@@ -368,6 +368,9 @@ public class GroupManager
         var message = ctx.Message;
         var group = _groupMappings.Values.First(g => g.Users.Any(u => u.UserId == message.UserId));
 
+        var success = new GroupOpResult(true);
+        ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
+        
         if (group.RoomOwner.UserId == message.UserId)
         {
             _logger.LogInformation(
@@ -379,9 +382,6 @@ public class GroupManager
         }
         
         RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Left);
-        
-        var success = new GroupOpResult(true);
-        ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
         
         _logger.LogInformation(
             "[GROUP_MANAGER] User [{userId}] left group [{groupName}]({shortId})",
