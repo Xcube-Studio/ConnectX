@@ -377,7 +377,9 @@ public class GroupManager
                 "[GROUP_MANAGER] Group [{groupId}] has been dismissed by [{userId}]",
                 message.GroupId, ctx.FromSession.Id.Id);
             
+            _groupMappings.TryRemove(group.RoomId, out _);
             NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, null)).Forget();
+            
             return;
         }
         
