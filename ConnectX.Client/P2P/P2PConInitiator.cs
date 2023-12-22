@@ -3,6 +3,7 @@ using ConnectX.Client.P2P.LinkMaker;
 using ConnectX.Client.P2P.LinkMaker.ManyToMany;
 using ConnectX.Client.P2P.LinkMaker.ManyToSingle;
 using ConnectX.Shared.Helpers;
+using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
@@ -92,7 +93,8 @@ public class P2PConInitiator : IDisposable
             _logger.LogInformation(
                 "[P2P_CONN_INIT] {LocalEndPoint} has closed the temp connection with server",
                 serverTmpSocket.Session.LocalEndPoint);
-            
+
+            await serverTmpSocket.Dispatcher.SendAsync(serverTmpSocket.Session, new ShutdownMessage());
             serverTmpSocket.Session.Close();
             serverTmpSocket.Dispose();
         }

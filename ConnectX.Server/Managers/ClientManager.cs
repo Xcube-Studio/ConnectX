@@ -60,11 +60,12 @@ public class ClientManager
 
     private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
     {
+        if (!_watchDogMapping.TryRemove(ctx.FromSession.Id, out _)) return;
+        
         _logger.LogInformation(
             "[CLIENT_MANAGER] Received shutdown message from session, session id: {sessionId}",
             ctx.FromSession.Id.Id);
-
-        _watchDogMapping.TryRemove(ctx.FromSession.Id, out _);
+        
         OnSessionDisconnected?.Invoke(ctx.FromSession.Id);
     }
 

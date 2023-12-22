@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using ConnectX.Shared.Helpers;
+using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
@@ -36,10 +37,11 @@ public class P2PManager
         
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
+        _dispatcher.AddHandler<ShutdownMessage>(OnReceivedShutdownMessage);
         _dispatcher.AddHandler<P2PConRequest>(OnReceivedP2PConRequest);
         _dispatcher.AddHandler<P2PConAccept>(OnReceivedP2PConAccept);
     }
-    
+
     public event SessionDisconnectedHandler? OnSessionDisconnected;
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
@@ -60,6 +62,38 @@ public class P2PManager
         {
             session.Close();
             OnSessionDisconnected?.Invoke(session.Id);
+        }
+    }
+    
+    private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
+    {
+        SessionId key = default;
+        ISession? sessionToRemove = null;
+
+        foreach (var (id, list) in _tempLinkMappings)
+        {
+            if (sessionToRemove != null) break;
+            
+            foreach (var session in list)
+            {
+                if (session.Id != ctx.FromSession.Id) continue;
+
+                key = id;
+                sessionToRemove = session;
+                
+                break;
+            }
+        }
+
+        if (sessionToRemove == null) return;
+        if (_tempLinkMappings.TryGetValue(key, out var group) &&
+            group.Remove(sessionToRemove))
+        {
+            _logger.LogInformation(
+                "[P2P_MANAGER] Temp link disconnected, session id: {sessionId}",
+                ctx.FromSession.Id.Id);
+            
+            OnSessionDisconnected?.Invoke(key);
         }
     }
 
