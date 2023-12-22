@@ -354,8 +354,8 @@ public class GroupManager
         
         var user = _userMapping[userId];
         
-        group.Users.Remove(user);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(state, user)).Forget();
+        group.Users.Remove(user);
     }
     
     private void OnLeaveGroupReceived(MessageContext<LeaveGroup> ctx)
