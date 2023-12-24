@@ -178,7 +178,7 @@ public class P2PManager
             requesterCon,
             new P2PConReady(message.SelfId, time, message)
             {
-                PublicAddress = requesterIpBelievable ? request.PublicAddress : requesterCon.RemoteEndPoint?.Address,
+                PublicAddress = recipientIpBelievable ? message.PublicAddress : from.RemoteEndPoint?.Address,
                 Bargain = message.Bargain
             }).Forget();
 
@@ -186,7 +186,7 @@ public class P2PManager
         {
             Context = new P2PConReady(request.SelfId, time, request)
             {
-                PublicAddress = recipientIpBelievable ? message.PublicAddress : from.RemoteEndPoint?.Address,
+                PublicAddress = requesterIpBelievable ? request.PublicAddress : requesterCon.RemoteEndPoint?.Address,
                 Bargain = message.Bargain
             }
         };
