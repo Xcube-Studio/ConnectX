@@ -278,8 +278,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         _tmpLinkMakerDic.TryAdd(partnerId, (dispatchSession, cancellationToken));
         
         _logger.LogInformation(
-            "[Peer] Successfully created a temp link with server to connect with partner {partnerId}, local endpoint: {LocalEndPoint}",
-            partnerId, dispatchSession.Session.LocalEndPoint);
+            "[Peer] Successfully created a temp link with server to connect with partner {partnerId}, local endpoint: {LocalEndPoint}, remote endpoint: {RemoteEndPoint}",
+            partnerId, dispatchSession.Session.LocalEndPoint, dispatchSession.Session.RemoteEndPoint);
         
         return dispatchSession;
     }
