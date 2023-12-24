@@ -1,5 +1,6 @@
 ﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
+using ConnectX.Client.Proxy;
 using ConnectX.Client.Route;
 using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,6 +30,10 @@ public static class ClientFactory
         
         services.AddSingleton<UpnpManager>();
         services.AddHostedService(sp => sp.GetRequiredService<UpnpManager>());
+
+        services.AddHostedService<ProxyManager>();
+        services.AddHostedService<FakeServerMultiCaster>();
+        services.AddHostedService<GenericProxyManager>();
 
         services.AddSingleton<PartnerManager>();
         services.AddSingleton<Client>();

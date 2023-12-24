@@ -54,7 +54,7 @@ public class UpnpManager : BackgroundService
             var externalIp = await device.GetExternalIPAsync();
             if (NetworkHelper.IsPrivateIpAddress(externalIp))
             {
-                _logger.LogError("[UPNP_MANAGER] Failed to fetch UPnP status, external IP is private.");
+                _logger.LogWarning("[UPNP_MANAGER] Failed to fetch UPnP status, external IP is private.");
                 IsUpnpAvailable = false;
                 return;
             }

@@ -4,6 +4,7 @@ using ConnectX.Client.Messages;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route;
 using ConnectX.Shared.Helpers;
+using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
 using Hive.Network.Shared;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Client.Transmission;
 
-public class P2PConnection
+public class P2PConnection : ISender
 {
     public const int Timeout = 5000;
     public const int BufferLength = 256;
@@ -175,6 +176,16 @@ public class P2PConnection
     public void Send(ReadOnlyMemory<byte> payload)
     {
         SendDatagram(TransDatagram.CreateNormal(_sendPointer, payload));
+    }
+
+    public void SendData<T>(T data)
+    {
+        using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream();
+        _codec.Encode(data, stream);
+
+        stream.Seek(0, SeekOrigin.Begin);
+        
+        Send(stream.GetMemory());
     }
     
     public void Disconnect()
