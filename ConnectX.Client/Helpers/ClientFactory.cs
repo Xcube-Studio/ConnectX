@@ -31,9 +31,10 @@ public static class ClientFactory
         services.AddSingleton<UpnpManager>();
         services.AddHostedService(sp => sp.GetRequiredService<UpnpManager>());
 
-        services.AddHostedService<ProxyManager>();
+        services.AddSingleton<ProxyManager>();
+        services.AddHostedService(sp => sp.GetRequiredService<ProxyManager>());
+        
         services.AddHostedService<FakeServerMultiCaster>();
-        services.AddHostedService<GenericProxyManager>();
 
         services.AddSingleton<PartnerManager>();
         services.AddSingleton<Client>();

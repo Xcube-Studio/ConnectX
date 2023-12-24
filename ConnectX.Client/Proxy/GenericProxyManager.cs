@@ -22,7 +22,7 @@ public abstract class GenericProxyManager : BackgroundService
 
     protected readonly ILogger Logger;
 
-    public GenericProxyManager(
+    protected GenericProxyManager(
         IHostApplicationLifetime lifetime,
         IServiceProvider serviceProvider,
         ILogger logger)
