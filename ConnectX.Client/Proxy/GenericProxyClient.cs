@@ -33,12 +33,16 @@ public sealed class GenericProxyClient : GenericProxyBase
         socket.Connect(new IPEndPoint(IPAddress.Loopback,
             LocalServerPort));
         
-        Logger.LogInformation(
-            "[PROXY_CLIENT] Connected to MC. Mapping: {McPort}, ProxyInfo: {ProxyInfo}",
-            LocalServerPort, GetProxyInfoForLog());
+        Logger.LogConnectedToMc(LocalServerPort, GetProxyInfoForLog());
 
         InvokeRealServerConnected();
         
         return socket;
     }
+}
+
+internal static partial class GenericProxyClientLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[PROXY_CLIENT] Connected to MC. Mapping: {McPort}, ProxyInfo: {ProxyInfo}")]
+    public static partial void LogConnectedToMc(this ILogger logger, ushort mcPort, object proxyInfo);
 }

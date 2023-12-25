@@ -18,19 +18,26 @@ public class ConfigSettingProvider : IServerSettingProvider
         }
         else
         {
-            logger.LogCritical("Can not parse the Server:ListenAddress to IPAddress");
+            logger.CanNotParseListenAddressToIpAddress();
             throw new Exception("Can not parse the Server:ListenAddress to IPAddress");
         }
 
         ListenPort = configuration.GetValue<ushort>("Server:ListenPort");
         EndPoint = new IPEndPoint(ListenAddress, ListenPort);
 
-        logger.LogInformation(
-            "Preparing to start server on endpoint [{endPoint}]",
-            EndPoint);
+        logger.PreparingToStartServerOnEndpoint(EndPoint);
     }
 
     public IPEndPoint EndPoint { get; }
     public IPAddress ListenAddress { get; }
     public ushort ListenPort { get; }
+}
+
+internal static partial class ConfigSettingProviderLoggers
+{
+    [LoggerMessage(LogLevel.Critical, "Can not parse the Server:ListenAddress to IPAddress")]
+    public static partial void CanNotParseListenAddressToIpAddress(this ILogger<ConfigSettingProvider> logger);
+
+    [LoggerMessage(LogLevel.Information, "Preparing to start server on endpoint [{endPoint}]")]
+    public static partial void PreparingToStartServerOnEndpoint(this ILogger<ConfigSettingProvider> logger, IPEndPoint endPoint);
 }

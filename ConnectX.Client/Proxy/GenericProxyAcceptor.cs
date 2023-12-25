@@ -55,18 +55,14 @@ public class GenericProxyAcceptor : IDisposable
                 
                 var clientPort = remoteEndPoint.Port;
 
-                _logger.LogInformation(
-                    "[PROXY_ACCEPTOR] Client connected. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ClientPort: {ClientPort}, ProxyInfo: {ProxyInfo}",
-                    _id, LocalMappingPort, RemoteRealPort, clientPort, GetProxyInfoForLog());
+                _logger.LogClientConnected(_id, LocalMappingPort, RemoteRealPort, (ushort)clientPort, GetProxyInfoForLog());
                     
                 InvokeOnClientConnected(tmp);
             }
         }
         catch (SocketException e)
         {
-            _logger.LogError(
-                e, "[PROXY_ACCEPTOR] Socket error. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ProxyInfo: {ProxyInfo}",
-                _id, LocalMappingPort, RemoteRealPort, GetProxyInfoForLog());
+            _logger.LogSocketError(e, _id, LocalMappingPort, RemoteRealPort, GetProxyInfoForLog());
         }
         finally
         {
@@ -93,8 +89,18 @@ public class GenericProxyAcceptor : IDisposable
     {
         _acceptSocket?.Dispose();
         
-        _logger.LogInformation(
-            "[PROXY_ACCEPTOR] Proxy acceptor disposed. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ProxyInfo: {ProxyInfo}",
-            _id, LocalMappingPort, RemoteRealPort, GetProxyInfoForLog());
+        _logger.LogProxyAcceptorDisposed(_id, LocalMappingPort, RemoteRealPort, GetProxyInfoForLog());
     }
+}
+
+internal static partial class GenericProxyAcceptorLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[PROXY_ACCEPTOR] Client connected. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ClientPort: {ClientPort}, ProxyInfo: {ProxyInfo}")]
+    public static partial void LogClientConnected(this ILogger logger, Guid id, ushort fakePort, ushort remoteRealPort, ushort clientPort, object proxyInfo);
+    
+    [LoggerMessage(LogLevel.Information, "[PROXY_ACCEPTOR] Proxy acceptor disposed. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ProxyInfo: {ProxyInfo}")]
+    public static partial void LogProxyAcceptorDisposed(this ILogger logger, Guid id, ushort fakePort, ushort remoteRealPort, object proxyInfo);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [PROXY_ACCEPTOR] Socket error. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ProxyInfo: {ProxyInfo}")]
+    public static partial void LogSocketError(this ILogger logger, Exception ex, Guid id, ushort fakePort, ushort remoteRealPort, object proxyInfo);
 }

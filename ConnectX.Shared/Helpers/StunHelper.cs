@@ -5,7 +5,6 @@ using ConnectX.Shared.Messages.Query.Response;
 using ConnectX.Shared.Models;
 using DnsClient;
 using Hive.Both.General.Dispatchers;
-using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -16,7 +15,7 @@ using STUN.StunResult;
 
 namespace ConnectX.Shared.Helpers;
 
-public static class StunHelper
+public static partial class StunHelper
 {
     public static readonly string[] StunServers =
     [
@@ -98,6 +97,12 @@ public static class StunHelper
         };
     }
 
+    [LoggerMessage(LogLevel.Debug, "Port {I} map to {Port}")]
+    private static partial void LogPortMapToPort(this ILogger logger, int i, int port);
+
+    [LoggerMessage(LogLevel.Error, "{ex} Error when querying port {I}")]
+    private static partial void LogQueryingPortError(this ILogger logger, Exception ex, int i);
+
     public static async Task<PortPredictResult> PredictPublicPortAsync(
         IServiceProvider serviceProvider,
         ILogger logger,
@@ -118,7 +123,7 @@ public static class StunHelper
             {
                 var port = await QueryPublicPortAsync(serviceProvider, serverEndPoint, i, ct);
 
-                logger.LogDebug("Port {I} map to {Port}", i, port);
+                logger.LogPortMapToPort(i, port);
 
                 if (prevPort != null)
                 {
@@ -130,7 +135,7 @@ public static class StunHelper
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Error when querying port {I}", i);
+                logger.LogQueryingPortError(e, i);
             }
         }
 

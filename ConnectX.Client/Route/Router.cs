@@ -50,7 +50,7 @@ public class Router : BackgroundService
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("[ROUTER] Starting router...");
+        _logger.LogStartingRouter();
 
         await TaskHelper.WaitUntilAsync(
             () => _serverLinkHolder is { IsConnected: true, IsSignedIn: true },
@@ -58,12 +58,11 @@ public class Router : BackgroundService
 
         if (stoppingToken.IsCancellationRequested)
         {
-            _logger.LogWarning(
-                "[ROUTER] Router stopped because server link holder is not connected or signed in, now the app will exit");
+            _logger.LogRouterStoppedBecauseServerLinkHolderIsNotConnectedOrSignedIn();
             return;
         }
         
-        _logger.LogInformation("[ROUTER] Router started");
+        _logger.LogRouterStarted();
         
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -78,7 +77,7 @@ public class Router : BackgroundService
             }
         }
         
-        _logger.LogInformation("[ROUTER] Router stopped");
+        _logger.LogRouterStopped();
     }
 
     private void OnPeerAdded(Guid id, Peer peer)
@@ -100,9 +99,7 @@ public class Router : BackgroundService
         if (RouteTable.GetForwardInterface(id) == Guid.Empty)
             RouteTable.ForceAdd(id, id);
 
-        _logger.LogInformation(
-            "[ROUTER] Peer {PeerId} added, current peer count: {PearCount}",
-            peer.Id, _currentPeerCount);
+        _logger.LogPeerAdded(peer.Id, _currentPeerCount);
 
         CheckLinkStateAsync().CatchException();
     }
@@ -117,9 +114,7 @@ public class Router : BackgroundService
         
         _pingCheckers.TryRemove(peer.Id, out _);
 
-        _logger.LogInformation(
-            "[ROUTER] Peer {PeerId} removed, current peer count: {PearCount}",
-            peer.Id, _currentPeerCount);
+        _logger.LogPeerRemoved(peer.Id, _currentPeerCount);
 
         var selfLinkState = RouteTable.GetSelfLinkState();
         if (selfLinkState != null)
@@ -144,16 +139,12 @@ public class Router : BackgroundService
     {
         var packet = ctx.Message;
         
-        _logger.LogWarning(
-            "[ROUTER] P2P transmit error: {Error}, from {From}, to {To}, original to {OriginalTo}",
-            packet.Error, packet.From, packet.To, packet.OriginalTo);
+        _logger.LogP2PTransmitError(packet.Error, packet.From, packet.To, packet.OriginalTo);
     }
     
     private void OnP2PPacketReceived(MessageContext<P2PPacket> ctx)
     {
-        _logger.LogTrace(
-            "[ROUTER] P2P packet received from {RemoteEndPoint}",
-            ctx.FromSession.RemoteEndPoint);
+        _logger.LogP2PPacketReceived(ctx.FromSession.RemoteEndPoint);
 
         var packet = ctx.Message;
         
@@ -191,9 +182,7 @@ public class Router : BackgroundService
         if (linkState.Source == _serverLinkHolder.UserId)
             return;
 
-        _logger.LogDebug(
-            "[ROUTER] Link state received from {RemoteEndPoint}",
-            ctx.FromSession.RemoteEndPoint);
+        _logger.LogLinkStateReceived(ctx.FromSession.RemoteEndPoint);
 
         linkState.Ttl--;
         if (linkState.Ttl == 0)
@@ -216,9 +205,7 @@ public class Router : BackgroundService
             if (peer.DirectLink.Session != ctx.FromSession)
             {
                 peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, linkState).Forget();
-                _logger.LogDebug(
-                    "[ROUTER] Link state forwarded to {RemoteEndPoint}",
-                    peer.RemoteIpe);
+                _logger.LogLinkStateForwarded(peer.RemoteIpe);
             }
     }
 
@@ -232,9 +219,7 @@ public class Router : BackgroundService
             Ttl = 32
         });
         
-        _logger.LogTrace(
-            "[ROUTER] P2P packet sent to {RemoteEndPoint}",
-            _peerManager[id].RemoteIpe);
+        _logger.LogP2PPacketSent(_peerManager[id].RemoteIpe);
     }
     
     public void Send(RouteLayerPacket packet)
@@ -247,9 +232,7 @@ public class Router : BackgroundService
             if (peer.IsConnected)
                 peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, packet).Forget();
             else
-                _logger.LogDebug(
-                    "[ROUTER] {LinkId} is not connected",
-                    interfaceId);
+                _logger.LogLinkIsNotConnected(interfaceId);
         }
         else
         {
@@ -259,17 +242,13 @@ public class Router : BackgroundService
                 peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, packet).Forget();
             }
             else
-                _logger.LogDebug(
-                    "[ROUTER] {LinkId} is not reachable",
-                    interfaceId);
+                _logger.LogLinkIsNotReachable(interfaceId);
         }
     }
 
     private async Task CheckLinkStateAsync()
     {
-        _logger.LogInformation(
-            "[ROUTER] Check link state, current peer count: {PeerCount}",
-            _currentPeerCount);
+        _logger.LogCheckLinkState(_currentPeerCount);
         
         var interfaces = new List<Guid>();
         var states = new List<int>();
@@ -284,9 +263,7 @@ public class Router : BackgroundService
                 pingTasks.Add((key, ping.CheckPingAsync()));
                 ipMappings.Add(key, peer.RemoteIpe);
                 
-                _logger.LogTrace(
-                    "[ROUTER] Check link state to {RemoteEndPoint}",
-                    peer.RemoteIpe);
+                _logger.LogCheckLinkStateTo(peer.RemoteIpe);
             }
         }
 
@@ -296,21 +273,19 @@ public class Router : BackgroundService
             var pingResult = await ping;
             states.Add(pingResult);
             
-            _logger.LogTrace(
-                "[ROUTER] Link state to {RemoteEndPoint} is {PingResult}",
-                ipMappings[key], pingResult);
+            _logger.LogLinkState(ipMappings[key], pingResult);
         }
 
         var linkState = new LinkStatePacket
         {
-            Costs = states.ToArray(),
-            Interfaces = interfaces.ToArray(),
+            Costs = [.. states],
+            Interfaces = [.. interfaces],
             Source = _serverLinkHolder.UserId,
             Timestamp = DateTime.UtcNow.Ticks,
             Ttl = 32
         };
         
-        _logger.LogInformation("Link state checking done");
+        _logger.LogLinkStateCheckingDone();
 
         LogLinkState(linkState);
         BroadcastLinkState(linkState);
@@ -319,29 +294,18 @@ public class Router : BackgroundService
     
     private void BroadcastLinkState(LinkStatePacket linkStatePacket)
     {
-        _logger.LogInformation(
-            "[ROUTER] Broadcast link state to all peers, current peer count: {PeerCount}",
-            _currentPeerCount);
+        _logger.LogBroadcastLinkState(_currentPeerCount);
         
         foreach (var (_, peer) in _peerManager)
         {
             peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, linkStatePacket).Forget();
-            _logger.LogTrace(
-                "[ROUTER] Broadcast link state to {RemoteEndPoint}",
-                peer.RemoteIpe);
+            _logger.LogBroadcastLinkStateTo(peer.RemoteIpe);
         }
     }
 
     private void LogLinkState(LinkStatePacket linkState)
     {
-        var sb = new StringBuilder();
-        
-        sb.AppendLine("Link state:");
-        sb.AppendLine($"Source: {linkState.Source}");
-        sb.AppendLine($"Timestamp: {linkState.Timestamp}");
-        sb.AppendLine($"Ttl: {linkState.Ttl}");
-        
-        _logger.LogDebug(sb.ToString());
+        _logger.LogLinkState(linkState.Source, linkState.Timestamp, linkState.Ttl);
 
         if (linkState.Interfaces.Length > 0 ||
             linkState.Costs.Length > 0)
@@ -352,7 +316,73 @@ public class Router : BackgroundService
                 table.AddRow(linkState.Interfaces[i], $"{linkState.Costs[i]}ms");
             
             table.Write();
-            _logger.LogInformation("[ROUTER] Link state table printed");
+            _logger.LogLinkStateTablePrinted();
         }
     }
+}
+
+internal static partial class RouterLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Starting router...")]
+    public static partial void LogStartingRouter(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "[ROUTER] Router stopped because server link holder is not connected or signed in, now the app will exit")]
+    public static partial void LogRouterStoppedBecauseServerLinkHolderIsNotConnectedOrSignedIn(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Router started")]
+    public static partial void LogRouterStarted(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Router stopped")]
+    public static partial void LogRouterStopped(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Peer {PeerId} added, current peer count: {PearCount}")]
+    public static partial void LogPeerAdded(this ILogger logger, Guid peerId, int pearCount);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Peer {PeerId} removed, current peer count: {PearCount}")]
+    public static partial void LogPeerRemoved(this ILogger logger, Guid peerId, int pearCount);
+
+    [LoggerMessage(LogLevel.Warning, "[ROUTER] P2P transmit error: {Error}, from {From}, to {To}, original to {OriginalTo}")]
+    public static partial void LogP2PTransmitError(this ILogger logger, P2PTransmitError error, Guid from, Guid to, Guid originalTo);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] P2P packet received from {RemoteEndPoint}")]
+    public static partial void LogP2PPacketReceived(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Debug, "[ROUTER] Link state received from {RemoteEndPoint}")]
+    public static partial void LogLinkStateReceived(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Debug, "[ROUTER] Link state forwarded to {RemoteEndPoint}")]
+    public static partial void LogLinkStateForwarded(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] P2P packet sent to {RemoteEndPoint}")]
+    public static partial void LogP2PPacketSent(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Debug, "[ROUTER] {LinkId} is not connected")]
+    public static partial void LogLinkIsNotConnected(this ILogger logger, Guid linkId);
+
+    [LoggerMessage(LogLevel.Debug, "[ROUTER] {LinkId} is not reachable")]
+    public static partial void LogLinkIsNotReachable(this ILogger logger, Guid linkId);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Check link state, current peer count: {PeerCount}")]
+    public static partial void LogCheckLinkState(this ILogger logger, int peerCount);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] Check link state to {RemoteEndPoint}")]
+    public static partial void LogCheckLinkStateTo(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] Link state to {RemoteEndPoint} is {PingResult}")]
+    public static partial void LogLinkState(this ILogger logger, IPEndPoint? remoteEndPoint, int pingResult);
+
+    [LoggerMessage(LogLevel.Information, "Link state checking done")]
+    public static partial void LogLinkStateCheckingDone(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Broadcast link state to all peers, current peer count: {PeerCount}")]
+    public static partial void LogBroadcastLinkState(this ILogger logger, int peerCount);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] Broadcast link state to {RemoteEndPoint}")]
+    public static partial void LogBroadcastLinkStateTo(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Link state - Source: {Source} Timestamp: {TimeStamp} Ttl: {Ttl}")]
+    public static partial void LogLinkState(this ILogger logger, Guid source, long timeStamp, byte ttl);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Link state table printed")]
+    public static partial void LogLinkStateTablePrinted(this ILogger logger);
 }

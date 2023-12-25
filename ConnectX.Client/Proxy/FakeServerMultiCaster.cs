@@ -37,14 +37,12 @@ public class FakeServerMultiCaster : BackgroundService
 
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
     {
-        _logger.LogDebug(
-            "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}",
-            context.SenderId, message.Port, message.Name);
+        _logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
         
         var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port);
         if (proxy == null)
         {
-            _logger.LogError("Proxy creation failed, sender ID: {SenderId}", context.SenderId);
+            _logger.LogProxyCreationFailed(context.SenderId);
             return;
         }
 
@@ -61,19 +59,18 @@ public class FakeServerMultiCaster : BackgroundService
         var endPoint = new IPEndPoint(multicastAddress, 4445);
 
         multicastSocket.SendTo(buf, endPoint);
-        _logger.LogDebug("Multicast message to client, mapping port is {Port}, name is {Name}", proxy.LocalMappingPort,
-            message.Name);
+        _logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
 
     private void ListenedLanServer(string serverName, ushort port)
     {
-        _logger.LogDebug("Lan server {ServerName}:{Port} is listened", serverName, port);
+        _logger.LogLanServerIsListened(serverName, port);
+
         OnListenedLanServer?.Invoke(serverName, port);
+
         foreach (var (id, _) in _partnerManager.Partners)
         {
-            _logger.LogTrace(
-                "[MC_MULTI_CASTER] Send lan server {ServerName}:{Port} to {Partner}",
-                serverName, port, id);
+            _logger.LogSendLanServerToPartner(serverName, port, id);
             
             // 对每一个用户组播
             _packetDispatcher.Send(id, new McMulticastMessage
@@ -113,13 +110,15 @@ public class FakeServerMultiCaster : BackgroundService
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[MC_MULTI_CASTER] Stopping FakeMcServerMultiCaster");
+        _logger.LogStoppingFakeMcServerMultiCaster();
         
         return base.StopAsync(cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogStartListeningLanMulticast();
+
         await Task.Run(async () =>
         {
             while (!stoppingToken.IsCancellationRequested)
@@ -161,6 +160,29 @@ public class FakeServerMultiCaster : BackgroundService
                 }
             }
         }, stoppingToken);
-        _logger.LogInformation("Start listening LAN multicast");
     }
+}
+
+internal static partial class FakeServerMultiCasterLoggers
+{
+    [LoggerMessage(LogLevel.Debug, "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}")]
+    public static partial void LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name);
+
+    [LoggerMessage(LogLevel.Error, "Proxy creation failed, sender ID: {SenderId}")]
+    public static partial void LogProxyCreationFailed(this ILogger logger, Guid senderId);
+
+    [LoggerMessage(LogLevel.Debug, "Multicast message to client, mapping port is {Port}, name is {Name}")]
+    public static partial void LogMulticastMessageToClient(this ILogger logger, ushort port, string name);
+
+    [LoggerMessage(LogLevel.Debug, "Lan server {ServerName}:{Port} is listened")]
+    public static partial void LogLanServerIsListened(this ILogger logger, string serverName, ushort port);
+
+    [LoggerMessage(LogLevel.Trace, "[MC_MULTI_CASTER] Send lan server {ServerName}:{Port} to {Partner}")]
+    public static partial void LogSendLanServerToPartner(this ILogger logger, string serverName, ushort port, Guid partner);
+
+    [LoggerMessage(LogLevel.Information, "[MC_MULTI_CASTER] Stopping FakeMcServerMultiCaster")]
+    public static partial void LogStoppingFakeMcServerMultiCaster(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "Start listening LAN multicast")]
+    public static partial void LogStartListeningLanMulticast(this ILogger logger);
 }

@@ -54,9 +54,7 @@ public abstract class GenericProxyManager : BackgroundService
         if (connectReq.IsResponse)
         {
             //客户端侧收到服务器侧的连接响应
-            Logger.LogDebug(
-                "[GEN_PROXY_MANAGER] Client received connect response {Packet}",
-                connectReq);
+            Logger.LogClientReceivedConnectResponse(connectReq);
             
             //收到回复，启动服务端代理
             if (_acceptors.ContainsKey((connectReq.ClientId, connectReq.ServerRealPort)))
@@ -78,16 +76,12 @@ public abstract class GenericProxyManager : BackgroundService
                 }
                 else
                 {
-                    Logger.LogError(
-                        "[GEN_PROXY_MANAGER] Can not find socket with id: {Id}, port: {Port}",
-                        key.PartnerId, key.LocalRealPort);
+                    Logger.LogErrorCanNotFindSocket(key.PartnerId, key.LocalRealPort);
                 }
             }
             else
             {
-                Logger.LogError(
-                    "[GEN_PROXY_MANAGER] Can not find acceptor with id: {Id}, port: {Port}",
-                    connectReq.ClientId, connectReq.ServerRealPort);
+                Logger.LogErrorCanNotFindAcceptor(connectReq.ClientId, connectReq.ServerRealPort);
             }
         }
         else
@@ -109,9 +103,7 @@ public abstract class GenericProxyManager : BackgroundService
             
             sender.SendData(mcConnectReq);
             
-            Logger.LogDebug(
-                "[GEN_PROXY_MANAGER] Client sent connect response {Packet}",
-                mcConnectReq);
+            Logger.LogDebugClientSentConnectResponse(mcConnectReq);
         }
     }
 
@@ -143,9 +135,7 @@ public abstract class GenericProxyManager : BackgroundService
 
         _proxies.Add(key, pair);
 
-        Logger.LogInformation(
-            "[GEN_PROXY_MANAGER] Create client proxy {Key}",
-            key);
+        Logger.LogCreateProxy(key);
         
         proxy.Start(); //对于客户端，直接启动
 
@@ -164,9 +154,7 @@ public abstract class GenericProxyManager : BackgroundService
 
         if (_proxies.Remove(key, out var prevProxy))
         {
-            Logger.LogError(
-                "[GEN_PROXY_MANAGER] There has been a proxy pair with same key: {ID}-{ClientRealPort}-{RemotePort}",
-                partnerId, clientRealPort, serverRealPort);
+            Logger.LogErrorProxyPairWithSameKey(partnerId, clientRealPort, serverRealPort);
             
             prevProxy.Dispose();
         }
@@ -194,9 +182,7 @@ public abstract class GenericProxyManager : BackgroundService
 
     private void OnProxyDisconnected(TunnelIdentifier id, GenericProxyBase obj)
     {
-        Logger.LogInformation(
-            "[GEN_PROXY_MANAGER] Proxy {Key} disconnected",
-            id);
+        Logger.LogProxyDisconnected(id);
         
         obj.Dispose();
         _proxies.Remove(id);
@@ -235,7 +221,7 @@ public abstract class GenericProxyManager : BackgroundService
         {
             if (socket.RemoteEndPoint is not IPEndPoint remoteEndPoint)
             {
-                Logger.LogError("[GEN_PROXY_MANAGER] Can not get remote endpoint");
+                Logger.LogErrorCanNotGetRemoteEndPoint();
                 return;
             }
             
@@ -255,9 +241,7 @@ public abstract class GenericProxyManager : BackgroundService
             });
         };
 
-        Logger.LogInformation(
-            "[GEN_PROXY_MANAGER] Create acceptor {Key}",
-            key);
+        Logger.LogCreateAcceptor(key);
 
         acceptor.StartAcceptAsync().Forget();
 
@@ -278,4 +262,34 @@ public abstract class GenericProxyManager : BackgroundService
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+}
+
+internal static partial class GenericProxyManagerLoggers
+{
+    [LoggerMessage(LogLevel.Debug, "[GEN_PROXY_MANAGER] Client received connect response {Packet}")]
+    public static partial void LogClientReceivedConnectResponse(this ILogger logger, ProxyConnectReq packet);
+
+    [LoggerMessage(LogLevel.Error, "[GEN_PROXY_MANAGER] Can not find socket with id: {Id}, port: {Port}")]
+    public static partial void LogErrorCanNotFindSocket(this ILogger logger, Guid id, ushort port);
+
+    [LoggerMessage(LogLevel.Error, "[GEN_PROXY_MANAGER] Can not find acceptor with id: {Id}, port: {Port}")]
+    public static partial void LogErrorCanNotFindAcceptor(this ILogger logger, Guid id, ushort port);
+
+    [LoggerMessage(LogLevel.Debug, "[GEN_PROXY_MANAGER] Client sent connect response {Packet}")]
+    public static partial void LogDebugClientSentConnectResponse(this ILogger logger, ProxyConnectReq packet);
+
+    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Create client proxy {Key}")]
+    public static partial void LogCreateProxy(this ILogger logger, TunnelIdentifier key);
+
+    [LoggerMessage(LogLevel.Error, "[GEN_PROXY_MANAGER] There has been a proxy pair with same key: {ID}-{ClientRealPort}-{RemotePort}")]
+    public static partial void LogErrorProxyPairWithSameKey(this ILogger logger, Guid id, ushort clientRealPort, ushort remotePort);
+
+    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Proxy {Key} disconnected")]
+    public static partial void LogProxyDisconnected(this ILogger logger, TunnelIdentifier key);
+
+    [LoggerMessage(LogLevel.Error, "[GEN_PROXY_MANAGER] Can not get remote endpoint")]
+    public static partial void LogErrorCanNotGetRemoteEndPoint(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Create acceptor {Key}")]
+    public static partial void LogCreateAcceptor(this ILogger logger, (Guid, ushort) key);
 }

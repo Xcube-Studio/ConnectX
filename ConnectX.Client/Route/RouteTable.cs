@@ -34,9 +34,7 @@ public class RouteTable
     {
         lock (_linkStates)
         {
-            _logger.LogInformation(
-                "[ROUTE_TABLE] Update route table from {@Source} at {@Timestamp}",
-                linkState.Source, linkState.Timestamp);
+            _logger.LogUpdateRouteTable(linkState.Source, linkState.Timestamp);
 
             if (_linkStates.TryGetValue(linkState.Source, out var value))
                 if (value.Timestamp < linkState.Timestamp)
@@ -55,9 +53,7 @@ public class RouteTable
         if (!_linkStates.TryGetValue(_serverLinkHolder.UserId, out var selfConnectDirectly))
             return;
         
-        _logger.LogInformation(
-            "[ROUTE_TABLE] Calculate route table from {@Source} at {@Timestamp}",
-            selfConnectDirectly.Source, selfConnectDirectly.Timestamp);
+        _logger.LogCalculateRouteTable(selfConnectDirectly.Source, selfConnectDirectly.Timestamp);
 
         HashSet<Guid> notChecked = [];
         Dictionary<Guid, Guid> routeTableTmp = [];
@@ -121,18 +117,28 @@ public class RouteTable
 
         _routeTableInternal = routeTableTmp;
 
-        _logger.LogTrace(
-            "[ROUTE_TABLE] Route table updated: \n{@RouteTable}",
-            _routeTableInternal);
+        _logger.LogRouteTableUpdated(_routeTableInternal);
     }
 
     public List<KeyValuePair<Guid, Guid>> GetRouteTableEntries()
     {
-        return _routeTableInternal.ToList();
+        return [.. _routeTableInternal];
     }
 
     public LinkStatePacket? GetSelfLinkState()
     {
         return _linkStates.GetValueOrDefault(_serverLinkHolder.UserId);
     }
+}
+
+internal static partial class RouteTableLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[ROUTE_TABLE] Update route table from {@Source} at {@Timestamp}")]
+    public static partial void LogUpdateRouteTable(this ILogger logger, Guid source, long timestamp);
+
+    [LoggerMessage(LogLevel.Information, "[ROUTE_TABLE] Calculate route table from {@Source} at {@Timestamp}")]
+    public static partial void LogCalculateRouteTable(this ILogger logger, Guid source, long timestamp);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTE_TABLE] Route table updated: \n{@RouteTable}")]
+    public static partial void LogRouteTableUpdated(this ILogger logger, Dictionary<Guid, Guid> routeTable);
 }

@@ -69,7 +69,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         
         if (message.PossibleUsers.Length == 0)
         {
-            _logger.LogInformation("[Peer] Server didn't return any P2P interconnect info");
+            _logger.LogServerDidNotReturnAnyP2PInterconnectInfo();
             return;
         }
 
@@ -82,9 +82,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
                 if (_connectedPeers.ContainsKey(user))
                     continue;
                 
-                _logger.LogInformation(
-                    "[Peer] Trying to establish P2P connection with user {User}",
-                    user);
+                _logger.LogTryingToEstablishP2PConnectionWithUser(user);
 
                 try
                 {
@@ -92,22 +90,16 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
                     if (conResult)
                     {
-                        _logger.LogInformation(
-                            "[Peer] Successfully established P2P connection with user {User}",
-                            user);
+                        _logger.LogSuccessfullyEstablishedP2PConnectionWithUser(user);
                     }
                     else
                     {
-                        _logger.LogWarning(
-                            "[Peer] Failed to establish P2P connection with user {User}",
-                            user);
+                        _logger.LogFailedToEstablishP2PConnectionWithUser(user);
                     }
                 }
                 catch (Exception e)
                 {
-                    _logger.LogError(
-                        e, "[Peer] Failed to establish P2P connection with user {User}",
-                        user);
+                    _logger.LogFailedToEstablishP2PConnectionWithUser(e, user);
                 }
             }
         }).Forget();
@@ -123,18 +115,14 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             if (value > message.Bargain)
             {
                 //本机发送的P2pConRequest的bargain值比对方的大，忽略这个P2PConNotification
-                _logger.LogWarning(
-                    "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with bigger bargain {Bigger}, ignore this request",
-                    message.Bargain, message.PartnerIds, value);
+                _logger.LogGreaterBargain(message.Bargain, message.PartnerIds, value);
                 return;
             }
 
             if (value == message.Bargain) //2^31-1的概率
                 if (_serverLinkHolder.UserId.CompareTo(message.PartnerIds) < 0)
                 {
-                    _logger.LogWarning(
-                        "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with same bargain {Bigger}, ignore this request",
-                        message.Bargain, message.PartnerIds, value);
+                    _logger.LogSameBargain(message.Bargain, message.PartnerIds, value);
                     return;
                 }
         }
@@ -142,9 +130,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         var partnerId = message.PartnerIds;
         var cts = new CancellationTokenSource();
 
-        _logger.LogInformation(
-            "[Peer] Received P2PConNotification from {PartnerId}",
-            partnerId);
+        _logger.LogReceivedP2PConNotification(partnerId);
         
         Task.Run(async () =>
         {
@@ -152,9 +138,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
             if (tmpLink == null)
             {
-                _logger.LogError(
-                    "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
-                    partnerId);
+                _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(partnerId);
 
                 return;
             }
@@ -195,9 +179,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     {
         foreach (var (guid, _) in _connectedPeers.Where(p => !p.Value.IsConnected))
         {
-            _logger.LogWarning(
-                "[Peer] Peer {PartnerId} is disconnected, removing it from connected peers",
-                guid);
+            _logger.LogPeerIsDisconnected(guid);
             
             if (_connectedPeers.TryRemove(guid, out var peer))
                 peer.StopHeartBeat();
@@ -208,9 +190,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     {
         if (_tmpLinkMakerDic.TryRemove(partnerId, out var old))
         {
-            _logger.LogWarning(
-                "[Peer] Canceling old temp link maker for partner {partnerId}",
-                partnerId);
+            _logger.LogCancelingOldTempLinkMakerForPartner(partnerId);
             
             var (oldSession, _) = old;
 
@@ -224,25 +204,19 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
         try
         {
-            _logger.LogInformation(
-                "[Peer] Creating a temp link with server to connect with partner {partnerId}",
-                partnerId);
+            _logger.LogCreatingATempLinkWithServerToConnectWithPartner(partnerId);
             
             await tmpSocket.ConnectAsync(endPoint, cancellationToken);
             await Task.Delay(150, cancellationToken);
         }
         catch (SocketException e)
         {
-            _logger.LogError(
-                e, "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
-                partnerId);
+            _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(e, partnerId);
             
             return null;
         }
         
-        _logger.LogInformation(
-            "[Peer] Successfully connected to server to create a temp link with partner {partnerId}",
-            partnerId);
+        _logger.LogSuccessfullyConnectedToServerToCreateATempLinkWithPartner(partnerId);
         
         var tmpLink = ActivatorUtilities.CreateInstance<TcpSession>(
             _serviceProvider,
@@ -258,9 +232,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             Id = _serverLinkHolder.UserId
         };
         
-        _logger.LogInformation(
-            "[Peer] Sending a signin message to server to create a temp link with partner {partnerId}, waiting for the signin response",
-            partnerId);
+        _logger.LogSendingASigninMessageToServerToCreateATempLinkWithPartner(partnerId);
         
         var signinSucceeded = await dispatchSession.Dispatcher.SendAndListenOnce<SigninMessage, SigninSucceeded>(
             dispatchSession.Session,
@@ -269,17 +241,14 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
         if (signinSucceeded == null)
         {
-            _logger.LogWarning(
-                "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
-                partnerId);
+            _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(partnerId);
             return null;
         }
 
         _tmpLinkMakerDic.TryAdd(partnerId, (dispatchSession, cancellationToken));
         
-        _logger.LogInformation(
-            "[Peer] Successfully created a temp link with server to connect with partner {partnerId}, local endpoint: {LocalEndPoint}, remote endpoint: {RemoteEndPoint}",
-            partnerId, dispatchSession.Session.LocalEndPoint, dispatchSession.Session.RemoteEndPoint);
+        _logger.LogSuccessfullyCreatedATempLinkWithServerToConnectWithPartner(
+            partnerId, dispatchSession.Session.LocalEndPoint!, dispatchSession.Session.RemoteEndPoint!);
         
         return dispatchSession;
     }
@@ -297,7 +266,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         // If UPNP is available, use UPNP
         if (portMap != null)
         {
-            _logger.LogInformation("[Peer] UPNP is available, using UPNP to connect to partner.");
+            _logger.LogUpnpIsAvailableUsingUpnpToConnectToPartner();
             conInfo = new P2PConContextInit
             {
                 PortDeterminationMode = PortDeterminationMode.Upnp,
@@ -308,7 +277,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         else if ((_serverLinkHolder.NatType?.MappingBehavior ?? MappingBehavior.Unknown)
                  is MappingBehavior.Direct or MappingBehavior.EndpointIndependent)
         {
-            _logger.LogInformation("[Peer] NAT's behavior is not symmetric, using the same port as the temp link.");
+            _logger.LogNatsBehaviorIsNotSymmetricUsingTheSamePortAsTheTempLink();
             conInfo = new P2PConContextInit
             {
                 PortDeterminationMode = PortDeterminationMode.UseTempLinkPort,
@@ -317,7 +286,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         }
         else
         {
-            _logger.LogWarning("[Peer] NAT's behavior is symmetric, using port prediction to connect to partner.");
+            _logger.LogNatsBehaviorIsSymmetricUsingPortPredictionToConnectToPartner();
             var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
             var predictPorts =
                 await StunHelper.PredictPublicPortAsync(_serviceProvider, _logger, endPoint, cancellationToken);
@@ -396,19 +365,15 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             resultLink = await conInitiator.StartAsync();
 
             if (resultLink == null)
-                _logger.LogWarning(
-                    "[Peer] Failed to connect to partner {partnerId}",
-                    partnerId);
+                _logger.LogFailedToConnectToPartner(partnerId);
             else
-                _logger.LogInformation(
-                    "[Peer] Successfully connected to partner {partnerId}",
-                    partnerId);
+                _logger.LogSuccessfullyConnectedToPartner(partnerId);
             
             OnP2PConProcessorDone(partnerId, conInitiator);
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "[Peer] Failed to connect to partner {partnerId}", partnerId);
+            _logger.LogFailedToConnectToPartner(e,  partnerId);
         }
         finally
         {
@@ -442,23 +407,17 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     {
         if (_bargainsDic.ContainsKey(partnerId))
         {
-            _logger.LogWarning(
-                "[Peer] Already trying to connect to partner {partnerId}",
-                partnerId);
+            _logger.LogAlreadyTryingToConnectToPartner(partnerId);
             return false;
         }
         
-        _logger.LogInformation(
-            "[Peer] Trying to connect to partner {partnerId}",
-            partnerId);
+        _logger.LogTryingToConnectToPartner(partnerId);
         
         var tmpLink = await CreateTempServerLinkAsync(partnerId, cancellationToken);
 
         if (tmpLink == null)
         {
-            _logger.LogError(
-                "[Peer] Failed to create a temp link with server to connect with partner {partnerId}",
-                partnerId);
+            _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(partnerId);
             
             return false;
         }
@@ -493,9 +452,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         {
             if (_connectedPeers.ContainsKey(key) || trying) continue;
             
-            _logger.LogInformation(
-                "[Peer] Trying to connect to partner {key}...",
-                key);
+            _logger.LogTryingToConnectToPartner(key);
             
             RequestConnectPartnerAsync(key, trying, cancellationToken).Forget();
             _allPeers.TryUpdate(key, true, false);
@@ -504,4 +461,79 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
     public IEnumerator<KeyValuePair<Guid, Peer>> GetEnumerator() => _connectedPeers.GetEnumerator();
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
+internal static partial class PeerManagerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[Peer] Server didn't return any P2P interconnect info")]
+    public static partial void LogServerDidNotReturnAnyP2PInterconnectInfo(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Trying to establish P2P connection with user {User}")]
+    public static partial void LogTryingToEstablishP2PConnectionWithUser(this ILogger logger, Guid user);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Successfully established P2P connection with user {User}")]
+    public static partial void LogSuccessfullyEstablishedP2PConnectionWithUser(this ILogger logger, Guid user);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Failed to establish P2P connection with user {User}")]
+    public static partial void LogFailedToEstablishP2PConnectionWithUser(this ILogger logger, Guid user);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [Peer] Failed to establish P2P connection with user {User}")]
+    public static partial void LogFailedToEstablishP2PConnectionWithUser(this ILogger logger, Exception ex, Guid user);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with bigger bargain {Bigger}, ignore this request")]
+    public static partial void LogGreaterBargain(this ILogger logger, int bargain, Guid partnerId, int bigger);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with same bargain {Bigger}, ignore this request")]
+    public static partial void LogSameBargain(this ILogger logger, int bargain, Guid partnerId, int bigger);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Received P2PConNotification from {PartnerId}")]
+    public static partial void LogReceivedP2PConNotification(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Error, "[Peer] Failed to create a temp link with server to connect with partner {partnerId}")]
+    public static partial void LogFailedToCreateATempLinkWithServerToConnectWithPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Peer {PartnerId} is disconnected, removing it from connected peers")]
+    public static partial void LogPeerIsDisconnected(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Canceling old temp link maker for partner {partnerId}")]
+    public static partial void LogCancelingOldTempLinkMakerForPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Creating a temp link with server to connect with partner {partnerId}")]
+    public static partial void LogCreatingATempLinkWithServerToConnectWithPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [Peer] Failed to create a temp link with server to connect with partner {partnerId}")]
+    public static partial void LogFailedToCreateATempLinkWithServerToConnectWithPartner(this ILogger logger, Exception ex, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Successfully connected to server to create a temp link with partner {partnerId}")]
+    public static partial void LogSuccessfullyConnectedToServerToCreateATempLinkWithPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Sending a signin message to server to create a temp link with partner {partnerId}, waiting for the signin response")]
+    public static partial void LogSendingASigninMessageToServerToCreateATempLinkWithPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Successfully created a temp link with server to connect with partner {partnerId}, local endpoint: {LocalEndPoint}, remote endpoint: {RemoteEndPoint}")]
+    public static partial void LogSuccessfullyCreatedATempLinkWithServerToConnectWithPartner(this ILogger logger, Guid partnerId, EndPoint localEndPoint, EndPoint remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] UPNP is available, using UPNP to connect to partner.")]
+    public static partial void LogUpnpIsAvailableUsingUpnpToConnectToPartner(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] NAT's behavior is not symmetric, using the same port as the temp link.")]
+    public static partial void LogNatsBehaviorIsNotSymmetricUsingTheSamePortAsTheTempLink(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] NAT's behavior is symmetric, using port prediction to connect to partner.")]
+    public static partial void LogNatsBehaviorIsSymmetricUsingPortPredictionToConnectToPartner(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Failed to connect to partner {partnerId}")]
+    public static partial void LogFailedToConnectToPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Successfully connected to partner {partnerId}")]
+    public static partial void LogSuccessfullyConnectedToPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [Peer] Failed to connect to partner {partnerId}")]
+    public static partial void LogFailedToConnectToPartner(this ILogger logger, Exception ex, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Already trying to connect to partner {partnerId}")]
+    public static partial void LogAlreadyTryingToConnectToPartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] Trying to connect to partner {partnerId}")]
+    public static partial void LogTryingToConnectToPartner(this ILogger logger, Guid partnerId);
 }

@@ -31,9 +31,7 @@ public class RouterPacketDispatcher
 
     public void Send(Guid target, object data)
     {
-        _logger.LogTrace(
-            "[ROUTER_DISPATCHER] Send {DataType} to {Target}",
-            data.GetType().Name, target);
+        _logger.LogSend(data.GetType().Name, target);
         
         SendToRouter(target, data);
     }
@@ -93,10 +91,7 @@ public class RouterPacketDispatcher
         var message = _codec.Decode(stream);
         var messageType = message!.GetType();
         
-        _logger.LogTrace(
-            "[ROUTER_DISPATCHER] Received {DataType} from {From}",
-            messageType.Name, packet.From);
-
+        _logger.LogReceived(messageType.Name, packet.From);
 
         if (!_receiveCallbackDic.TryGetValue(messageType, out var callbackWarp)) return;
 
@@ -124,4 +119,13 @@ public class RouterPacketDispatcher
         public readonly Dictionary<Guid, object> SpecificCallback = [];
         public readonly Dictionary<Guid, object> TempCallback = [];
     }
+}
+
+internal static partial class RouterPacketDispatcherLoggers
+{
+    [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] Send {DataType} to {Target}")]
+    public static partial void LogSend(this ILogger logger, string dataType, Guid target);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] Received {DataType} from {From}")]
+    public static partial void LogReceived(this ILogger logger, string dataType, Guid from);
 }

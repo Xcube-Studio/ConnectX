@@ -30,7 +30,6 @@ public class UdpManyToManyPortLinkMaker(
     public override async Task<ISession?> BuildLinkAsync()
     {
         var tokenSource = new CancellationTokenSource();
-        var connector = ServiceProvider.GetRequiredService<IConnector<UdpSession>>();
         UdpSession? succeedLink = null;
 
         await Task.Run(async () =>
@@ -54,9 +53,7 @@ public class UdpManyToManyPortLinkMaker(
                             var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp)
                                 { Ttl = 8 };
                             
-                            Logger.LogInformation(
-                                "[UDP_S2M] {LocalPort} Started to try UDP connection with {RemoteIpe}",
-                                SelfPort, remoteIp);
+                            Logger.LogStartedToTryUdpConnectionWithRemoteIpe(SelfPort, remoteIp);
                             
                             socket.Bind(new IPEndPoint(IPAddress.Any, NetworkHelper.GetAvailablePrivatePort()));
                             
@@ -77,9 +74,7 @@ public class UdpManyToManyPortLinkMaker(
                         }
                         catch (SocketException e)
                         {
-                            Logger.LogError(
-                                e, "[UDP_S2M] {LocalPort} Failed to try UDP connection with {RemoteIpe}",
-                                SelfPort, RemoteIpEndPoint);
+                            Logger.LogFailedToTryUdpConnectionWithRemoteIpe(e, SelfPort, RemoteIpEndPoint);
                         }
                     }
                 }
@@ -89,4 +84,13 @@ public class UdpManyToManyPortLinkMaker(
 
         return succeedLink;
     }
+}
+
+internal static partial class UdpManyToManyPortLinkMakerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[UDP_S2M] {LocalPort} Started to try UDP connection with {RemoteIpe}")]
+    public static partial void LogStartedToTryUdpConnectionWithRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [UDP_S2M] {LocalPort} Failed to try UDP connection with {RemoteIpe}")]
+    public static partial void LogFailedToTryUdpConnectionWithRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteIpe);
 }

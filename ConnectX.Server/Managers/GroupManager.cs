@@ -1,7 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using ConnectX.Server.Models;
-using ConnectX.Shared;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Messages.Identity;
@@ -77,9 +76,7 @@ public class GroupManager
     {
         if (!_clientManager.IsSessionAttached(id))
         {
-            _logger.LogError(
-                "[GROUP_MANAGER] Failed to attach session, session id: {sessionId}, invalid session.",
-                id);
+            _logger.LogFailedToAttachSession(id);
             return default;
         }
 
@@ -98,16 +95,11 @@ public class GroupManager
         if (!_userMapping.TryAdd(assignedId, user) ||
             !_sessionIdMapping.TryAdd(id, assignedId))
         {
-            _logger.LogError(
-                "[GROUP_MANAGER] Failed to attach session, session id: {sessionId}, failed to add user.",
-                id);
+            _logger.LogGroupManagerFailedToAddSessionToSessionMapping(id);
             return default;
         }
         
-        _logger.LogInformation(
-            "[GROUP_MANAGER] Session attached, session id: {sessionId}, assigned id: {assignedId}",
-            id.Id,
-            assignedId);
+        _logger.LogSessionAttached(id, assignedId);
 
         return assignedId;
     }
@@ -121,9 +113,7 @@ public class GroupManager
         var err = new GroupOpResult(false, "Session does not attached to SM.");
         dispatcher.SendAsync(session, err).Forget();
 
-        _logger.LogWarning(
-            "[GROUP_MANAGER] Received group op message from unattached session, session id: {sessionId}",
-            session.Id.Id);
+        _logger.LogReceivedGroupOpMessageFromUnattachedSession(session.Id);
 
         return true;
     }
@@ -137,9 +127,7 @@ public class GroupManager
         var err = new GroupOpResult(false, "Session does not attached to GM.");
         dispatcher.SendAsync(session, err).Forget();
             
-        _logger.LogWarning(
-            "[GROUP_MANAGER] Received group op message from unattached session, session id: {sessionId}",
-            session.Id.Id);
+        _logger.LogReceivedGroupOpMessageFromUnattachedSession(session.Id);
             
         return false;
     }
@@ -154,9 +142,7 @@ public class GroupManager
         var err = new GroupOpResult(false, "User does not exist.");
         dispatcher.SendAsync(session, err).Forget();
         
-        _logger.LogWarning(
-            "[GROUP_MANAGER] User does not exist, session id: {sessionId}",
-            session.Id.Id);
+        _logger.LogUserDoesNotExist(session.Id);
         
         return false;
     }
@@ -178,9 +164,7 @@ public class GroupManager
         var err = new GroupOpResult(false, "User is already in a group.");
         dispatcher.SendAsync(session, err).Forget();
 
-        _logger.LogWarning(
-            "[GROUP_MANAGER] A user who is already in a group are trying to perform group op, session id: {sessionId}",
-            session.Id.Id);
+        _logger.LogUserAlreadyInGroupPerformingGroupOp(session.Id);
 
         return true;
     }
@@ -198,9 +182,7 @@ public class GroupManager
                 var err = new GroupOpResult(false, "Group does not exist.");
                 dispatcher.SendAsync(session, err).Forget();
             
-                _logger.LogWarning(
-                    "[GROUP_MANAGER] Group does not exist, session id: {sessionId}",
-                    session.Id.Id);
+                _logger.LogGroupDoesNotExist(session.Id);
             }
             
             return (false, null);
@@ -230,18 +212,14 @@ public class GroupManager
                 if (tGroup.Users.All(u => u.UserId != user.UserId)) continue;
                 RemoveUser(tGroup.RoomId, user.UserId, null, null, GroupUserStates.Disconnected);
                 
-                _logger.LogInformation(
-                    "[GROUP_MANAGER] User [{userId}] has been removed from group [{groupId}] because of disconnection.",
-                    user.UserId, tGroup.RoomId);
+                _logger.LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(user.UserId, tGroup.RoomId);
                 break;
             }
             
             return;
         }
         
-        _logger.LogInformation(
-            "[GROUP_MANAGER] Group [{groupId}] has been dismissed by [{userId}] because of disconnection.",
-            group.RoomId, user.UserId);
+        _logger.LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(user.UserId, group.RoomId);
         
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, user)).Forget();
     }
@@ -271,9 +249,7 @@ public class GroupManager
             var err = new GroupOpResult(false, "Failed to add group to the group mapping.");
             ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
             
-            _logger.LogWarning(
-                "[GROUP_MANAGER] Failed to add group to the group mapping, session id: {sessionId}",
-                ctx.FromSession.Id.Id);
+            _logger.LogFailedToAddGroupToGroupMapping(ctx.FromSession.Id);
             
             return;
         }
@@ -281,9 +257,7 @@ public class GroupManager
         var success = new GroupOpResult(true){GroupId = group.RoomId};
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
         
-        _logger.LogInformation(
-            "[GROUP_MANAGER] Group created by [{userId}] with info [{groupName}]({shortId})",
-            ctx.FromSession.Id.Id, group.RoomName, group.RoomShortId);
+        _logger.LogGroupCreated(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
     }
     
     private void OnJoinGroupReceived(MessageContext<JoinGroup> ctx)
@@ -308,9 +282,7 @@ public class GroupManager
             var err = new GroupOpResult(false, "Group is full.");
             ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
             
-            _logger.LogWarning(
-                "[GROUP_MANAGER] User [{sessionId}] tried to join group [{groupId}], but it is full.",
-                ctx.FromSession.Id.Id, groupId);
+            _logger.LogGroupIsFull(ctx.FromSession.Id, groupId);
             
             return;
         }
@@ -320,9 +292,7 @@ public class GroupManager
             var err = new GroupOpResult(false, "Wrong password.");
             ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
             
-            _logger.LogWarning(
-                "[GROUP_MANAGER] User [{sessionId}] tried to join group [{groupId}], but the password is wrong.",
-                ctx.FromSession.Id.Id, groupId);
+            _logger.LogWrongPassword(ctx.FromSession.Id, groupId);
             
             return;
         }
@@ -335,9 +305,7 @@ public class GroupManager
         var success = new GroupOpResult(true){GroupId = group.RoomId};
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
         
-        _logger.LogInformation(
-            "[GROUP_MANAGER] User [{userId}] joined group [{groupName}]({shortId})",
-            ctx.FromSession.Id.Id, group.RoomName, group.RoomShortId);
+        _logger.LogUserJoinedGroup(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
     }
 
     private void RemoveUser(
@@ -373,9 +341,7 @@ public class GroupManager
         
         if (group.RoomOwner.UserId == message.UserId)
         {
-            _logger.LogInformation(
-                "[GROUP_MANAGER] Group [{groupId}] has been dismissed by [{userId}]",
-                message.GroupId, ctx.FromSession.Id.Id);
+            _logger.LogGroupHasBeenDismissedBy(message.GroupId, ctx.FromSession.Id);
             
             _groupMappings.TryRemove(group.RoomId, out _);
             NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, null)).Forget();
@@ -385,9 +351,7 @@ public class GroupManager
         
         RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Left);
         
-        _logger.LogInformation(
-            "[GROUP_MANAGER] User [{userId}] left group [{groupName}]({shortId})",
-            ctx.FromSession.Id.Id, group.RoomName, group.RoomShortId);
+        _logger.LogUserLeftGroup(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
     }
     
     private void OnKickUserReceived(MessageContext<KickUser> ctx)
@@ -402,9 +366,7 @@ public class GroupManager
 
         if (group.RoomOwner.UserId != message.UserId)
         {
-            _logger.LogWarning(
-                "[GROUP_MANAGER] User [{sessionId}] tried to kick user [{userId}] from group [{groupId}], but the user is not the owner.",
-                ctx.FromSession.Id.Id, message.UserId, message.GroupId);
+            _logger.LogCanNotKickWithoutPermission(ctx.FromSession.Id.Id, message.UserId, message.GroupId);
 
             return;
         }
@@ -414,9 +376,7 @@ public class GroupManager
         var success = new GroupOpResult(true);
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
         
-        _logger.LogInformation(
-            "[GROUP_MANAGER] User [{userId}] has been kicked from group [{groupName}]({shortId})",
-            ctx.FromSession.Id.Id, group.RoomName, group.RoomShortId);
+        _logger.LogUserHasBeenKickedFromGroup(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
     }
 
     private void OnAcquireGroupInfoReceived(MessageContext<AcquireGroupInfo> ctx)
@@ -443,4 +403,58 @@ public class GroupManager
         var groupWithEmptyUserInfo = (GroupInfo)group with { Users = [] };
         ctx.Dispatcher.SendAsync(session, groupWithEmptyUserInfo).Forget();
     }
+}
+
+internal static partial class GroupManagerLoggers
+{
+    [LoggerMessage(LogLevel.Error, "[GROUP_MANAGER] Failed to attach session, session id: {sessionId}, invalid session.")]
+    public static partial void LogFailedToAttachSession(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Error, "[GROUP_MANAGER] Failed to attach session, session id: {sessionId}, failed to add user.")]
+    public static partial void LogGroupManagerFailedToAddSessionToSessionMapping(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] Session attached, session id: {sessionId}, assigned id: {assignedId}")]
+    public static partial void LogSessionAttached(this ILogger logger, SessionId sessionId, Guid assignedId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Received group op message from unattached session, session id: {sessionId}")]
+    public static partial void LogReceivedGroupOpMessageFromUnattachedSession(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] User does not exist, session id: {sessionId}")]
+    public static partial void LogUserDoesNotExist(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] A user who is already in a group are trying to perform group op, session id: {sessionId}")]
+    public static partial void LogUserAlreadyInGroupPerformingGroupOp(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Group does not exist, session id: {sessionId}")]
+    public static partial void LogGroupDoesNotExist(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{userId}] has been removed from group [{groupId}] because of disconnection.")]
+    public static partial void LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(this ILogger logger, Guid userId, Guid groupId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Failed to add group to the group mapping, session id: {sessionId}")]
+    public static partial void LogFailedToAddGroupToGroupMapping(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] Group created by [{userId}] with info [{groupName}]({shortId})")]
+    public static partial void LogGroupCreated(this ILogger logger, SessionId userId, string groupName, string shortId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] User [{sessionId}] tried to join group [{groupId}], but it is full.")]
+    public static partial void LogGroupIsFull(this ILogger logger, SessionId sessionId, Guid groupId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] User [{sessionId}] tried to join group [{groupId}], but the password is wrong.")]
+    public static partial void LogWrongPassword(this ILogger logger, SessionId sessionId, Guid groupId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{SessionId}] joined group [{groupName}]({shortId})")]
+    public static partial void LogUserJoinedGroup(this ILogger logger, SessionId sessionId, string groupName, string shortId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] Group [{groupId}] has been dismissed by [{SessionId}]")]
+    public static partial void LogGroupHasBeenDismissedBy(this ILogger logger, Guid groupId, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{SessionId}] left group [{groupName}]({shortId})")]
+    public static partial void LogUserLeftGroup(this ILogger logger, SessionId sessionId, string groupName, string shortId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] User [{SessionId}] tried to kick user [{userId}] from group [{groupId}], but the user is not the owner.")]
+    public static partial void LogCanNotKickWithoutPermission(this ILogger logger, SessionId sessionId, Guid userId, Guid groupId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{SessionId}] has been kicked from group [{groupName}]({shortId})")]
+    public static partial void LogUserHasBeenKickedFromGroup(this ILogger logger, SessionId sessionId, string groupName, string shortId);
 }

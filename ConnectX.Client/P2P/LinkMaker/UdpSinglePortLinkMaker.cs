@@ -26,12 +26,8 @@ public class UdpSinglePortLinkMaker(
         
         UdpSession? link = null;
         
-        Logger.LogInformation(
-            "[UDP_S2S] {LocalPort} Started to try UDP connection with {RemoteIpe}",
-            LocalPort, RemoteIpe);
-        Logger.LogInformation(
-            "[UDP_S2S] Start time {DateTime}",
-            new DateTime(StartTimeTick).ToLongTimeString());
+        Logger.LogStartedToTryUdpConnectionWithRemoteIpe(LocalPort, RemoteIpe);
+        Logger.LogS2SStartTime(new DateTime(StartTimeTick).ToLongTimeString());
 
         var tryTime = 900;
 
@@ -69,15 +65,11 @@ public class UdpSinglePortLinkMaker(
                 }
                 catch (SocketException e)
                 {
-                    Logger.LogError(
-                        e, "[UDP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
-                        LocalPort, RemoteIpe, tryTime);
+                    Logger.LogConnectionFailed(e, LocalPort, RemoteIpe, tryTime);
                     
                     if (tryTime == 0)
                     {
-                        Logger.LogError(
-                            "[UDP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
-                            LocalPort, RemoteIpe, tryTime);
+                        Logger.LogConnectionFailed(null, LocalPort, RemoteIpe, tryTime);
                         InvokeOnFailed();
                         break;
                     }
@@ -86,13 +78,26 @@ public class UdpSinglePortLinkMaker(
                     continue;
                 }
 
-                Logger.LogInformation(
-                    "[UDP_S2S] {LocalPort} Succeed to connect with {RemoteIpe}",
-                    LocalPort, RemoteIpe);
+                Logger.LogConnectionSucceeded(LocalPort, RemoteIpe);
                 break;
             }
         }, handshakeTokenSource.Token);
 
         return link;
     }
+}
+
+internal static partial class UdpSinglePortLinkMakerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[UDP_S2S] {LocalPort} Started to try UDP connection with {RemoteIpe}")]
+    public static partial void LogStartedToTryUdpConnectionWithRemoteIpe(this ILogger logger, ushort localPort, IPEndPoint remoteIpe);
+
+    [LoggerMessage(LogLevel.Information, "[UDP_S2S] Start time {DateTime}")]
+    public static partial void LogS2SStartTime(this ILogger logger, string dateTime);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [UDP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
+    public static partial void LogConnectionFailed(this ILogger logger, Exception? ex, ushort localPort, IPEndPoint remoteIpe, int tryTime);
+
+    [LoggerMessage(LogLevel.Information, "[UDP_S2S] {LocalPort} Succeed to connect with {RemoteIpe}")]
+    public static partial void LogConnectionSucceeded(this ILogger logger, ushort localPort, IPEndPoint remoteIpe);
 }

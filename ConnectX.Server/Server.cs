@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Net;
 using ConnectX.Shared.Helpers;
 using ConnectX.Server.Interfaces;
 using ConnectX.Server.Managers;
@@ -64,14 +65,12 @@ public class Server : BackgroundService
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         var newVal = Interlocked.Decrement(ref _currentSessionCount);
-        _logger.LogInformation(
-            "[SERVER] Current online [{count}]",
-            newVal);
+        _logger.LogCurrentOnline(newVal);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("[SERVER] Starting server...");
+        _logger.LogStartingServer();
         
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -80,12 +79,8 @@ public class Server : BackgroundService
                 var currentTime = DateTime.UtcNow;
                 if (!((currentTime - add).TotalSeconds > MaxSessionLoginTimeout)) continue;
                 
-                _logger.LogWarning(
-                    "[CLIENT] Session [{id}] login timeout, disconnecting...",
-                    session.Id.Id);
-                _logger.LogInformation(
-                    "[SERVER] Current online [{count}]",
-                    Interlocked.Read(ref _currentSessionCount));
+                _logger.LogSessionLoginTimeout(session.Id);
+                _logger.LogCurrentOnline(Interlocked.Read(ref _currentSessionCount));
 
                 await _dispatcher.SendAsync(session, new ShutdownMessage());
                 _tempSessionMapping.TryRemove(id, out _);
@@ -104,9 +99,7 @@ public class Server : BackgroundService
         
         _clientManager.StartWatchDog(cancellationToken);
         
-        _logger.LogInformation(
-            "Server started on endpoint [{endPoint}]",
-            _serverSettingProvider.ListenIpEndPoint);
+        _logger.LogServerStarted(_serverSettingProvider.ListenIpEndPoint);
 
         await base.StartAsync(cancellationToken);
     }
@@ -126,9 +119,7 @@ public class Server : BackgroundService
                 return (currentTime, session);
             });
 
-        _logger.LogInformation(
-            "[CLIENT] New Session joined, EndPoint [{endPoint}] ID [{id}], wait for signin message.",
-            session.RemoteEndPoint, id.Id);
+        _logger.LogNewSessionJoined(session.RemoteEndPoint!, id);
     }
 
     private void OnTempQueryReceived(MessageContext<TempQuery> ctx)
@@ -154,20 +145,13 @@ public class Server : BackgroundService
             return;
         
         var newVal = Interlocked.Increment(ref _currentSessionCount);
-        _logger.LogInformation(
-            "[SERVER] Current online [{count}]",
-            newVal);
+        _logger.LogCurrentOnline(newVal);
 
-        _logger.LogInformation(
-            "[CLIENT] SigninMessage received from [{endPoint}] ID [{id}]",
-            session.RemoteEndPoint,
-            session.Id.Id);
+        _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
 
         if (ctx.Message.Id != default)
         {
-            _logger.LogInformation(
-                "[CLIENT] User [{userId}] created a temp link for P2P connection. Attach session to P2PManager.",
-                ctx.Message.Id);
+            _logger.LogUserCreatedTempLink(ctx.Message.Id);
             
             _p2PManager.AttachTempSession(session, ctx.Message);
             _dispatcher.SendAsync(session, new SigninSucceeded(ctx.Message.Id)).Forget();
@@ -186,8 +170,35 @@ public class Server : BackgroundService
     {
         await _acceptor.TryCloseAsync(cancellationToken);
 
-        _logger.LogInformation("Server stopped.");
+        _logger.LogServerStopped();
 
         await base.StopAsync(cancellationToken);
     }
+}
+
+internal static partial class ServerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[SERVER] Current online [{count}]")]
+    public static partial void LogCurrentOnline(this ILogger logger, long count);
+
+    [LoggerMessage(LogLevel.Information, "[SERVER] Starting server...")]
+    public static partial void LogStartingServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "[CLIENT] Session [{id}] login timeout, disconnecting...")]
+    public static partial void LogSessionLoginTimeout(this ILogger logger, SessionId id);
+
+    [LoggerMessage(LogLevel.Information, "Server started on endpoint [{endPoint}]")]
+    public static partial void LogServerStarted(this ILogger logger, IPEndPoint endPoint);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] New Session joined, EndPoint [{endPoint}] ID [{id}], wait for signin message.")]
+    public static partial void LogNewSessionJoined(this ILogger logger, IPEndPoint endPoint, SessionId id);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] SigninMessage received from [{endPoint}] ID [{id}]")]
+    public static partial void LogSigninMessageReceived(this ILogger logger, IPEndPoint endPoint, SessionId id);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] User [{userId}] created a temp link for P2P connection. Attach session to P2PManager.")]
+    public static partial void LogUserCreatedTempLink(this ILogger logger, Guid userId);
+
+    [LoggerMessage(LogLevel.Information, "Server stopped.")]
+    public static partial void LogServerStopped(this ILogger logger);
 }

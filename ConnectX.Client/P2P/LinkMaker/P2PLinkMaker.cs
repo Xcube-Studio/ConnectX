@@ -39,6 +39,6 @@ public abstract class P2PLinkMaker(
     {
         while (tokenSource is not { IsCancellationRequested: true } &&
                DateTime.UtcNow.Ticks < StartTimeTick)
-            await Task.Delay(TimeSpan.FromTicks(1));
+            await Task.Delay(TimeSpan.FromTicks(1), tokenSource!.Token);
     }
 }

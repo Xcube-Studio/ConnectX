@@ -1,5 +1,4 @@
 ﻿using System.Collections;
-using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route;
@@ -28,7 +27,6 @@ public class P2PConnection : ISender
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger _logger;
     
-    private readonly CancellationTokenSource _cts = new();
     private readonly TransDatagram[] _sendBuffer = new TransDatagram[BufferLength];
     private readonly BitArray _sendBufferAckFlag = new(BufferLength);
     
@@ -63,9 +61,7 @@ public class P2PConnection : ISender
             // 握手的回复
             _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateShakeHandSecond(1));
             
-            _logger.LogTrace(
-                "[P2P_CONNECTION] Receive first shakehand packet, send second shakehand packet. (TargetId: {Id})",
-                _targetId);
+            _logger.LogReceiveFirstShakeHandPacket(_targetId);
             
             IsConnected = true;
             return;
@@ -81,9 +77,7 @@ public class P2PConnection : ISender
 
                 if (message == null)
                 {
-                    _logger.LogError(
-                        "[P2P_CONNECTION] Decode message with payload length [{Length}] failed. (TargetId: {Id})",
-                        stream.Length, _targetId);
+                    _logger.LogDecodeMessageFailed(stream.Length, _targetId);
                     
                     return;
                 }
@@ -127,18 +121,14 @@ public class P2PConnection : ISender
 
             if (!_lifetime.ApplicationStopping.IsCancellationRequested)
             {
-                _logger.LogDebug(
-                    "[P2P_CONNECTION] Resend coroutine started. (TargetId: {Id})",
-                    _targetId);
+                _logger.LogResendCoroutineStarted(_targetId);
             }
         }
     }
     
     public async Task<bool> ConnectAsync()
     {
-        _logger.LogInformation(
-            "[P2P_CONNECTION] Connecting to {TargetId}",
-            _targetId);
+        _logger.LogConnectingTo(_targetId);
         
         if (IsConnected) return true;
 
@@ -154,9 +144,7 @@ public class P2PConnection : ISender
         
         if (!succeed)
         {
-            _logger.LogError(
-                "[P2P_CONNECTION] Connect failed, no SYNACK response. (TargetId: {Id})",
-                _targetId);
+            _logger.LogConnectFailed(_targetId);
             
             return false;
         }
@@ -201,4 +189,22 @@ public class P2PConnection : ISender
         
         _routerPacketDispatcher.Send(_targetId, datagram);
     }
+}
+
+internal static partial class P2PConnectionLoggers
+{
+    [LoggerMessage(LogLevel.Trace, "[P2P_CONNECTION] Receive first shakehand packet, send second shakehand packet. (TargetId: {Id})")]
+    public static partial void LogReceiveFirstShakeHandPacket(this ILogger logger, Guid id);
+
+    [LoggerMessage(LogLevel.Error, "[P2P_CONNECTION] Decode message with payload length [{Length}] failed. (TargetId: {Id})")]
+    public static partial void LogDecodeMessageFailed(this ILogger logger, long length, Guid id);
+
+    [LoggerMessage(LogLevel.Debug, "[P2P_CONNECTION] Resend coroutine started. (TargetId: {Id})")]
+    public static partial void LogResendCoroutineStarted(this ILogger logger, Guid id);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONNECTION] Connecting to {TargetId}")]
+    public static partial void LogConnectingTo(this ILogger logger, Guid targetId);
+
+    [LoggerMessage(LogLevel.Error, "[P2P_CONNECTION] Connect failed, no SYNACK response. (TargetId: {Id})")]
+    public static partial void LogConnectFailed(this ILogger logger, Guid id);
 }

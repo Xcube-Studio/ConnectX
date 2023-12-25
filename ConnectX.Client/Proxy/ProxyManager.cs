@@ -70,9 +70,7 @@ public sealed class ProxyManager : GenericProxyManager
     {
         if (!_partnerManager.Partners.TryGetValue(partnerId, out var value))
         {
-            Logger.LogError(
-                "[PROXY_MANAGER] Partner {@PartnerId} not found",
-                partnerId);
+            Logger.LogPartnerNotFound(partnerId);
             
             return null;
         }
@@ -85,4 +83,10 @@ public sealed class ProxyManager : GenericProxyManager
             remoteRealMcServerPort,
             con);
     }
+}
+
+internal static partial class ProxyManagerLoggers
+{
+    [LoggerMessage(LogLevel.Error, "[PROXY_MANAGER] Partner {PartnerId} not found")]
+    public static partial void LogPartnerNotFound(this ILogger logger, Guid partnerId);
 }

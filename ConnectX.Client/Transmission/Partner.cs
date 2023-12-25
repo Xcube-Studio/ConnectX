@@ -49,9 +49,7 @@ public class Partner
             {
                 if (_isLastTimeConnected)
                 {
-                    _logger.LogDebug(
-                        "[PARTNER] Disconnected with {PartnerId}",
-                        _partnerId);
+                    _logger.LogDisconnectedWithPartnerId(_partnerId);
                     
                     OnDisconnected?.Invoke(this);
                     
@@ -61,9 +59,7 @@ public class Partner
 
                 if (await Connection.ConnectAsync())
                 {
-                    _logger.LogDebug(
-                        "[PARTNER] Connected with {PartnerId}",
-                        _partnerId);
+                    _logger.LogConnectedWithPartnerId(_partnerId);
                     
                     _isLastTimeConnected = true;
                     
@@ -74,9 +70,7 @@ public class Partner
             {
                 if (_isLastTimeConnected == false)
                 {
-                    _logger.LogDebug(
-                        "[PARTNER] Connected with {PartnerId}",
-                        _partnerId);
+                    _logger.LogConnectedWithPartnerId(_partnerId);
                     
                     _isLastTimeConnected = true;
                     
@@ -99,4 +93,13 @@ public class Partner
     {
         Connection.Disconnect();
     }
+}
+
+internal static partial class PartnerLoggers
+{
+    [LoggerMessage(LogLevel.Debug, "[PARTNER] Disconnected with {PartnerId}")]
+    public static partial void LogDisconnectedWithPartnerId(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Debug, "[PARTNER] Connected with {PartnerId}")]
+    public static partial void LogConnectedWithPartnerId(this ILogger logger, Guid partnerId);
 }

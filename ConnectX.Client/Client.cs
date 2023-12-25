@@ -71,9 +71,7 @@ public class Client
             groupInfo == GroupInfo.Invalid ||
             groupInfo.Users.Length == 0)
         {
-            _logger.LogError(
-                "[CLIENT] Failed to acquire group info, group id: {groupId}",
-                groupId);
+            _logger.LogFailedToAcquireGroupInfo(groupId);
             
             return null;
         }
@@ -90,9 +88,7 @@ public class Client
 
         if (!(result?.IsSucceeded ?? false))
         {
-            _logger.LogError(
-                "[CLIENT] Failed to create group, error message: {errorMessage}",
-                result?.ErrorMessage ?? "-");
+            _logger.LogFailedToCreateGroup(result?.ErrorMessage ?? "-");
             return (null, result?.ErrorMessage ?? "-");
         }
         
@@ -185,4 +181,13 @@ public class Client
 
         return (true, forwardInterface == partnerId, ping);
     }
+}
+
+internal static partial class ClientLoggers
+{
+    [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to acquire group info, group id: {groupId}")]
+    public static partial void LogFailedToAcquireGroupInfo(this ILogger logger, Guid groupId);
+
+    [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to create group, error message: {errorMessage}")]
+    public static partial void LogFailedToCreateGroup(this ILogger logger, string errorMessage);
 }

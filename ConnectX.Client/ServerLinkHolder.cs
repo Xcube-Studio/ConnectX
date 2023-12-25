@@ -3,10 +3,8 @@ using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
-using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
-using Hive.Codec.Abstractions;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
@@ -46,7 +44,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[CLIENT] Starting server link holder...");
+        _logger.LogStartingServerLinkHolder();
 
         await ConnectAsync(cancellationToken);
         await TaskHelper.WaitUntilAsync(() => IsConnected, cancellationToken);
@@ -55,38 +53,35 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[CLIENT] Stopping server link holder...");
+        _logger.LogStoppingServerLinkHolder();
         return base.StopAsync(cancellationToken);
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[CLIENT] Getting client NAT type...");
+        _logger.LogGettingClientNatType();
 
         var natType = await StunHelper.GetNatTypeAsync(cancellationToken: cancellationToken);
 
         NatType = natType;
         
-        _logger.LogInformation("[CLIENT] Client NAT type: {natType}", natType);
-        _logger.LogInformation(
-            "[CLIENT] ConnectX NAT type: {natType}",
-            StunHelper.ToNatTypes(natType));
-        
-        _logger.LogInformation("[CLIENT] Connecting to server...");
+        _logger.LogClientNatType(natType);
+        _logger.LogConnectXNatType(StunHelper.ToNatTypes(natType));
+        _logger.LogConnectingToServer();
 
         var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
         var session = await _tcpConnector.ConnectAsync(endPoint, cancellationToken);
 
         if (session == null)
         {
-            _logger.LogError("[CLIENT] Failed to connect to server at endpoint {endPoint}", endPoint);
+            _logger.LogFailedToConnectToServer(endPoint);
             return;
         }
 
         session.BindTo(_dispatcher);
         session.StartAsync(cancellationToken).Forget();
         
-        _logger.LogInformation("[CLIENT] Sending signin message to server...");
+        _logger.LogSendingSigninMessageToServer();
 
         await _dispatcher.SendAsync(session, new SigninMessage
         {
@@ -98,7 +93,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
         
-        _logger.LogInformation("[CLIENT] Connected and signed to server at endpoint {endPoint}", endPoint);
+        _logger.LogConnectedAndSignedToServer(endPoint);
 
         ServerSession = session;
         IsConnected = true;
@@ -108,12 +103,12 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     {
         if (!IsConnected || ServerSession == null) return;
         
-        _logger.LogInformation("[CLIENT] Disconnecting from server...");
+        _logger.LogDisconnectingFromServer();
 
         await _dispatcher.SendAsync(ServerSession, new ShutdownMessage());
         ServerSession.Close();
         
-        _logger.LogInformation("[CLIENT] Disconnected from server.");
+        _logger.LogDisconnectedFromServer();
 
         IsSignedIn = false;
         IsConnected = false;
@@ -129,18 +124,18 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> ctx)
     {
-        _logger.LogDebug("[CLIENT] Heartbeat received from server.");
+        _logger.LogHeartbeatReceivedFromServer();
     }
     
     private void OnShutdownMessageReceived(MessageContext<ShutdownMessage> ctx)
     {
-        _logger.LogInformation("[CLIENT] Shutdown message received from server.");
+        _logger.LogShutdownMessageReceivedFromServer();
         DisconnectAsync(CancellationToken.None).Forget();
     }
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("[CLIENT] Start sending heartbeat...");
+        _logger.LogStartSendingHeartbeat();
         
         while (!stoppingToken.IsCancellationRequested && IsConnected && ServerSession != null)
         {
@@ -148,6 +143,54 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
         
-        _logger.LogInformation("[CLIENT] Stop sending heartbeat.");
+        _logger.LogStopSendingHeartbeat();
     }
+}
+
+internal static partial class ServerLinkHolderLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Starting server link holder...")]
+    public static partial void LogStartingServerLinkHolder(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Stopping server link holder...")]
+    public static partial void LogStoppingServerLinkHolder(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Getting client NAT type...")]
+    public static partial void LogGettingClientNatType(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Client NAT type: {natType}")]
+    public static partial void LogClientNatType(this ILogger logger, StunResult5389? natType);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] ConnectX NAT type: {natType}")]
+    public static partial void LogConnectXNatType(this ILogger logger, NatTypes natType);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Connecting to server...")]
+    public static partial void LogConnectingToServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to connect to server at endpoint {endPoint}")]
+    public static partial void LogFailedToConnectToServer(this ILogger logger, IPEndPoint endPoint);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Sending signin message to server...")]
+    public static partial void LogSendingSigninMessageToServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Connected and signed to server at endpoint {endPoint}")]
+    public static partial void LogConnectedAndSignedToServer(this ILogger logger, IPEndPoint endPoint);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Disconnecting from server...")]
+    public static partial void LogDisconnectingFromServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Disconnected from server.")]
+    public static partial void LogDisconnectedFromServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Debug, "[CLIENT] Heartbeat received from server.")]
+    public static partial void LogHeartbeatReceivedFromServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Shutdown message received from server.")]
+    public static partial void LogShutdownMessageReceivedFromServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Start sending heartbeat...")]
+    public static partial void LogStartSendingHeartbeat(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Stop sending heartbeat.")]
+    public static partial void LogStopSendingHeartbeat(this ILogger logger);
 }

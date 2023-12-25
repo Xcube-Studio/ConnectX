@@ -35,12 +35,8 @@ public class TcpSingleToManyLinkMaker(
         await Task.Run(
             async () =>
             {
-                Logger.LogInformation(
-                    "[TCP_S2M] {LocalPort} Started to try TCP connection with {RemoteIpe}",
-                    SelfPort, TargetIp);
-                Logger.LogInformation(
-                    "[TCP_S2M] Start time {DateTime}",
-                    new DateTime(StartTimeTick).ToLongTimeString());
+                Logger.LogStartedToTryTcpConnectionWithRemoteIpe(SelfPort, TargetIp);
+                Logger.LogS2MStartTime(new DateTime(StartTimeTick).ToLongTimeString());
                 
                 var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
                 
@@ -58,9 +54,7 @@ public class TcpSingleToManyLinkMaker(
                     var remoteIpe = new IPEndPoint(TargetIp, remotePort);
                     var tryTime = 10;
                     
-                    Logger.LogInformation(
-                        "[TCP_S2M] {LocalPort} Started to try TCP connection with {RemoteIpe}",
-                        SelfPort, remoteIpe);
+                    Logger.LogConnectedToRemoteIpe(SelfPort, remoteIpe);
 
                     while (!handshakeTokenSource.IsCancellationRequested &&
                            tryTime > 0)
@@ -82,9 +76,7 @@ public class TcpSingleToManyLinkMaker(
                             if (link == null)
                                 throw new SocketException((int)SocketError.Fault, "Link is null");
                             
-                            Logger.LogInformation(
-                                "[TCP_S2M] {LocalPort} Succeed to connect with {RemoteIpe}",
-                                SelfPort, remoteIpe);
+                            Logger.LogS2MSucceedToConnectToRemoteIpe(SelfPort, remoteIpe);
                             
                             _remoteIpEndPoint = link.RemoteEndPoint;
                             InvokeOnConnected(link);
@@ -93,9 +85,7 @@ public class TcpSingleToManyLinkMaker(
                         }
                         catch (SocketException e)
                         {
-                            Logger.LogError(
-                                e, "[TCP_S2M] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}",
-                                SelfPort, remoteIpe, tryTime);
+                            Logger.LogS2MFailedToConnectToRemoteIpe(e, SelfPort, remoteIpe, tryTime);
                         }
                     }
                 }
@@ -105,4 +95,22 @@ public class TcpSingleToManyLinkMaker(
 
         return link;
     }
+}
+
+internal static partial class TcpSingleToManyLinkMakerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[TCP_S2M] {LocalPort} Started to try TCP connection with {RemoteIpe}")]
+    public static partial void LogStartedToTryTcpConnectionWithRemoteIpe(this ILogger logger, int localPort, IPAddress remoteIpe);
+
+    [LoggerMessage(LogLevel.Information, "[TCP_S2M] Start time {DateTime}")]
+    public static partial void LogS2MStartTime(this ILogger logger, string dateTime);
+
+    [LoggerMessage(LogLevel.Information, "[TCP_S2M] {LocalPort} Started to try TCP connection with {RemoteIpe}")]
+    public static partial void LogConnectedToRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
+
+    [LoggerMessage(LogLevel.Information, "[TCP_S2M] {LocalPort} Succeed to connect with {RemoteIpe}")]
+    public static partial void LogS2MSucceedToConnectToRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [TCP_S2M] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
+    public static partial void LogS2MFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteIpe, int tryTime);
 }

@@ -46,9 +46,7 @@ public class P2PManager
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
-        _logger.LogInformation(
-            "[P2P_MANAGER] User disconnected, session id: {sessionId}",
-            sessionId.Id);
+        _logger.LogUserDisconnected(sessionId);
 
         if (_sessionIdMapping.TryRemove(sessionId, out var userId) &&
             _userSessionMappings.TryRemove(userId, out var attachedSession))
@@ -89,9 +87,7 @@ public class P2PManager
         if (_tempLinkMappings.TryGetValue(key, out var group) &&
             group.Remove(sessionToRemove))
         {
-            _logger.LogInformation(
-                "[P2P_MANAGER] Temp link disconnected, session id: {sessionId}",
-                ctx.FromSession.Id.Id);
+            _logger.LogTempLinkDisconnected(ctx.FromSession.Id);
             
             OnSessionDisconnected?.Invoke(sessionToRemove.Id);
         }
@@ -99,25 +95,19 @@ public class P2PManager
 
     private void OnReceivedP2PConRequest(MessageContext<P2PConRequest> ctx)
     {
-        _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], session id: {sessionId}",
-            ctx.FromSession.Id.Id, ctx.Message.TargetId, ctx.FromSession.Id.Id);
+        _logger.LogUserTryingToMakeP2PConnWithTarget(ctx.Message.SelfId, ctx.Message.TargetId);
         
         var session = ctx.FromSession;
         var message = ctx.Message;
 
         if (!_conRequests.TryAdd(message.Bargain, (session, message)))
         {
-            _logger.LogError(
-                "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], but the request already exists",
-                message.SelfId, message.TargetId);
+            _logger.LogUserTryingToMakeP2PConnWithTargetButTheRequestAlreadyExists(message.SelfId, message.TargetId);
         }
 
         if (!_userSessionMappings.TryGetValue(message.TargetId, out var targetConnection))
         {
-            _logger.LogWarning(
-                "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], but the target does not exist",
-                message.SelfId, message.TargetId);
+            _logger.LogUserTryingToMakeP2PConnWithTargetButTheTargetDoesNotExist(message.SelfId, message.TargetId);
             
             var err = new P2POpResult(false, "Target does not exist");
             ctx.Dispatcher.SendAsync(session, err).Forget();
@@ -137,25 +127,19 @@ public class P2PManager
         var result = new P2POpResult(true);
         ctx.Dispatcher.SendAsync(session, result).Forget();
 
-        _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], session id: {sessionId}",
-            message.SelfId, message.TargetId, session.Id.Id);
+        _logger.LogUserTryingToMakeP2PConnWithTarget(message.SelfId, message.TargetId, session.Id);
     }
     
     private void OnReceivedP2PConAccept(MessageContext<P2PConAccept> ctx)
     {
-        _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} accepted P2P conn, session id: {sessionId}",
-            ctx.FromSession.Id.Id, ctx.FromSession.Id.Id);
+        _logger.LogUserAcceptedP2PConn(ctx.Message.SelfId, ctx.FromSession.Id);
         
         var from = ctx.FromSession;
         var message = ctx.Message;
 
         if (!_conRequests.TryRemove(message.Bargain, out var value))
         {
-            _logger.LogWarning(
-                "[P2P_MANAGER] User {userId} trying to accept P2P conn, but the request does not exist, session id: {sessionId}",
-                message.SelfId, ctx.FromSession.Id.Id);
+            _logger.LogUserTryingToAcceptP2PConnButTheRequestDoesNotExist(message.SelfId, ctx.FromSession.Id);
             
             var err = new P2POpResult(false, "Request does not exist");
             ctx.Dispatcher.SendAsync(from, err).Forget();
@@ -192,9 +176,7 @@ public class P2PManager
         };
         ctx.Dispatcher.SendAsync(from, result).Forget();
         
-        _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} accepted P2P conn, session id: {sessionId}",
-            message.SelfId, ctx.FromSession.Id.Id);
+        _logger.LogUserAcceptedP2PConn(message.SelfId, ctx.FromSession.Id);
     }
 
     private IEnumerable<Guid> GetPossibleInterconnectUsers(Guid selfUserId)
@@ -226,10 +208,6 @@ public class P2PManager
         ISession session,
         SigninMessage signinMessage)
     {
-        _logger.LogInformation(
-            "[P2P_MANAGER] User requested to join the P2P network, session id: {sessionId}",
-            signinMessage.Id);
-
         _tempLinkMappings.AddOrUpdate(signinMessage.Id, [session], (_, list) =>
         {
             var old = list.FirstOrDefault(s => s.Id == session.Id);
@@ -243,10 +221,7 @@ public class P2PManager
             return list;
         });
         
-        _logger.LogInformation(
-            "[P2P_MANAGER] User {userId} requested to join the P2P network, session id: {sessionId}",
-            signinMessage.Id,
-            session.Id.Id);
+        _logger.LogUserRequestedToJoinTheP2PNetwork(signinMessage.Id, session.Id);
     }
     
     public void AttachSession(
@@ -254,20 +229,11 @@ public class P2PManager
         Guid userId,
         SigninMessage signinMessage)
     {
-        if (!signinMessage.JoinP2PNetwork)
-        {
-            _logger.LogInformation(
-                "[P2P_MANAGER] User requested to not join the P2P network, session id: {sessionId}",
-                session.Id.Id);
-            return;
-        }
-        
+        if (!signinMessage.JoinP2PNetwork) return;
         if (!_userSessionMappings.TryAdd(userId, session) ||
             !_sessionIdMapping.TryAdd(session.Id, userId))
         {
-            _logger.LogError(
-                "[P2P_MANAGER] Failed to add session to the session mapping, session id: {sessionId}",
-                session.Id.Id);
+            _logger.LogP2PFailedToAddSessionToSessionMapping(session.Id);
             return;
         }
 
@@ -275,12 +241,46 @@ public class P2PManager
         
         if (possibleInterconnectUsers.Length == 0) return;
 
-        _logger.LogInformation(
-            "[P2P_MANAGER] User has {count} possible interconnect users, session id: {sessionId}",
-            possibleInterconnectUsers.Length, session.Id.Id);
+        _logger.LogUserHasPossibleInterconnectUsers(possibleInterconnectUsers.Length, session.Id.Id);
 
         var message = new P2PInterconnect(possibleInterconnectUsers);
         
         _dispatcher.SendAsync(session, message).Forget();
     }
+}
+
+internal static partial class P2PManagerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] User disconnected, session id: {sessionId}")]
+    public static partial void LogUserDisconnected(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] Temp link disconnected, session id: {sessionId}")]
+    public static partial void LogTempLinkDisconnected(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}]")]
+    public static partial void LogUserTryingToMakeP2PConnWithTarget(this ILogger logger, Guid userId, Guid targetId);
+
+    [LoggerMessage(LogLevel.Error, "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], but the request already exists")]
+    public static partial void LogUserTryingToMakeP2PConnWithTargetButTheRequestAlreadyExists(this ILogger logger, Guid userId, Guid targetId);
+
+    [LoggerMessage(LogLevel.Warning, "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], but the target does not exist")]
+    public static partial void LogUserTryingToMakeP2PConnWithTargetButTheTargetDoesNotExist(this ILogger logger, Guid userId, Guid targetId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] User {userId} trying to make P2P conn with target [{targetId}], session id: {sessionId}")]
+    public static partial void LogUserTryingToMakeP2PConnWithTarget(this ILogger logger, Guid userId, Guid targetId, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] User {userId} accepted P2P conn, session id: {sessionId}")]
+    public static partial void LogUserAcceptedP2PConn(this ILogger logger, Guid userId, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Warning, "[P2P_MANAGER] User {userId} trying to accept P2P conn, but the request does not exist, session id: {sessionId}")]
+    public static partial void LogUserTryingToAcceptP2PConnButTheRequestDoesNotExist(this ILogger logger, Guid userId, SessionId sessionId);
+    
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] User requested to join the P2P network, user id: {userId}, session id: {SessionId}")]
+    public static partial void LogUserRequestedToJoinTheP2PNetwork(this ILogger logger, Guid userId, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Error, "[P2P_MANAGER] Failed to add session to the session mapping, session id: {sessionId}")]
+    public static partial void LogP2PFailedToAddSessionToSessionMapping(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] User has {count} possible interconnect users, session id: {sessionId}")]
+    public static partial void LogUserHasPossibleInterconnectUsers(this ILogger logger, int count, SessionId sessionId);
 }

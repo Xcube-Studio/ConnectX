@@ -60,24 +60,18 @@ public class P2PConInitiator : IDisposable
         switch (_selfContext)
         {
             case P2PConRequest req:
-                _logger.LogInformation(
-                    "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConRequest to {PartnerId}",
-                    _localEndPoint, _partnerId);
+                _logger.LogSendingP2PConRequest(_localEndPoint, _partnerId);
                 await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, req);
                 break;
             case P2PConAccept accept:
-                _logger.LogInformation(
-                    "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConAccept to {PartnerId}",
-                    _localEndPoint, _partnerId);
+                _logger.LogSendingP2PConAccept(_localEndPoint, _partnerId);
                 await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, accept);
                 break;
             default:
                 throw new InvalidOperationException("Invalid P2PConContext type");
         }
 
-        _logger.LogInformation(
-            "[P2P_CONN_INIT] {LocalEndPoint} Started to establish P2P connection with {PartnerId}",
-            _localEndPoint, _partnerId);
+        _logger.LogStartedToEstablishP2PConnectionWithPartnerId(_localEndPoint, _partnerId);
         
         return await _completionSource.Task;
     }
@@ -90,9 +84,7 @@ public class P2PConInitiator : IDisposable
         
         if (serverTmpSocket != null)
         {
-            _logger.LogInformation(
-                "[P2P_CONN_INIT] {LocalEndPoint} has closed the temp connection with server",
-                serverTmpSocket.Session.LocalEndPoint);
+            _logger.LogClosedTempConnectionWithServer(serverTmpSocket.Session.LocalEndPoint!);
 
             await serverTmpSocket.Dispatcher.SendAsync(serverTmpSocket.Session, new ShutdownMessage());
             await Task.Delay(500);
@@ -110,9 +102,7 @@ public class P2PConInitiator : IDisposable
 
         if (!message.IsSucceeded)
         {
-            _logger.LogError(
-                "[P2P_CONN_INIT] Failed to establish P2P connection with {PartnerId}, reason: {Reason}",
-                _partnerId, message.ErrorMessage);
+            _logger.LogFailedToEstablishP2PConnectionWithPartnerId(_partnerId, message.ErrorMessage ?? "-");
 
             return;
         }
@@ -125,9 +115,7 @@ public class P2PConInitiator : IDisposable
                 P2PConReadyReceived(ready);
                 break;
             default:
-                _logger.LogWarning(
-                    "[P2P_CONN_INIT] Received P2POpResult from {PartnerId}, but the context type is not been processed, type: {Type}",
-                    _partnerId, message.Context?.GetType());
+                _logger.LogReceivedP2POpResultButContextTypeNotBeenProcessed(_partnerId, message.Context?.GetType());
                 break;
         }
     }
@@ -136,15 +124,11 @@ public class P2PConInitiator : IDisposable
     
     private void P2PConReadyReceived(P2PConReady message)
     {
-        _logger.LogInformation(
-            "[P2P_CONN_INIT] Received P2PConReady from {PartnerId}",
-            _partnerId);
+        _logger.LogReceivedP2PConReady(_partnerId);
 
         if (message.RecipientId != _partnerId)
         {
-            _logger.LogWarning(
-                "[P2P_CONN_INIT] Received P2PConReady from {PartnerId}, but the recipient is {RecipientId}",
-                _partnerId, message.RecipientId);
+            _logger.LogP2PConReadyMismatch(_partnerId, message.RecipientId);
             
             return;
         }
@@ -160,9 +144,7 @@ public class P2PConInitiator : IDisposable
         {
             try
             {
-                _logger.LogInformation(
-                    "[P2P_CONN_INIT] Trying to create direct link to {partnerId}, local endpoint: {localEndPoint}, remote endpoint: {remoteAddr}:{remotePort}",
-                    _partnerId, _tmpLinkToServer.Session.LocalEndPoint, message.PublicAddress, message.PublicPort);
+                _logger.LogTryingToMakeConnection(_partnerId, _tmpLinkToServer.Session.LocalEndPoint, message.PublicAddress, message.PublicPort);
                 
                 EstablishedConnection = await CreateDirectLinkToPartnerAsync(connectionMaker, _tmpLinkToServer);
                 RemoteEndPoint = EstablishedConnection?.RemoteEndPoint;
@@ -213,11 +195,11 @@ public class P2PConInitiator : IDisposable
             }
         }
         
-        _logger.LogTrace("[P2P_CONN_INIT] Smallest predict port is {Min}", targetPredictPort.Min());
-        _logger.LogTrace("[P2P_CONN_INIT] Biggest predict port is {Max}", targetPredictPort.Max());
-        _logger.LogTrace("[P2P_CONN_INIT] Predict port count is {Count}", targetPredictPort.Count);
+        _logger.LogSmallestPredictPort(targetPredictPort.Min());
+        _logger.LogBiggestPredictPort(targetPredictPort.Max());
+        _logger.LogPredictPortCount(targetPredictPort.Count);
 
-        return targetPredictPort.ToArray();
+        return [.. targetPredictPort];
     }
 
     private P2PLinkMaker CreateLinkMaker(
@@ -229,8 +211,7 @@ public class P2PConInitiator : IDisposable
     {
         P2PLinkMaker linkMaker;
 
-        _logger.LogDebug("Create P2PLinkMaker, {@P2PConContext}",
-            selfContext);
+        _logger.LogCreateP2PLinkMaker(selfContext);
 
         if (targetContext.PortDeterminationMode is
             PortDeterminationMode.UseTempLinkPort or PortDeterminationMode.Upnp)
@@ -240,8 +221,7 @@ public class P2PConInitiator : IDisposable
             if (selfContext.PortDeterminationMode is
                 PortDeterminationMode.UseTempLinkPort or PortDeterminationMode.Upnp)
             {
-                _logger.LogInformation(
-                    "[P2P_CONN_INIT] Both sides can confirm their ports, using single port link maker");
+                _logger.LogBothSidesCanConfirmTheirPortsUsingSinglePortLinkMaker();
                 
                 if (selfContext.UseUdp)
                     linkMaker = ActivatorUtilities.CreateInstance<UdpSinglePortLinkMaker>(
@@ -262,8 +242,7 @@ public class P2PConInitiator : IDisposable
             }
             else
             {
-                _logger.LogInformation(
-                    "[P2P_CONN_INIT] Only target can confirm its port, using many to single port link maker");
+                _logger.LogOnlyTargetCanConfirmItsPortUsingManyToSinglePortLinkMaker();
                 
                 var selfPredictPort = ProducePredictPortArray(selfContext);
                 linkMaker = ActivatorUtilities.CreateInstance<TcpManyToSingleLinkMaker>(
@@ -282,8 +261,7 @@ public class P2PConInitiator : IDisposable
             if (selfContext.PortDeterminationMode
                 is PortDeterminationMode.UseTempLinkPort or PortDeterminationMode.Upnp)
             {
-                _logger.LogInformation(
-                    "[P2P_CONN_INIT] Only self can confirm its port, using single to many port link maker");
+                _logger.LogOnlySelfCanConfirmItsPortUsingSingleToManyPortLinkMaker();
                 
                 linkMaker = ActivatorUtilities.CreateInstance<TcpSingleToManyLinkMaker>(
                     _serviceProvider,
@@ -298,8 +276,7 @@ public class P2PConInitiator : IDisposable
             }
             else //自己也是无法确认IP
             {
-                _logger.LogInformation(
-                    "[P2P_CONN_INIT] Both sides cannot confirm their ports, using many to many port link maker");
+                _logger.LogBothSidesCannotConfirmTheirPortsUsingManyToManyPortLinkMaker();
                 
                 var selfPredictPort = ProducePredictPortArray(selfContext);
                 // 寄了，但还是要尝试一下的
@@ -314,7 +291,6 @@ public class P2PConInitiator : IDisposable
             }
         }
 
-        _logger.LogDebug("Created link maker {@LinkMaker}", linkMaker);
         return linkMaker;
     }
 
@@ -324,4 +300,58 @@ public class P2PConInitiator : IDisposable
         _tmpLinkToServer?.Dispose();
         _cancellationTokenSource?.Dispose();
     }
+}
+
+internal static partial class P2PConInitiatorLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConRequest to {PartnerId}")]
+    public static partial void LogSendingP2PConRequest(this ILogger logger, IPEndPoint localEndPoint, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConAccept to {PartnerId}")]
+    public static partial void LogSendingP2PConAccept(this ILogger logger, IPEndPoint localEndPoint, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} Started to establish P2P connection with {PartnerId}")]
+    public static partial void LogStartedToEstablishP2PConnectionWithPartnerId(this ILogger logger, IPEndPoint localEndPoint, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} has closed the temp connection with server")]
+    public static partial void LogClosedTempConnectionWithServer(this ILogger logger, IPEndPoint localEndPoint);
+
+    [LoggerMessage(LogLevel.Error, "[P2P_CONN_INIT] Failed to establish P2P connection with {PartnerId}, reason: {Reason}")]
+    public static partial void LogFailedToEstablishP2PConnectionWithPartnerId(this ILogger logger, Guid partnerId, string reason);
+
+    [LoggerMessage(LogLevel.Warning, "[P2P_CONN_INIT] Received P2POpResult from {PartnerId}, but the context type is not been processed, type: {Type}")]
+    public static partial void LogReceivedP2POpResultButContextTypeNotBeenProcessed(this ILogger logger, Guid partnerId, Type? type);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Received P2PConReady from {PartnerId}")]
+    public static partial void LogReceivedP2PConReady(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Warning, "[P2P_CONN_INIT] Received P2PConReady from {PartnerId}, but the recipient is {RecipientId}")]
+    public static partial void LogP2PConReadyMismatch(this ILogger logger, Guid partnerId, Guid recipientId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Trying to create direct link to {partnerId}, local endpoint: {localEndPoint}, remote endpoint: {remoteAddr}:{remotePort}")]
+    public static partial void LogTryingToMakeConnection(this ILogger logger, Guid partnerId, IPEndPoint? localEndPoint, IPAddress? remoteAddr, int remotePort);
+
+    [LoggerMessage(LogLevel.Trace, "[P2P_CONN_INIT] Smallest predict port is {Min}")]
+    public static partial void LogSmallestPredictPort(this ILogger logger, int min);
+
+    [LoggerMessage(LogLevel.Trace, "[P2P_CONN_INIT] Biggest predict port is {Max}")]
+    public static partial void LogBiggestPredictPort(this ILogger logger, int max);
+
+    [LoggerMessage(LogLevel.Trace, "[P2P_CONN_INIT] Predict port count is {Count}")]
+    public static partial void LogPredictPortCount(this ILogger logger, int count);
+
+    [LoggerMessage(LogLevel.Debug, "[P2P_CONN_INIT] Create P2PLinkMaker, {Context}")]
+    public static partial void LogCreateP2PLinkMaker(this ILogger logger, P2PConContext context);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Both sides can confirm their ports, using single port link maker")]
+    public static partial void LogBothSidesCanConfirmTheirPortsUsingSinglePortLinkMaker(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Only target can confirm its port, using many to single port link maker")]
+    public static partial void LogOnlyTargetCanConfirmItsPortUsingManyToSinglePortLinkMaker(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Only self can confirm its port, using single to many port link maker")]
+    public static partial void LogOnlySelfCanConfirmItsPortUsingSingleToManyPortLinkMaker(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Both sides cannot confirm their ports, using many to many port link maker")]
+    public static partial void LogBothSidesCannotConfirmTheirPortsUsingManyToManyPortLinkMaker(this ILogger logger);
 }

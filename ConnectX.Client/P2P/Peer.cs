@@ -28,9 +28,7 @@ public record Peer(
         DirectLink.Dispatcher.AddHandler<ChatMessage>(ctx =>
         {
             _lastHeartBeatTime = DateTime.UtcNow;
-            Logger.LogInformation(
-                "[Peer] {RemoteEndPoint} say: {Message}",
-                ctx.FromSession.RemoteEndPoint, ctx.Message.Message);
+            Logger.LogReceivedChatMessage(ctx.FromSession.RemoteEndPoint, ctx.Message.Message);
         });
         
         Task.Run(async () =>
@@ -51,17 +49,13 @@ public record Peer(
                 }
                 catch (TaskCanceledException)
                 {
-                    Logger.LogDebug(
-                        "[Peer] {RemoteEndPoint} HeartBeat stopped by cancellation token",
-                        DirectLink.Session.RemoteEndPoint);
+                    Logger.LogHeartBeatStoppedByCt(DirectLink.Session.RemoteEndPoint);
 
                     break;
                 }
             }
 
-            Logger.LogWarning(
-                "[Peer] {RemoteEndPoint} HeartBeat stopped, last heart beat time: {LastHeartBeatTime}",
-                DirectLink.Session.RemoteEndPoint, _lastHeartBeatTime);
+            Logger.LogHeartBeatStopped(DirectLink.Session.RemoteEndPoint, _lastHeartBeatTime);
             
             IsConnected = false;
         }, HeartBeatCtSource.Token).Forget();
@@ -73,4 +67,16 @@ public record Peer(
         HeartBeatCtSource.Cancel();
         HeartBeatCtSource.Dispose();
     }
+}
+
+internal static partial class PeerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "[Peer] {RemoteEndPoint} say: {Message}")]
+    public static partial void LogReceivedChatMessage(this ILogger logger, IPEndPoint? remoteEndPoint, string message);
+
+    [LoggerMessage(LogLevel.Information, "[Peer] {RemoteEndPoint} HeartBeat stopped by cancellation token")]
+    public static partial void LogHeartBeatStoppedByCt(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] {RemoteEndPoint} HeartBeat stopped, last heart beat time: {LastHeartBeatTime}")]
+    public static partial void LogHeartBeatStopped(this ILogger logger, IPEndPoint? remoteEndPoint, DateTime lastHeartBeatTime);
 }

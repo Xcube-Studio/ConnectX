@@ -32,7 +32,7 @@ public class UpnpManager : BackgroundService
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "[UPNP_MANAGER] Failed to remove old mappings.");
+                _logger.LogFailedToRemoveOldMappings(e);
             }
         }
     }
@@ -54,7 +54,7 @@ public class UpnpManager : BackgroundService
             var externalIp = await device.GetExternalIPAsync();
             if (NetworkHelper.IsPrivateIpAddress(externalIp))
             {
-                _logger.LogWarning("[UPNP_MANAGER] Failed to fetch UPnP status, external IP is private.");
+                _logger.LogFailedToFetchUpnpStatusExternalIpIsPrivate();
                 IsUpnpAvailable = false;
                 return;
             }
@@ -65,11 +65,11 @@ public class UpnpManager : BackgroundService
         catch (NatDeviceNotFoundException)
         {
             IsUpnpAvailable = false;
-            _logger.LogError("[UPNP_MANAGER] Failed to fetch UPnP status, UPnP is not available.");
+            _logger.LogFailedToFetchUpnpStatusUpnpIsNotAvailable();
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "[UPNP_MANAGER] Failed to fetch UPnP status.");
+            _logger.LogFailedToFetchUpnpStatus(e);
         }
         finally
         {
@@ -118,4 +118,19 @@ public class UpnpManager : BackgroundService
     {
         return _mappings?.All(m => m.PublicPort != port) ?? false;
     }
+}
+
+internal static partial class UpnpManagerLoggers
+{
+    [LoggerMessage(LogLevel.Error, "{ex} [UPNP_MANAGER] Failed to remove old mappings.")]
+    public static partial void LogFailedToRemoveOldMappings(this ILogger logger, Exception ex);
+
+    [LoggerMessage(LogLevel.Warning, "[UPNP_MANAGER] Failed to fetch UPnP status, external IP is private.")]
+    public static partial void LogFailedToFetchUpnpStatusExternalIpIsPrivate(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Error, "[UPNP_MANAGER] Failed to fetch UPnP status, UPnP is not available.")]
+    public static partial void LogFailedToFetchUpnpStatusUpnpIsNotAvailable(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Error, "{ex} [UPNP_MANAGER] Failed to fetch UPnP status.")]
+    public static partial void LogFailedToFetchUpnpStatus(this ILogger logger, Exception ex);
 }
