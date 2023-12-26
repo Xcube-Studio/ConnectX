@@ -122,7 +122,7 @@ internal static partial class TcpManyToManyLinkMakerLoggers
     [LoggerMessage(LogLevel.Information, "[TCP_M2M] {LocalPort} Connected to {RemoteIpe}")]
     public static partial void LogConnectedToRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [TCP_M2M] {LocalPort} Failed to connect {RemoteIpe}, remaining try time {TryTime}")]
+    [LoggerMessage(LogLevel.Error, "[TCP_M2M] {LocalPort} Failed to connect {RemoteIpe}, remaining try time {TryTime}")]
     public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteIpe, int tryTime);
 
     [LoggerMessage(LogLevel.Error, "[TCP_M2M] {LocalPort} Failed to connect {RemoteIpe}")]

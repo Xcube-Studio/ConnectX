@@ -87,7 +87,7 @@ internal static partial class TcpSinglePortLinkMakerLoggers
     [LoggerMessage(LogLevel.Information, "[TCP_S2S] Start time {DateTime}")]
     public static partial void LogStartTime(this ILogger logger, string dateTime);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [TCP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
+    [LoggerMessage(LogLevel.Error, "[TCP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
     public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteIpe, int tryTime);
 
     [LoggerMessage(LogLevel.Error, "[TCP_S2S] Failed to connect with {RemoteIpe}, maybe the network is special, or the other party has dropped")]

@@ -12,7 +12,7 @@ public class NatTestService(ILogger<NatTestService> logger) : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogStartingNATTestService();
+        _logger.LogStartingNatTestService();
 
         try
         {
@@ -30,7 +30,7 @@ public class NatTestService(ILogger<NatTestService> logger) : BackgroundService
 internal static partial class NatTestServiceLoggers
 {
     [LoggerMessage(LogLevel.Information, "[NAT] Starting NAT test service...")]
-    public static partial void LogStartingNATTestService(this ILogger logger);
+    public static partial void LogStartingNatTestService(this ILogger logger);
 
     [LoggerMessage(LogLevel.Information, "[NAT] NAT type: {testResult}")]
     public static partial void LogNatType(this ILogger logger, StunResult5389? testResult);
@@ -38,6 +38,6 @@ internal static partial class NatTestServiceLoggers
     [LoggerMessage(LogLevel.Information, "[NAT] ConnectX NAT type: {natType}")]
     public static partial void LogNatType(this ILogger logger, NatTypes natType);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [NAT] Failed to get NAT type.")]
+    [LoggerMessage(LogLevel.Error, "[NAT] Failed to get NAT type.")]
     public static partial void LogFailedToGetNatType(this ILogger logger, Exception ex);
 }

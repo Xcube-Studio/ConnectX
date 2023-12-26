@@ -112,7 +112,7 @@ internal static partial class TcpManyToSingleLinkMakerLoggers
     [LoggerMessage(LogLevel.Information, "[TCP_M2S] Start time {DateTime}")]
     public static partial void LogStartTime(this ILogger logger, string dateTime);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [TCP_M2S] {LocalPort} Failed to connect {RemoteEndPoint}, remaining try time {TryTime}")]
+    [LoggerMessage(LogLevel.Error, "[TCP_M2S] {LocalPort} Failed to connect {RemoteEndPoint}, remaining try time {TryTime}")]
     public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteEndPoint, int tryTime);
 
     [LoggerMessage(LogLevel.Error, "[TCP_M2S] {LocalPort} Failed to connect {RemoteIpEndPoint}")]

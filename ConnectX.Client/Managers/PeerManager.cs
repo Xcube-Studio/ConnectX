@@ -477,7 +477,7 @@ internal static partial class PeerManagerLoggers
     [LoggerMessage(LogLevel.Warning, "[Peer] Failed to establish P2P connection with user {User}")]
     public static partial void LogFailedToEstablishP2PConnectionWithUser(this ILogger logger, Guid user);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [Peer] Failed to establish P2P connection with user {User}")]
+    [LoggerMessage(LogLevel.Error, "[Peer] Failed to establish P2P connection with user {User}")]
     public static partial void LogFailedToEstablishP2PConnectionWithUser(this ILogger logger, Exception ex, Guid user);
 
     [LoggerMessage(LogLevel.Warning, "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with bigger bargain {Bigger}, ignore this request")]
@@ -501,7 +501,7 @@ internal static partial class PeerManagerLoggers
     [LoggerMessage(LogLevel.Information, "[Peer] Creating a temp link with server to connect with partner {partnerId}")]
     public static partial void LogCreatingATempLinkWithServerToConnectWithPartner(this ILogger logger, Guid partnerId);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [Peer] Failed to create a temp link with server to connect with partner {partnerId}")]
+    [LoggerMessage(LogLevel.Error, "[Peer] Failed to create a temp link with server to connect with partner {partnerId}")]
     public static partial void LogFailedToCreateATempLinkWithServerToConnectWithPartner(this ILogger logger, Exception ex, Guid partnerId);
 
     [LoggerMessage(LogLevel.Information, "[Peer] Successfully connected to server to create a temp link with partner {partnerId}")]
@@ -528,7 +528,7 @@ internal static partial class PeerManagerLoggers
     [LoggerMessage(LogLevel.Information, "[Peer] Successfully connected to partner {partnerId}")]
     public static partial void LogSuccessfullyConnectedToPartner(this ILogger logger, Guid partnerId);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [Peer] Failed to connect to partner {partnerId}")]
+    [LoggerMessage(LogLevel.Error, "[Peer] Failed to connect to partner {partnerId}")]
     public static partial void LogFailedToConnectToPartner(this ILogger logger, Exception ex, Guid partnerId);
 
     [LoggerMessage(LogLevel.Warning, "[Peer] Already trying to connect to partner {partnerId}")]

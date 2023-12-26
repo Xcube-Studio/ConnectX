@@ -100,7 +100,7 @@ public static partial class StunHelper
     [LoggerMessage(LogLevel.Debug, "Port {I} map to {Port}")]
     private static partial void LogPortMapToPort(this ILogger logger, int i, int port);
 
-    [LoggerMessage(LogLevel.Error, "{ex} Error when querying port {I}")]
+    [LoggerMessage(LogLevel.Error, "Error when querying port {I}")]
     private static partial void LogQueryingPortError(this ILogger logger, Exception ex, int i);
 
     public static async Task<PortPredictResult> PredictPublicPortAsync(

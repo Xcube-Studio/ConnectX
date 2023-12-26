@@ -101,6 +101,6 @@ internal static partial class GenericProxyAcceptorLoggers
     [LoggerMessage(LogLevel.Information, "[PROXY_ACCEPTOR] Proxy acceptor disposed. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ProxyInfo: {ProxyInfo}")]
     public static partial void LogProxyAcceptorDisposed(this ILogger logger, Guid id, ushort fakePort, ushort remoteRealPort, object proxyInfo);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [PROXY_ACCEPTOR] Socket error. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ProxyInfo: {ProxyInfo}")]
+    [LoggerMessage(LogLevel.Error, "[PROXY_ACCEPTOR] Socket error. (Id: {Id}), Mapping: {FakePort} -> {RemoteRealPort}, ProxyInfo: {ProxyInfo}")]
     public static partial void LogSocketError(this ILogger logger, Exception ex, Guid id, ushort fakePort, ushort remoteRealPort, object proxyInfo);
 }

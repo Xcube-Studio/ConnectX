@@ -95,7 +95,7 @@ internal static partial class UdpSinglePortLinkMakerLoggers
     [LoggerMessage(LogLevel.Information, "[UDP_S2S] Start time {DateTime}")]
     public static partial void LogS2SStartTime(this ILogger logger, string dateTime);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [UDP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
+    [LoggerMessage(LogLevel.Error, "[UDP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
     public static partial void LogConnectionFailed(this ILogger logger, Exception? ex, ushort localPort, IPEndPoint remoteIpe, int tryTime);
 
     [LoggerMessage(LogLevel.Information, "[UDP_S2S] {LocalPort} Succeed to connect with {RemoteIpe}")]

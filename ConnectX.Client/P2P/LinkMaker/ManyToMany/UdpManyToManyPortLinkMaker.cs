@@ -91,6 +91,6 @@ internal static partial class UdpManyToManyPortLinkMakerLoggers
     [LoggerMessage(LogLevel.Information, "[UDP_S2M] {LocalPort} Started to try UDP connection with {RemoteIpe}")]
     public static partial void LogStartedToTryUdpConnectionWithRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [UDP_S2M] {LocalPort} Failed to try UDP connection with {RemoteIpe}")]
+    [LoggerMessage(LogLevel.Error, "[UDP_S2M] {LocalPort} Failed to try UDP connection with {RemoteIpe}")]
     public static partial void LogFailedToTryUdpConnectionWithRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteIpe);
 }

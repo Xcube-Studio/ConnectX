@@ -122,7 +122,7 @@ public class UpnpManager : BackgroundService
 
 internal static partial class UpnpManagerLoggers
 {
-    [LoggerMessage(LogLevel.Error, "{ex} [UPNP_MANAGER] Failed to remove old mappings.")]
+    [LoggerMessage(LogLevel.Error, "[UPNP_MANAGER] Failed to remove old mappings.")]
     public static partial void LogFailedToRemoveOldMappings(this ILogger logger, Exception ex);
 
     [LoggerMessage(LogLevel.Warning, "[UPNP_MANAGER] Failed to fetch UPnP status, external IP is private.")]
@@ -131,6 +131,6 @@ internal static partial class UpnpManagerLoggers
     [LoggerMessage(LogLevel.Error, "[UPNP_MANAGER] Failed to fetch UPnP status, UPnP is not available.")]
     public static partial void LogFailedToFetchUpnpStatusUpnpIsNotAvailable(this ILogger logger);
 
-    [LoggerMessage(LogLevel.Error, "{ex} [UPNP_MANAGER] Failed to fetch UPnP status.")]
+    [LoggerMessage(LogLevel.Error, "[UPNP_MANAGER] Failed to fetch UPnP status.")]
     public static partial void LogFailedToFetchUpnpStatus(this ILogger logger, Exception ex);
 }

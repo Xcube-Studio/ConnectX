@@ -279,10 +279,10 @@ internal static partial class GenericProxyBaseLoggers
     [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Sent {PacketLength} bytes to {LocalRealMcPort}")]
     public static partial void LogSentPacket(this ILogger logger, object proxyInfo, int packetLength, ushort localRealMcPort);
     
-    [LoggerMessage(LogLevel.Error, "{ex} [{ProxyInfo}] Failed to send packet to {LocalRealMcPort}")]
+    [LoggerMessage(LogLevel.Error, "[{ProxyInfo}] Failed to send packet to {LocalRealMcPort}")]
     public static partial void LogFailedToSendPacket(this ILogger logger, Exception ex, object proxyInfo, ushort localRealMcPort);
     
-    [LoggerMessage(LogLevel.Error, "{ex} [{ProxyInfo}] Failed to init connection socket, error code: {ErrorCode}")]
+    [LoggerMessage(LogLevel.Error, "[{ProxyInfo}] Failed to init connection socket, error code: {ErrorCode}")]
     public static partial void LogFailedToInitConnectionSocket(this ILogger logger, Exception ex, object proxyInfo, SocketError errorCode);
     
     [LoggerMessage(LogLevel.Error, "[{ProxyInfo}] Received 0 bytes from {LocalRealMcPort}")]
