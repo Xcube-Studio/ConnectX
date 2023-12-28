@@ -60,18 +60,18 @@ public class P2PConInitiator : IDisposable
         switch (_selfContext)
         {
             case P2PConRequest req:
-                _logger.LogSendingP2PConRequest(_localEndPoint, _partnerId);
+                _logger.LogSendingP2PConRequest(_partnerId);
                 await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, req);
                 break;
             case P2PConAccept accept:
-                _logger.LogSendingP2PConAccept(_localEndPoint, _partnerId);
+                _logger.LogSendingP2PConAccept(_partnerId);
                 await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, accept);
                 break;
             default:
                 throw new InvalidOperationException("Invalid P2PConContext type");
         }
 
-        _logger.LogStartedToEstablishP2PConnectionWithPartnerId(_localEndPoint, _partnerId);
+        _logger.LogStartedToEstablishP2PConnectionWithPartnerId(_partnerId);
         
         return await _completionSource.Task;
     }
@@ -304,17 +304,17 @@ public class P2PConInitiator : IDisposable
 
 internal static partial class P2PConInitiatorLoggers
 {
-    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConRequest to {PartnerId}")]
-    public static partial void LogSendingP2PConRequest(this ILogger logger, IPEndPoint localEndPoint, Guid partnerId);
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Sending P2PConRequest to {PartnerId}")]
+    public static partial void LogSendingP2PConRequest(this ILogger logger, Guid partnerId);
 
-    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} Sending P2PConAccept to {PartnerId}")]
-    public static partial void LogSendingP2PConAccept(this ILogger logger, IPEndPoint localEndPoint, Guid partnerId);
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Sending P2PConAccept to {PartnerId}")]
+    public static partial void LogSendingP2PConAccept(this ILogger logger, Guid partnerId);
 
-    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} Started to establish P2P connection with {PartnerId}")]
-    public static partial void LogStartedToEstablishP2PConnectionWithPartnerId(this ILogger logger, IPEndPoint localEndPoint, Guid partnerId);
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Started to establish P2P connection with {PartnerId}")]
+    public static partial void LogStartedToEstablishP2PConnectionWithPartnerId(this ILogger logger, Guid partnerId);
 
-    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] {LocalEndPoint} has closed the temp connection with server")]
-    public static partial void LogClosedTempConnectionWithServer(this ILogger logger, IPEndPoint localEndPoint);
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Closed the temp connection with server")]
+    public static partial void LogClosedTempConnectionWithServer(this ILogger logger);
 
     [LoggerMessage(LogLevel.Error, "[P2P_CONN_INIT] Failed to establish P2P connection with {PartnerId}, reason: {Reason}")]
     public static partial void LogFailedToEstablishP2PConnectionWithPartnerId(this ILogger logger, Guid partnerId, string reason);
