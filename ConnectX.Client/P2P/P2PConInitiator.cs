@@ -84,7 +84,7 @@ public class P2PConInitiator : IDisposable
         
         if (serverTmpSocket != null)
         {
-            _logger.LogClosedTempConnectionWithServer(serverTmpSocket.Session.LocalEndPoint!);
+            _logger.LogClosedTempConnectionWithServer();
 
             await serverTmpSocket.Dispatcher.SendAsync(serverTmpSocket.Session, new ShutdownMessage());
             await Task.Delay(500);
