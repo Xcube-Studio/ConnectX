@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <PackageReference Include="DnsClient" Version="1.7.0" />
-    <PackageReference Include="Stun.Net" Version="8.0.0" />
+    <PackageReference Include="Stun.Net" Version="8.0.2" />
   </ItemGroup>
 
 </Project>
