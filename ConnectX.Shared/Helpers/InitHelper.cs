@@ -24,12 +24,10 @@ public static class InitHelper
         services.AddSingleton<IDispatcher, DefaultDispatcher>();
         
         // TCP
-        services.AddTransient<TcpSession>();
         services.AddSingleton<IAcceptor<TcpSession>, TcpAcceptor>();
         services.AddSingleton<IConnector<TcpSession>, TcpConnector>();
 
         // UDP
-        services.AddTransient<UdpSession>();
         services.AddSingleton<IAcceptor<UdpSession>, UdpAcceptor>();
         services.AddSingleton<IConnector<UdpSession>, UdpConnector>();
     }
