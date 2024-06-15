@@ -83,6 +83,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         _logger.LogSendingSigninMessageToServer();
 
+        await Task.Delay(1000, cancellationToken);
         await _dispatcher.SendAsync(session, new SigninMessage
         {
             BindingTestResult = natType.BindingTestResult,
