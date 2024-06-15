@@ -93,6 +93,7 @@ public static partial class StunHelper
 
             _ when stun.MappingBehavior is MappingBehavior.Direct &&
                    stun.FilteringBehavior is FilteringBehavior.None => NatTypes.Direct,
+            _ when stun.MappingBehavior is MappingBehavior.Direct => NatTypes.Direct,
             _ => NatTypes.Unknown
         };
     }
