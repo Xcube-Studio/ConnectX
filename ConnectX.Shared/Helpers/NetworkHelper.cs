@@ -1,5 +1,4 @@
-﻿using System.Collections;
-using System.Net;
+﻿using System.Net;
 using System.Net.NetworkInformation;
 
 namespace ConnectX.Shared.Helpers;
@@ -11,26 +10,23 @@ public static class NetworkHelper
         var ipAddressBytes = ipAddress.GetAddressBytes();
 
         // Private IP address ranges
-        var privateIpSections = new []
+        var privateIpSections = new byte[][]
         {
-            new byte[] { 10, 0, 0, 0 },            // 10.0.0.0/8
-            new byte[] { 172, 16, 0, 0 },         // 172.16.0.0/12
-            new byte[] { 192, 168, 0, 0 }         // 192.168.0.0/16
+            [10, 0, 0, 0], // 10.0.0.0/8
+            [172, 16, 0, 0], // 172.16.0.0/12
+            [192, 168, 0, 0] // 192.168.0.0/16
         };
 
         foreach (var section in privateIpSections)
         {
             var matches = !section.Where((t, i) => t != (ipAddressBytes[i] & t)).Any();
 
-            if (matches)
-            {
-                return true; // It's a private IP address
-            }
+            if (matches) return true; // It's a private IP address
         }
 
         return false; // It's not a private IP address
     }
-    
+
     /// <summary>
     ///     获取第一个可用的端口号
     /// </summary>

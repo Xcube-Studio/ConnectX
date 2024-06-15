@@ -10,14 +10,14 @@ namespace ConnectX.Client;
 
 public class PingChecker
 {
-    private readonly Guid _selfId;
-    private readonly Guid _targetId;
-    private readonly DispatchableSession _session;
     private readonly ILogger _logger;
-    
-    private uint _lastPingId;
     private readonly ConcurrentDictionary<uint, Pong> _pongPackets = new();
-    
+    private readonly Guid _selfId;
+    private readonly DispatchableSession _session;
+    private readonly Guid _targetId;
+
+    private uint _lastPingId;
+
     public PingChecker(
         Guid selfId,
         Guid targetId,
@@ -45,29 +45,29 @@ public class PingChecker
             SeqId = ping.SeqId,
             Ttl = 32
         };
-        
+
         _logger.LogSendPong(ctx.FromSession.RemoteEndPoint);
-        
+
         _session.Dispatcher.SendAsync(_session.Session, pong).Forget();
     }
-    
+
     private void OnPongReceived(MessageContext<Pong> ctx)
     {
         _logger.LogPongReceived(ctx.FromSession.RemoteEndPoint);
-        
+
         var pong = ctx.Message;
         pong.SelfReceiveTime = DateTime.Now.Ticks;
-        
+
         if (_pongPackets.ContainsKey(pong.SeqId))
             _pongPackets.TryRemove(pong.SeqId, out _);
-        
+
         _pongPackets.TryAdd(pong.SeqId, pong);
     }
 
     public async Task<int> CheckPingAsync()
     {
         _logger.LogCheckPing(_session.Session.RemoteEndPoint);
-        
+
         var pingId = Interlocked.Increment(ref _lastPingId) - 1;
         var ping = new Ping
         {
@@ -79,17 +79,17 @@ public class PingChecker
         };
 
         await _session.Dispatcher.SendAsync(_session.Session, ping);
-        
+
         _logger.LogSendPing(_session.Session.RemoteEndPoint);
 
         await TaskHelper.WaitUntilAsync(() => _pongPackets.ContainsKey(pingId));
-        
+
         var result = int.MaxValue;
         if (_pongPackets.TryRemove(pingId, out var receivedPong))
             result = TimeSpan.FromTicks(receivedPong.SelfReceiveTime - ping.SendTime).Milliseconds;
 
         _logger.LogPingResult(_session.Session.RemoteEndPoint, result);
-        
+
         return result;
     }
 }

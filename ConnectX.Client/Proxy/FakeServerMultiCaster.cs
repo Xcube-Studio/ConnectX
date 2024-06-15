@@ -13,11 +13,11 @@ namespace ConnectX.Client.Proxy;
 public class FakeServerMultiCaster : BackgroundService
 {
     private const string Prefix = "ConnectX";
-    
+    private readonly ILogger _logger;
+    private readonly RouterPacketDispatcher _packetDispatcher;
+
     private readonly PartnerManager _partnerManager;
     private readonly ProxyManager _proxyManager;
-    private readonly RouterPacketDispatcher _packetDispatcher;
-    private readonly ILogger _logger;
 
     public FakeServerMultiCaster(
         PartnerManager partnerManager,
@@ -32,13 +32,13 @@ public class FakeServerMultiCaster : BackgroundService
 
         _packetDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
     }
-    
+
     public event Action<string, int>? OnListenedLanServer;
 
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
     {
         _logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
-        
+
         var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port);
         if (proxy == null)
         {
@@ -49,7 +49,7 @@ public class FakeServerMultiCaster : BackgroundService
         var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         var multicastAddress = IPAddress.Parse("224.0.2.60");
         var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
-        
+
         multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
 
         //传递给客户端的是另一个端口，并非源端口。客户端连接此端口通过P2P.NET和源端口通信
@@ -71,7 +71,7 @@ public class FakeServerMultiCaster : BackgroundService
         foreach (var (id, _) in _partnerManager.Partners)
         {
             _logger.LogSendLanServerToPartner(serverName, port, id);
-            
+
             // 对每一个用户组播
             _packetDispatcher.Send(id, new McMulticastMessage
             {
@@ -111,7 +111,7 @@ public class FakeServerMultiCaster : BackgroundService
     public override Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogStoppingFakeMcServerMultiCaster();
-        
+
         return base.StopAsync(cancellationToken);
     }
 
@@ -165,8 +165,10 @@ public class FakeServerMultiCaster : BackgroundService
 
 internal static partial class FakeServerMultiCasterLoggers
 {
-    [LoggerMessage(LogLevel.Debug, "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}")]
-    public static partial void LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name);
+    [LoggerMessage(LogLevel.Debug,
+        "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}")]
+    public static partial void
+        LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name);
 
     [LoggerMessage(LogLevel.Error, "Proxy creation failed, sender ID: {SenderId}")]
     public static partial void LogProxyCreationFailed(this ILogger logger, Guid senderId);
@@ -178,7 +180,8 @@ internal static partial class FakeServerMultiCasterLoggers
     public static partial void LogLanServerIsListened(this ILogger logger, string serverName, ushort port);
 
     [LoggerMessage(LogLevel.Trace, "[MC_MULTI_CASTER] Send lan server {ServerName}:{Port} to {Partner}")]
-    public static partial void LogSendLanServerToPartner(this ILogger logger, string serverName, ushort port, Guid partner);
+    public static partial void LogSendLanServerToPartner(this ILogger logger, string serverName, ushort port,
+        Guid partner);
 
     [LoggerMessage(LogLevel.Information, "[MC_MULTI_CASTER] Stopping FakeMcServerMultiCaster")]
     public static partial void LogStoppingFakeMcServerMultiCaster(this ILogger logger);

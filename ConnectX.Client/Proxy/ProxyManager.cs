@@ -11,9 +11,9 @@ namespace ConnectX.Client.Proxy;
 
 public sealed class ProxyManager : GenericProxyManager
 {
-    private readonly ConcurrentBag<(IDispatcher, HandlerId)> _registeredHandlers = new();
     private readonly PartnerManager _partnerManager;
-    
+    private readonly ConcurrentBag<(IDispatcher, HandlerId)> _registeredHandlers = new();
+
     public ProxyManager(
         PartnerManager partnerManager,
         IHostApplicationLifetime lifetime,
@@ -23,7 +23,7 @@ public sealed class ProxyManager : GenericProxyManager
     {
         _partnerManager = partnerManager;
     }
-    
+
     public override Task StartAsync(CancellationToken cancellationToken)
     {
         _partnerManager.OnPartnerAdded += OnP2PPartnerAdded;
@@ -34,10 +34,10 @@ public sealed class ProxyManager : GenericProxyManager
             {
                 ReceivedProxyConnectReq(ctx, partner.Connection);
             });
-            
+
             _registeredHandlers.Add((partner.Connection.Dispatcher, id));
         }
-        
+
         return base.StartAsync(cancellationToken);
     }
 
@@ -51,17 +51,17 @@ public sealed class ProxyManager : GenericProxyManager
 
             dispatcher.RemoveHandler(id);
         }
-        
+
         return base.StopAsync(cancellationToken);
     }
-    
+
     private void OnP2PPartnerAdded(Partner partner)
     {
         var id = partner.Connection.Dispatcher.AddHandler<ProxyConnectReq>(ctx =>
         {
             ReceivedProxyConnectReq(ctx, partner.Connection);
         });
-            
+
         _registeredHandlers.Add((partner.Connection.Dispatcher, id));
     }
 
@@ -71,10 +71,10 @@ public sealed class ProxyManager : GenericProxyManager
         if (!_partnerManager.Partners.TryGetValue(partnerId, out var value))
         {
             Logger.LogPartnerNotFound(partnerId);
-            
+
             return null;
         }
-        
+
         var con = value.Connection;
 
         return GetOrCreateAcceptor(

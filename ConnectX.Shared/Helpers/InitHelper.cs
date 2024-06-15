@@ -17,12 +17,12 @@ public static class InitHelper
     {
         MemoryPackFormatterProvider.Register(new IPEndPointFormatter());
         MemoryPackFormatterProvider.Register(new IpAddressFormatter());
-        
+
         services.AddSingleton<ICustomCodecProvider, DefaultCustomCodecProvider>();
         services.AddSingleton<IPacketIdMapper, DefaultPacketIdMapper>();
         services.AddSingleton<IPacketCodec, MemoryPackPacketCodec>();
         services.AddSingleton<IDispatcher, DefaultDispatcher>();
-        
+
         // TCP
         services.AddSingleton<IAcceptor<TcpSession>, TcpAcceptor>();
         services.AddSingleton<IConnector<TcpSession>, TcpConnector>();

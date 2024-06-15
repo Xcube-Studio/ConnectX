@@ -11,7 +11,7 @@ public sealed partial class P2PConRequest : P2PConContext
     private P2PConRequest()
     {
     }
-    
+
     public P2PConRequest(
         int bargain,
         Guid targetId,

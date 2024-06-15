@@ -5,7 +5,8 @@ namespace ConnectX.Shared.Formatters;
 
 public class IpAddressFormatter : MemoryPackFormatter<IPAddress>
 {
-    public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer, scoped ref IPAddress? value)
+    public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer,
+        scoped ref IPAddress? value)
     {
         if (value == null)
         {

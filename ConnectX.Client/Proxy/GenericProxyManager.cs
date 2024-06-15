@@ -12,12 +12,12 @@ namespace ConnectX.Client.Proxy;
 
 public abstract class GenericProxyManager : BackgroundService
 {
-    private readonly Dictionary<TunnelIdentifier, Socket> _acceptedSockets = new ();
-    private readonly Dictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = new ();
+    private readonly Dictionary<TunnelIdentifier, Socket> _acceptedSockets = new();
+    private readonly Dictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = new();
     private readonly IHostApplicationLifetime _lifetime;
 
     //使用一个二元组确定一个连接
-    private readonly Dictionary<TunnelIdentifier, GenericProxyPair> _proxies = new ();
+    private readonly Dictionary<TunnelIdentifier, GenericProxyPair> _proxies = new();
     private readonly IServiceProvider _serviceProvider;
 
     protected readonly ILogger Logger;
@@ -29,7 +29,7 @@ public abstract class GenericProxyManager : BackgroundService
     {
         _lifetime = lifetime;
         _serviceProvider = serviceProvider;
-        
+
         Logger = logger;
     }
 
@@ -40,7 +40,7 @@ public abstract class GenericProxyManager : BackgroundService
 
         foreach (var acceptedSocket in _acceptedSockets)
             acceptedSocket.Value.Close();
-        
+
         base.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -50,12 +50,12 @@ public abstract class GenericProxyManager : BackgroundService
         ISender sender)
     {
         var connectReq = ctx.Message;
-        
+
         if (connectReq.IsResponse)
         {
             //客户端侧收到服务器侧的连接响应
             Logger.LogClientReceivedConnectResponse(connectReq);
-            
+
             //收到回复，启动服务端代理
             if (_acceptors.ContainsKey((connectReq.ClientId, connectReq.ServerRealPort)))
             {
@@ -65,7 +65,6 @@ public abstract class GenericProxyManager : BackgroundService
                     connectReq.ServerRealPort);
 
                 if (_acceptedSockets.Remove(key, out var socket))
-                {
                     CreateServerProxy(
                         connectReq.ClientId,
                         connectReq.ServerRealPort,
@@ -73,11 +72,8 @@ public abstract class GenericProxyManager : BackgroundService
                         socket,
                         ctx.Dispatcher,
                         sender);
-                }
                 else
-                {
                     Logger.LogErrorCanNotFindSocket(key.PartnerId, key.LocalRealPort);
-                }
             }
             else
             {
@@ -92,7 +88,7 @@ public abstract class GenericProxyManager : BackgroundService
                 connectReq.ServerRealPort,
                 ctx.Dispatcher,
                 sender);
-            
+
             var mcConnectReq = new ProxyConnectReq
             {
                 IsResponse = true,
@@ -100,9 +96,9 @@ public abstract class GenericProxyManager : BackgroundService
                 ClientRealPort = connectReq.ClientRealPort,
                 ServerRealPort = connectReq.ServerRealPort
             };
-            
+
             sender.SendData(mcConnectReq);
-            
+
             Logger.LogDebugClientSentConnectResponse(mcConnectReq);
         }
     }
@@ -118,13 +114,13 @@ public abstract class GenericProxyManager : BackgroundService
         var key = new TunnelIdentifier(partnerId, serverRealMcPort, clientRealPort);
 
         if (_proxies.Remove(key, out var prevProxy)) prevProxy.Dispose();
-        
+
         var proxy = ActivatorUtilities.CreateInstance<GenericProxyClient>(
             _serviceProvider,
             key,
             _lifetime.ApplicationStopping);
         proxy.OnRealServerDisconnected += OnProxyDisconnected;
-        
+
         var pair = new GenericProxyPair(
             partnerId,
             proxy,
@@ -136,7 +132,7 @@ public abstract class GenericProxyManager : BackgroundService
         _proxies.Add(key, pair);
 
         Logger.LogCreateProxy(key);
-        
+
         proxy.Start(); //对于客户端，直接启动
 
         return pair;
@@ -155,7 +151,7 @@ public abstract class GenericProxyManager : BackgroundService
         if (_proxies.Remove(key, out var prevProxy))
         {
             Logger.LogErrorProxyPairWithSameKey(partnerId, clientRealPort, serverRealPort);
-            
+
             prevProxy.Dispose();
         }
 
@@ -165,7 +161,7 @@ public abstract class GenericProxyManager : BackgroundService
             key,
             _lifetime.ApplicationStopping);
         proxy.OnRealServerDisconnected += OnProxyDisconnected;
-        
+
         var pair = new GenericProxyPair(
             partnerId,
             proxy,
@@ -173,17 +169,17 @@ public abstract class GenericProxyManager : BackgroundService
             serverRealPort,
             dispatcher,
             sender);
-        
+
         _proxies.Add(key, pair);
         proxy.Start();
-        
+
         return proxy;
     }
 
     private void OnProxyDisconnected(TunnelIdentifier id, GenericProxyBase obj)
     {
         Logger.LogProxyDisconnected(id);
-        
+
         obj.Dispose();
         _proxies.Remove(id);
     }
@@ -201,9 +197,9 @@ public abstract class GenericProxyManager : BackgroundService
     {
         if (!NetworkHelper.PortIsAvailable(localMapPort))
             throw new Exception($"Port {localMapPort} is not available");
-        
+
         var key = (partnerId, remoteRealServerPort);
-        
+
         if (_acceptors.ContainsKey(key))
             throw new Exception($"There has been a acceptor with same key: {partnerId}-{remoteRealServerPort}");
 
@@ -224,14 +220,14 @@ public abstract class GenericProxyManager : BackgroundService
                 Logger.LogErrorCanNotGetRemoteEndPoint();
                 return;
             }
-            
+
             var id = new TunnelIdentifier(
                 partnerId,
                 (ushort)remoteEndPoint.Port,
                 remoteRealServerPort);
-            
+
             _acceptedSockets.Add(id, socket);
-            
+
             sender.SendData(new ProxyConnectReq
             {
                 IsResponse = false,
@@ -261,7 +257,10 @@ public abstract class GenericProxyManager : BackgroundService
             : CreateAcceptor(partnerId, localMapPortGetter(), remoteRealServerPort, sender);
     }
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        return Task.CompletedTask;
+    }
 }
 
 internal static partial class GenericProxyManagerLoggers
@@ -281,8 +280,10 @@ internal static partial class GenericProxyManagerLoggers
     [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Create client proxy {Key}")]
     public static partial void LogCreateProxy(this ILogger logger, TunnelIdentifier key);
 
-    [LoggerMessage(LogLevel.Error, "[GEN_PROXY_MANAGER] There has been a proxy pair with same key: {ID}-{ClientRealPort}-{RemotePort}")]
-    public static partial void LogErrorProxyPairWithSameKey(this ILogger logger, Guid id, ushort clientRealPort, ushort remotePort);
+    [LoggerMessage(LogLevel.Error,
+        "[GEN_PROXY_MANAGER] There has been a proxy pair with same key: {ID}-{ClientRealPort}-{RemotePort}")]
+    public static partial void LogErrorProxyPairWithSameKey(this ILogger logger, Guid id, ushort clientRealPort,
+        ushort remotePort);
 
     [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Proxy {Key} disconnected")]
     public static partial void LogProxyDisconnected(this ILogger logger, TunnelIdentifier key);

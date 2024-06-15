@@ -54,7 +54,7 @@ public static partial class StunHelper
         var serverAddr = useV6
             ? queryResult.Answers.AaaaRecords().FirstOrDefault()?.Address
             : queryResult.Answers.ARecords().FirstOrDefault()?.Address;
-        
+
         ArgumentNullException.ThrowIfNull(serverAddr);
 
         using var client = new StunClient5389UDP(
@@ -76,21 +76,21 @@ public static partial class StunHelper
                    stun.FilteringBehavior is FilteringBehavior.AddressDependent => NatTypes.Type2,
             _ when stun.MappingBehavior is MappingBehavior.EndpointIndependent &&
                    stun.FilteringBehavior is FilteringBehavior.AddressAndPortDependent => NatTypes.Type3,
-            
+
             _ when stun.MappingBehavior is MappingBehavior.AddressDependent &&
                    stun.FilteringBehavior is FilteringBehavior.EndpointIndependent => NatTypes.Type4,
             _ when stun.MappingBehavior is MappingBehavior.AddressDependent &&
                    stun.FilteringBehavior is FilteringBehavior.AddressDependent => NatTypes.Type5,
             _ when stun.MappingBehavior is MappingBehavior.AddressDependent &&
                    stun.FilteringBehavior is FilteringBehavior.AddressAndPortDependent => NatTypes.Type6,
-            
+
             _ when stun.MappingBehavior is MappingBehavior.AddressAndPortDependent &&
                    stun.FilteringBehavior is FilteringBehavior.EndpointIndependent => NatTypes.Type7,
             _ when stun.MappingBehavior is MappingBehavior.AddressAndPortDependent &&
                    stun.FilteringBehavior is FilteringBehavior.AddressDependent => NatTypes.Type8,
             _ when stun.MappingBehavior is MappingBehavior.AddressAndPortDependent &&
                    stun.FilteringBehavior is FilteringBehavior.AddressAndPortDependent => NatTypes.Type9,
-            
+
             _ when stun.MappingBehavior is MappingBehavior.Direct &&
                    stun.FilteringBehavior is FilteringBehavior.None => NatTypes.Direct,
             _ => NatTypes.Unknown
@@ -153,7 +153,7 @@ public static partial class StunHelper
         };
         var testMin = results.Min(t => t.Item2);
         var testMax = results.Max(t => t.Item2);
-        
+
         var lower = changeLaw switch
         {
             ChangeLaws.Decrease or ChangeLaws.Random => testMin - 500,
@@ -189,7 +189,7 @@ public static partial class StunHelper
         tmpSocket.Bind(new IPEndPoint(IPAddress.Any, privatePort));
 
         await tmpSocket.ConnectAsync(serverEndPoint, ct);
-        
+
         var session = ActivatorUtilities.CreateInstance<TcpSession>(serviceProvider, 0, tmpSocket);
         var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(serviceProvider);
         var dispatchSession = new DispatchableSession(session, dispatcher, ct);
@@ -199,7 +199,7 @@ public static partial class StunHelper
             await dispatchSession.Dispatcher.SendAndListenOnce<TempQuery, PublicPortQueryResult>(session, query, ct);
 
         if (result == null) return 0;
-        
+
         session.Close();
         dispatchSession.Dispose();
 

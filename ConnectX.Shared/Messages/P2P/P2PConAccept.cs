@@ -11,7 +11,7 @@ public sealed partial class P2PConAccept : P2PConContext
     private P2PConAccept()
     {
     }
-    
+
     public P2PConAccept(
         int bargain,
         Guid selfId,
@@ -20,7 +20,7 @@ public sealed partial class P2PConAccept : P2PConContext
         SelfId = selfId;
         Bargain = bargain;
     }
-    
+
     public P2PConAccept(
         int bargain,
         Guid selfId,
@@ -29,7 +29,7 @@ public sealed partial class P2PConAccept : P2PConContext
         SelfId = selfId;
         Bargain = bargain;
     }
-    
+
     public Guid SelfId { get; init; }
     public int Bargain { get; init; }
 }

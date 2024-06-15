@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using ConnectX.Client.Models;
+﻿using ConnectX.Client.Models;
 using Hive.Codec.Shared;
 using MemoryPack;
 

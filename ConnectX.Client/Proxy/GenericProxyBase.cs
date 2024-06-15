@@ -11,10 +11,10 @@ public abstract class GenericProxyBase : IDisposable
 {
     private const int RetryInterval = 500;
     private const int TryTime = 20;
-    
+
     private readonly CancellationTokenSource _combinedTokenSource;
     private readonly CancellationTokenSource _internalTokenSource;
-    
+
     protected readonly CancellationToken CancellationToken;
     protected readonly ConcurrentQueue<ForwardPacketCarrier> InwardBuffersQueue = [];
     protected readonly ILogger Logger;
@@ -23,9 +23,6 @@ public abstract class GenericProxyBase : IDisposable
     public readonly List<Func<ForwardPacketCarrier, bool>> OutwardSenders = [];
     public readonly TunnelIdentifier TunnelIdentifier;
     private Socket? _innerSocket;
-    
-    public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerConnected;
-    public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerDisconnected;
 
     protected GenericProxyBase(
         TunnelIdentifier tunnelIdentifier,
@@ -34,18 +31,36 @@ public abstract class GenericProxyBase : IDisposable
     {
         TunnelIdentifier = tunnelIdentifier;
         _internalTokenSource = new CancellationTokenSource();
-        _combinedTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_internalTokenSource.Token, cancellationToken);
+        _combinedTokenSource =
+            CancellationTokenSource.CreateLinkedTokenSource(_internalTokenSource.Token, cancellationToken);
         CancellationToken = _combinedTokenSource.Token;
         Logger = logger;
     }
-    
+
     private ushort LocalServerPort => TunnelIdentifier.LocalRealPort;
     private ushort RemoteClientPort => TunnelIdentifier.RemoteRealPort;
+
+    public void Dispose()
+    {
+        _internalTokenSource.Cancel();
+        _combinedTokenSource.Dispose();
+        _internalTokenSource.Dispose();
+
+        _innerSocket?.Shutdown(SocketShutdown.Both);
+        _innerSocket?.Close();
+
+        Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
+
+        GC.SuppressFinalize(this);
+    }
+
+    public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerConnected;
+    public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerDisconnected;
 
     public virtual void Start()
     {
         Logger.LogStartingProxy(GetProxyInfoForLog());
-        
+
         OuterSendLoopAsync(CancellationToken).Forget();
         InnerSendLoopAsync(CancellationToken).Forget();
         InnerReceiveLoopAsync(CancellationToken).Forget();
@@ -71,7 +86,7 @@ public abstract class GenericProxyBase : IDisposable
             var sent = false;
 
             buffer.LastTryTime = Environment.TickCount;
-                
+
             foreach (var sender in OutwardSenders)
             {
                 if (!sender(buffer)) continue;
@@ -84,7 +99,7 @@ public abstract class GenericProxyBase : IDisposable
             // If all return false, it means that it has not been sent.
             // If buffer.TryCount greater tha const value TryTime, drop it.
             buffer.TryCount++;
-                
+
             if (buffer.TryCount > TryTime) continue;
 
             // Re-enqueue.
@@ -99,7 +114,7 @@ public abstract class GenericProxyBase : IDisposable
     public void OnReceiveMcPacketCarrier(ForwardPacketCarrier message)
     {
         Logger.LogReceivedPacket(GetProxyInfoForLog(), message.Data.Length, RemoteClientPort);
-        
+
         InwardBuffersQueue.Enqueue(message);
     }
 
@@ -115,7 +130,7 @@ public abstract class GenericProxyBase : IDisposable
     protected virtual async Task InnerSendLoopAsync(CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(_innerSocket);
-        
+
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -128,15 +143,15 @@ public abstract class GenericProxyBase : IDisposable
                     while (InwardBuffersQueue.TryDequeue(out var packet))
                     {
                         Logger.LogCurrentlyRemainPacket(GetProxyInfoForLog(), InwardBuffersQueue.Count);
-                        
+
                         var totalLen = packet.Data.Length;
                         var sentLen = 0;
                         var buffer = packet.Data;
-                        
+
                         while (sentLen < totalLen)
                             sentLen += await _innerSocket.SendAsync(buffer[sentLen..totalLen],
                                 SocketFlags.None, CancellationToken);
-                        
+
                         Logger.LogSentPacket(GetProxyInfoForLog(), totalLen, LocalServerPort);
                     }
                 }
@@ -171,7 +186,7 @@ public abstract class GenericProxyBase : IDisposable
             {
                 InwardBuffersQueue.Clear();
                 Logger.LogFailedToInitConnectionSocket(e, GetProxyInfoForLog(), e.SocketErrorCode);
-                
+
                 return false;
             }
             catch (ObjectDisposedException)
@@ -197,7 +212,7 @@ public abstract class GenericProxyBase : IDisposable
     {
         var bufferOwner = MemoryPool<byte>.Shared.Rent(1024);
         var buffer = bufferOwner.Memory;
-        
+
         while (!cancellationToken.IsCancellationRequested)
         {
             if (_innerSocket is not { Connected: true })
@@ -213,13 +228,13 @@ public abstract class GenericProxyBase : IDisposable
             {
                 Logger.LogReceivedZeroBytes(GetProxyInfoForLog(), LocalServerPort);
                 Logger.LogServerDisconnected(GetProxyInfoForLog(), LocalServerPort);
-                
+
                 _innerSocket?.Dispose();
                 _innerSocket = null;
                 InvokeRealServerDisconnected();
                 break;
             }
-            
+
             Logger.LogBytesReceived(GetProxyInfoForLog(), len, LocalServerPort);
 
             var carrier = new ForwardPacketCarrier
@@ -230,10 +245,10 @@ public abstract class GenericProxyBase : IDisposable
                 SelfRealPort = LocalServerPort,
                 TargetRealPort = RemoteClientPort
             };
-            
+
             OutwardBuffersQueue.Enqueue(carrier);
         }
-        
+
         bufferOwner.Dispose();
     }
 
@@ -246,54 +261,44 @@ public abstract class GenericProxyBase : IDisposable
     {
         OnRealServerConnected?.Invoke(TunnelIdentifier, this);
     }
-    
-    public void Dispose()
-    {
-        _internalTokenSource.Cancel();
-        _combinedTokenSource.Dispose();
-        _internalTokenSource.Dispose();
-        
-        _innerSocket?.Shutdown(SocketShutdown.Both);
-        _innerSocket?.Close();
-        
-        Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
-        
-        GC.SuppressFinalize(this);
-    }
 }
 
 internal static partial class GenericProxyBaseLoggers
 {
     [LoggerMessage(LogLevel.Information, "[PROXY] Starting proxy: {ProxyInfo}")]
     public static partial void LogStartingProxy(this ILogger logger, object proxyInfo);
-    
+
     [LoggerMessage(LogLevel.Information, "[PROXY] Proxy started: {ProxyInfo}")]
     public static partial void LogProxyStarted(this ILogger logger, object proxyInfo);
-    
+
     [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Received packet with length [{Length}] from {RemoteClientPort}")]
-    public static partial void LogReceivedPacket(this ILogger logger, object proxyInfo, int length, ushort remoteClientPort);
-    
+    public static partial void LogReceivedPacket(this ILogger logger, object proxyInfo, int length,
+        ushort remoteClientPort);
+
     [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Currently remain {PacketLength} packet")]
     public static partial void LogCurrentlyRemainPacket(this ILogger logger, object proxyInfo, int packetLength);
-    
+
     [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Sent {PacketLength} bytes to {LocalRealMcPort}")]
-    public static partial void LogSentPacket(this ILogger logger, object proxyInfo, int packetLength, ushort localRealMcPort);
-    
+    public static partial void LogSentPacket(this ILogger logger, object proxyInfo, int packetLength,
+        ushort localRealMcPort);
+
     [LoggerMessage(LogLevel.Error, "[{ProxyInfo}] Failed to send packet to {LocalRealMcPort}")]
-    public static partial void LogFailedToSendPacket(this ILogger logger, Exception ex, object proxyInfo, ushort localRealMcPort);
-    
+    public static partial void LogFailedToSendPacket(this ILogger logger, Exception ex, object proxyInfo,
+        ushort localRealMcPort);
+
     [LoggerMessage(LogLevel.Error, "[{ProxyInfo}] Failed to init connection socket, error code: {ErrorCode}")]
-    public static partial void LogFailedToInitConnectionSocket(this ILogger logger, Exception ex, object proxyInfo, SocketError errorCode);
-    
+    public static partial void LogFailedToInitConnectionSocket(this ILogger logger, Exception ex, object proxyInfo,
+        SocketError errorCode);
+
     [LoggerMessage(LogLevel.Error, "[{ProxyInfo}] Received 0 bytes from {LocalRealMcPort}")]
     public static partial void LogReceivedZeroBytes(this ILogger logger, object proxyInfo, ushort localRealMcPort);
 
     [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Received {Len} bytes from {McPort}")]
     public static partial void LogBytesReceived(this ILogger logger, object proxyInfo, int len, ushort mcPort);
-    
+
     [LoggerMessage(LogLevel.Error, "[{ProxyInfo}] Server {LocalRealMcPort} disconnected")]
     public static partial void LogServerDisconnected(this ILogger logger, object proxyInfo, ushort localRealMcPort);
-    
+
     [LoggerMessage(LogLevel.Information, "[{ProxyInfo}] Proxy disposed, local port: {LocalPort}")]
     public static partial void LogProxyDisposed(this ILogger logger, object proxyInfo, ushort localPort);
 }

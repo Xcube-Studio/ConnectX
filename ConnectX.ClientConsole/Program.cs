@@ -6,42 +6,38 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
-namespace ConnectX.ClientConsole
+namespace ConnectX.ClientConsole;
+
+internal class Program
 {
-    internal class Program
+    private static IClientSettingProvider GetSettings(IConfiguration configuration)
     {
-        private static IClientSettingProvider GetSettings(IConfiguration configuration)
-        {
-            var listenAddressStr = configuration.GetValue<string>("Server:ListenAddress");
-            var port = configuration.GetValue<ushort>("Server:ListenPort");
-            
-            ArgumentException.ThrowIfNullOrEmpty(listenAddressStr);
+        var listenAddressStr = configuration.GetValue<string>("Server:ListenAddress");
+        var port = configuration.GetValue<ushort>("Server:ListenPort");
 
-            return new DefaultClientSettingProvider
-            {
-                ServerAddress = IPAddress.Parse(listenAddressStr),
-                ServerPort = port,
-                JoinP2PNetwork = true
-            };
-        }
-        
-        static void Main(string[] args)
-        {
-            var builder = Host
-                .CreateDefaultBuilder(args)
-                .UseSerilog((hostingContext, loggerConfiguration) => loggerConfiguration
-                    .ReadFrom.Configuration(hostingContext.Configuration)
-                    .Enrich.FromLogContext()
-                    .WriteTo.Console());
+        ArgumentException.ThrowIfNullOrEmpty(listenAddressStr);
 
-            builder.ConfigureServices((ctx, services) =>
-            {
-                services.UseConnectX(() => GetSettings(ctx.Configuration));
-            });
-            
-            var app = builder.Build();
-            
-            app.Run();
-        }
+        return new DefaultClientSettingProvider
+        {
+            ServerAddress = IPAddress.Parse(listenAddressStr),
+            ServerPort = port,
+            JoinP2PNetwork = true
+        };
+    }
+
+    private static void Main(string[] args)
+    {
+        var builder = Host
+            .CreateDefaultBuilder(args)
+            .UseSerilog((hostingContext, loggerConfiguration) => loggerConfiguration
+                .ReadFrom.Configuration(hostingContext.Configuration)
+                .Enrich.FromLogContext()
+                .WriteTo.Console());
+
+        builder.ConfigureServices((ctx, services) => { services.UseConnectX(() => GetSettings(ctx.Configuration)); });
+
+        var app = builder.Build();
+
+        app.Run();
     }
 }

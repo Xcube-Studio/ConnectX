@@ -32,11 +32,11 @@ public sealed class GenericProxyClient : GenericProxyBase
 
         socket.Connect(new IPEndPoint(IPAddress.Loopback,
             LocalServerPort));
-        
+
         Logger.LogConnectedToMc(LocalServerPort, GetProxyInfoForLog());
 
         InvokeRealServerConnected();
-        
+
         return socket;
     }
 }

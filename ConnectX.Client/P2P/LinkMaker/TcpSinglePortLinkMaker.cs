@@ -24,13 +24,13 @@ public class TcpSinglePortLinkMaker(
         TcpSession? link = null;
         var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         receiveSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        
+
         Socket conSocket;
         await Task.Run(async () =>
         {
             receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
             var tryTime = 10;
-            
+
             Logger.LogStartedToTryTcpConnectionWithRemoteIpe(LocalPort, RemoteIpe);
             Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
 
@@ -43,13 +43,13 @@ public class TcpSinglePortLinkMaker(
                 try
                 {
                     tryTime--;
-                    
+
                     await receiveSocket.ConnectAsync(RemoteIpe, Token);
-                    
+
                     conSocket = receiveSocket;
                     link = ActivatorUtilities.CreateInstance<TcpSession>(ServiceProvider,
                         0, conSocket);
-                    
+
                     if (link == null)
                         throw new SocketException((int)SocketError.Fault, "Link is null");
 
@@ -82,15 +82,19 @@ public class TcpSinglePortLinkMaker(
 internal static partial class TcpSinglePortLinkMakerLoggers
 {
     [LoggerMessage(LogLevel.Information, "[TCP_S2S] {LocalPort} Started to try TCP connection with {RemoteIpe}")]
-    public static partial void LogStartedToTryTcpConnectionWithRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
+    public static partial void LogStartedToTryTcpConnectionWithRemoteIpe(this ILogger logger, int localPort,
+        IPEndPoint remoteIpe);
 
     [LoggerMessage(LogLevel.Information, "[TCP_S2S] Start time {DateTime}")]
     public static partial void LogStartTime(this ILogger logger, string dateTime);
 
-    [LoggerMessage(LogLevel.Error, "[TCP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
-    public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteIpe, int tryTime);
+    [LoggerMessage(LogLevel.Error,
+        "[TCP_S2S] {LocalPort} Failed to connect with {RemoteIpe}, remaining try time {TryTime}")]
+    public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort,
+        IPEndPoint remoteIpe, int tryTime);
 
-    [LoggerMessage(LogLevel.Error, "[TCP_S2S] Failed to connect with {RemoteIpe}, maybe the network is special, or the other party has dropped")]
+    [LoggerMessage(LogLevel.Error,
+        "[TCP_S2S] Failed to connect with {RemoteIpe}, maybe the network is special, or the other party has dropped")]
     public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, IPEndPoint remoteIpe);
 
     [LoggerMessage(LogLevel.Information, "[TCP_S2S] {LocalPort} Succeed to connect with {RemoteIpe}")]

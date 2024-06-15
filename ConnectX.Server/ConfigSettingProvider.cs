@@ -1,7 +1,7 @@
-﻿using ConnectX.Server.Interfaces;
+﻿using System.Net;
+using ConnectX.Server.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Net;
 
 namespace ConnectX.Server;
 
@@ -39,5 +39,6 @@ internal static partial class ConfigSettingProviderLoggers
     public static partial void CanNotParseListenAddressToIpAddress(this ILogger<ConfigSettingProvider> logger);
 
     [LoggerMessage(LogLevel.Information, "Preparing to start server on endpoint [{endPoint}]")]
-    public static partial void PreparingToStartServerOnEndpoint(this ILogger<ConfigSettingProvider> logger, IPEndPoint endPoint);
+    public static partial void PreparingToStartServerOnEndpoint(this ILogger<ConfigSettingProvider> logger,
+        IPEndPoint endPoint);
 }

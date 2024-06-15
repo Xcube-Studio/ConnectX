@@ -7,7 +7,7 @@ namespace ConnectX.Shared.Messages.P2P;
 public record P2PConContextInit
 {
     public bool UseUdp { get; init; }
-    public PortDeterminationMode PortDeterminationMode { get; init; } 
+    public PortDeterminationMode PortDeterminationMode { get; init; }
     public IPAddress? PublicAddress { get; init; } = IPAddress.Any;
     public ChangeLaws ChangeLaw { get; init; }
     public int Diff { get; init; }
@@ -28,7 +28,7 @@ public abstract partial class P2PConContext
     public P2PConContext()
     {
     }
-    
+
     protected P2PConContext(P2PConContext context)
     {
         UseUdp = context.UseUdp;
@@ -42,7 +42,7 @@ public abstract partial class P2PConContext
         CurrentUsedPort = context.CurrentUsedPort;
         PublicAddress = context.PublicAddress;
     }
-    
+
     protected P2PConContext(P2PConContextInit context)
     {
         UseUdp = context.UseUdp;
@@ -56,17 +56,16 @@ public abstract partial class P2PConContext
         CurrentUsedPort = context.CurrentUsedPort;
         PublicAddress = context.PublicAddress;
     }
-    
+
     public bool UseUdp { get; set; }
-    public PortDeterminationMode PortDeterminationMode { get; set; } 
-    
-    [MemoryPackAllowSerialize]
-    public IPAddress? PublicAddress { get; init; } = IPAddress.Any;
-    
+    public PortDeterminationMode PortDeterminationMode { get; set; }
+
+    [MemoryPackAllowSerialize] public IPAddress? PublicAddress { get; init; } = IPAddress.Any;
+
     public ChangeLaws ChangeLaw { get; init; }
     public int Diff { get; init; }
     public bool SameIfNotConflict { get; init; }
-    
+
     public ushort PublicPort { get; set; }
     public ushort PublicPortLower { get; init; }
     public ushort PublicPortUpper { get; init; }

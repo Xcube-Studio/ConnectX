@@ -16,16 +16,10 @@ namespace ConnectX.Client;
 public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 {
     private readonly IDispatcher _dispatcher;
+    private readonly ILogger _logger;
     private readonly IClientSettingProvider _settingProvider;
     private readonly IConnector<TcpSession> _tcpConnector;
-    private readonly ILogger _logger;
-    
-    public ISession? ServerSession { get; private set; }
-    public bool IsConnected { get; private set; }
-    public bool IsSignedIn { get; private set; }
-    public Guid UserId { get; private set; }
-    public StunResult5389? NatType { get; private set; }
-    
+
     public ServerLinkHolder(
         IDispatcher dispatcher,
         IClientSettingProvider settingProvider,
@@ -41,6 +35,12 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         _dispatcher.AddHandler<HeartBeat>(OnHeartBeatReceived);
         _dispatcher.AddHandler<ShutdownMessage>(OnShutdownMessageReceived);
     }
+
+    public ISession? ServerSession { get; private set; }
+    public bool IsConnected { get; private set; }
+    public bool IsSignedIn { get; private set; }
+    public Guid UserId { get; private set; }
+    public StunResult5389? NatType { get; private set; }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -64,7 +64,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         var natType = await StunHelper.GetNatTypeAsync(cancellationToken: cancellationToken);
 
         NatType = natType;
-        
+
         _logger.LogClientNatType(natType);
         _logger.LogConnectXNatType(StunHelper.ToNatTypes(natType));
         _logger.LogConnectingToServer();
@@ -80,7 +80,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         session.BindTo(_dispatcher);
         session.StartAsync(cancellationToken).Forget();
-        
+
         _logger.LogSendingSigninMessageToServer();
 
         await _dispatcher.SendAsync(session, new SigninMessage
@@ -92,7 +92,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         });
 
         await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
-        
+
         _logger.LogConnectedAndSignedToServer(endPoint);
 
         ServerSession = session;
@@ -102,23 +102,23 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public async Task DisconnectAsync(CancellationToken cancellationToken)
     {
         if (!IsConnected || ServerSession == null) return;
-        
+
         _logger.LogDisconnectingFromServer();
 
         await _dispatcher.SendAsync(ServerSession, new ShutdownMessage());
         ServerSession.Close();
-        
+
         _logger.LogDisconnectedFromServer();
 
         IsSignedIn = false;
         IsConnected = false;
     }
-    
+
     private void OnSigninSucceededReceived(MessageContext<SigninSucceeded> obj)
     {
         IsSignedIn = true;
         UserId = obj.Message.UserId;
-        
+
         _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
     }
 
@@ -126,23 +126,23 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     {
         _logger.LogHeartbeatReceivedFromServer();
     }
-    
+
     private void OnShutdownMessageReceived(MessageContext<ShutdownMessage> ctx)
     {
         _logger.LogShutdownMessageReceivedFromServer();
         DisconnectAsync(CancellationToken.None).Forget();
     }
-    
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogStartSendingHeartbeat();
-        
+
         while (!stoppingToken.IsCancellationRequested && IsConnected && ServerSession != null)
         {
             await _dispatcher.SendAsync(ServerSession, new HeartBeat());
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
-        
+
         _logger.LogStopSendingHeartbeat();
     }
 }

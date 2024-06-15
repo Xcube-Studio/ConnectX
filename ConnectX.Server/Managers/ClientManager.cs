@@ -12,11 +12,9 @@ public delegate void SessionDisconnectedHandler(SessionId sessionId);
 
 public class ClientManager
 {
-    private readonly ConcurrentDictionary<SessionId, WatchDog> _watchDogMapping = new ();
     private readonly IDispatcher _dispatcher;
     private readonly ILogger _logger;
-    
-    public event SessionDisconnectedHandler? OnSessionDisconnected;
+    private readonly ConcurrentDictionary<SessionId, WatchDog> _watchDogMapping = new();
 
     public ClientManager(
         IDispatcher dispatcher,
@@ -29,8 +27,10 @@ public class ClientManager
         _dispatcher.AddHandler<HeartBeat>(OnReceivedHeartBeat);
     }
 
+    public event SessionDisconnectedHandler? OnSessionDisconnected;
+
     /// <summary>
-    /// Add the session to the session mapping.
+    ///     Add the session to the session mapping.
     /// </summary>
     /// <param name="id"></param>
     /// <param name="session"></param>
@@ -38,7 +38,7 @@ public class ClientManager
     public SessionId AttachSession(SessionId id, ISession session)
     {
         var watchDog = new WatchDog(session);
-        
+
         if (!_watchDogMapping.TryAdd(id, watchDog))
         {
             _logger.LogFailedToAddSessionToSessionMapping(id);
@@ -50,7 +50,7 @@ public class ClientManager
 
         return id;
     }
-    
+
     public bool IsSessionAttached(SessionId id)
     {
         return _watchDogMapping.ContainsKey(id);
@@ -59,9 +59,9 @@ public class ClientManager
     private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
     {
         if (!_watchDogMapping.TryRemove(ctx.FromSession.Id, out _)) return;
-        
+
         _logger.LogReceivedShutdownMessage(ctx.FromSession.Id);
-        
+
         OnSessionDisconnected?.Invoke(ctx.FromSession.Id);
     }
 
@@ -70,16 +70,16 @@ public class ClientManager
         if (!_watchDogMapping.TryGetValue(ctx.FromSession.Id, out var watchDog))
         {
             _logger.LogReceivedHeartBeatFromUnattachedSession(ctx.FromSession.Id);
-            
+
             ctx.Dispatcher.SendAsync(ctx.FromSession, new ShutdownMessage()).Forget();
             ctx.Dispatcher.RemoveHandler<HeartBeat>(OnReceivedHeartBeat);
             return;
         }
-        
+
         ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
         watchDog.Received();
     }
-    
+
     public void StartWatchDog(CancellationToken token)
     {
         WatchDogCheckLoopAsync(token).Forget();
@@ -88,47 +88,51 @@ public class ClientManager
     private async Task WatchDogCheckLoopAsync(CancellationToken token)
     {
         _logger.LogWatchDogStarted();
-        
+
         while (!token.IsCancellationRequested)
         {
             foreach (var (id, watchDog) in _watchDogMapping)
             {
                 if (!watchDog.IsTimeoutExceeded()) continue;
-                
+
                 _logger.LogSessionTimeout(id);
-                
+
                 OnSessionDisconnected?.Invoke(id);
                 _dispatcher.SendAsync(watchDog.Session, new ShutdownMessage()).Forget();
                 watchDog.Session.Close();
-                
+
                 _watchDogMapping.TryRemove(id, out _);
             }
 
             await Task.Delay(500, token);
         }
-        
+
         _logger.LogWatchDogStopped();
     }
 }
 
 internal static partial class ClientManagerLoggers
 {
-    [LoggerMessage(LogLevel.Error, "[CLIENT_MANAGER] Failed to add session to the session mapping, session id: {sessionId}")]
+    [LoggerMessage(LogLevel.Error,
+        "[CLIENT_MANAGER] Failed to add session to the session mapping, session id: {sessionId}")]
     public static partial void LogFailedToAddSessionToSessionMapping(this ILogger logger, SessionId sessionId);
 
     [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Session attached, session id: {sessionId}")]
     public static partial void LogSessionAttached(this ILogger logger, SessionId sessionId);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Received shutdown message from session, session id: {sessionId}")]
+    [LoggerMessage(LogLevel.Information,
+        "[CLIENT_MANAGER] Received shutdown message from session, session id: {sessionId}")]
     public static partial void LogReceivedShutdownMessage(this ILogger logger, SessionId sessionId);
 
-    [LoggerMessage(LogLevel.Warning, "[CLIENT_MANAGER] Received heartbeat from unattached session, session id: {sessionId}")]
+    [LoggerMessage(LogLevel.Warning,
+        "[CLIENT_MANAGER] Received heartbeat from unattached session, session id: {sessionId}")]
     public static partial void LogReceivedHeartBeatFromUnattachedSession(this ILogger logger, SessionId sessionId);
 
     [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Watchdog started.")]
     public static partial void LogWatchDogStarted(this ILogger logger);
 
-    [LoggerMessage(LogLevel.Warning, "[CLIENT_MANAGER] Session timeout, session id: {sessionId}, removed from session mapping.")]
+    [LoggerMessage(LogLevel.Warning,
+        "[CLIENT_MANAGER] Session timeout, session id: {sessionId}, removed from session mapping.")]
     public static partial void LogSessionTimeout(this ILogger logger, SessionId sessionId);
 
     [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Watchdog stopped.")]

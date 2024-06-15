@@ -1,10 +1,11 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using Hive.Common.Shared.Helpers;
+using ConnectX.Shared.Helpers;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using TaskHelper = Hive.Common.Shared.Helpers.TaskHelper;
 
 namespace ConnectX.Client.P2P.LinkMaker.ManyToMany;
 
@@ -40,22 +41,23 @@ public class TcpManyToManyLinkMaker(
                 {
                     var remotePort = unusedPredictPort.Dequeue();
                     var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    
+
                     receiveSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-                    
+
                     Socket conSocket;
-                    
+
                     var connectTask = Task.Run(async () =>
                     {
-                        var localPort = Shared.Helpers.NetworkHelper.GetAvailablePrivatePort();
+                        var localPort = NetworkHelper.GetAvailablePrivatePort();
                         var remoteIpe = new IPEndPoint(TargetIp, remotePort);
                         var tryTime = 10;
-                        
+
                         Logger.LogStartedToTryTcpConnectionWithRemoteIpe(localPort, remoteIpe);
                         Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
 
                         await TaskHelper.WaitUtil(() => !handshakeTokenSource.IsCancellationRequested &&
-                                                        DateTime.UtcNow.Ticks < StartTimeTick, handshakeTokenSource.Token);
+                                                        DateTime.UtcNow.Ticks < StartTimeTick,
+                            handshakeTokenSource.Token);
 
                         var succeedThisConnect = false;
 
@@ -80,7 +82,7 @@ public class TcpManyToManyLinkMaker(
                                 InvokeOnConnected(link);
                                 succeedThisConnect = true;
                                 _remoteIpEndPoint = link.RemoteEndPoint;
-                                
+
                                 Logger.LogConnectedToRemoteIpe(localPort, remoteIpe);
 
                                 break;
@@ -88,7 +90,7 @@ public class TcpManyToManyLinkMaker(
                             catch (SocketException e)
                             {
                                 Logger.LogFailedToConnectToRemoteIpe(e, localPort, remoteIpe, tryTime);
-                                
+
                                 if (tryTime != 0) continue;
 
                                 Logger.LogFailedToConnectToRemoteIpe(localPort, remoteIpe);
@@ -99,7 +101,7 @@ public class TcpManyToManyLinkMaker(
                         if (!succeedThisConnect)
                             Logger.LogFailedToConnectToRemoteIpe(localPort, remoteIpe);
                     }, handshakeTokenSource.Token);
-                    
+
                     allConnectTasks.Add(connectTask);
                 }
 
@@ -114,7 +116,8 @@ public class TcpManyToManyLinkMaker(
 internal static partial class TcpManyToManyLinkMakerLoggers
 {
     [LoggerMessage(LogLevel.Information, "[TCP_M2M] {LocalPort} Started to try TCP connection with {RemoteIpe}")]
-    public static partial void LogStartedToTryTcpConnectionWithRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
+    public static partial void LogStartedToTryTcpConnectionWithRemoteIpe(this ILogger logger, int localPort,
+        IPEndPoint remoteIpe);
 
     [LoggerMessage(LogLevel.Information, "[TCP_M2M] Start time {DateTime}")]
     public static partial void LogStartTime(this ILogger logger, string dateTime);
@@ -123,7 +126,8 @@ internal static partial class TcpManyToManyLinkMakerLoggers
     public static partial void LogConnectedToRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);
 
     [LoggerMessage(LogLevel.Error, "[TCP_M2M] {LocalPort} Failed to connect {RemoteIpe}, remaining try time {TryTime}")]
-    public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort, IPEndPoint remoteIpe, int tryTime);
+    public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, Exception ex, int localPort,
+        IPEndPoint remoteIpe, int tryTime);
 
     [LoggerMessage(LogLevel.Error, "[TCP_M2M] {LocalPort} Failed to connect {RemoteIpe}")]
     public static partial void LogFailedToConnectToRemoteIpe(this ILogger logger, int localPort, IPEndPoint remoteIpe);

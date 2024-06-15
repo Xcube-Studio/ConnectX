@@ -25,13 +25,13 @@ public class PortPredictResult
 
 
     /// <summary>
-    /// difference
+    ///     difference
     /// </summary>
     public int Diff { get; }
 
 
     /// <summary>
-    /// Port change pattern
+    ///     Port change pattern
     /// </summary>
     public ChangeLaws Law { get; }
 

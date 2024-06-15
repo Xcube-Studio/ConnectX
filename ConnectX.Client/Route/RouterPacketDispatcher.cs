@@ -11,11 +11,11 @@ namespace ConnectX.Client.Route;
 public class RouterPacketDispatcher
 {
     private readonly CancellationTokenSource _cancelTokenSource;
-    private readonly Dictionary<Type, CallbackWarp> _receiveCallbackDic = new ();
-    
-    private readonly Router _router;
     private readonly IPacketCodec _codec;
     private readonly ILogger<RouterPacketDispatcher> _logger;
+    private readonly Dictionary<Type, CallbackWarp> _receiveCallbackDic = new();
+
+    private readonly Router _router;
 
     public RouterPacketDispatcher(
         Router router,
@@ -32,17 +32,17 @@ public class RouterPacketDispatcher
     public void Send(Guid target, object data)
     {
         _logger.LogSend(data.GetType().Name, target);
-        
+
         SendToRouter(target, data);
     }
-    
+
     private void SendToRouter(Guid targetId, object datagram)
     {
         using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream();
         _codec.Encode(datagram, stream);
 
         stream.Seek(0, SeekOrigin.Begin);
-        
+
         _router.Send(targetId, stream.GetMemory());
     }
 
@@ -57,10 +57,10 @@ public class RouterPacketDispatcher
         CancellationToken token = default)
     {
         var received = false;
-        
+
         _receiveCallbackDic[typeof(T)].TempCallback[target] = (T t, PacketContext _) => { received = processor(t); };
         SendToRouter(target, data);
-        
+
         await TaskHelper.WaitUntilAsync(() => received, token == default ? _cancelTokenSource.Token : token);
 
         _receiveCallbackDic[typeof(T)].TempCallback.Remove(target);
@@ -73,7 +73,7 @@ public class RouterPacketDispatcher
         if (!_receiveCallbackDic.ContainsKey(typeof(T))) _receiveCallbackDic.Add(typeof(T), new CallbackWarp());
         _receiveCallbackDic[typeof(T)].UniformCallback.Add(callback);
     }
-    
+
     public void OnReceive<T>(Guid receiver, Action<T, PacketContext> callback)
     {
         if (!_receiveCallbackDic.ContainsKey(typeof(T))) _receiveCallbackDic.Add(typeof(T), new CallbackWarp());
@@ -86,11 +86,11 @@ public class RouterPacketDispatcher
         {
             actMethod?.Invoke(receiver, new[] { message1, new PacketContext(packet.From, this) });
         }
-        
+
         using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream(packet.Payload.Span);
         var message = _codec.Decode(stream);
         var messageType = message!.GetType();
-        
+
         _logger.LogReceived(messageType.Name, packet.From);
 
         if (!_receiveCallbackDic.TryGetValue(messageType, out var callbackWarp)) return;

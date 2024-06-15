@@ -16,23 +16,20 @@ public class P2PConnection : ISender
 {
     public const int Timeout = 5000;
     public const int BufferLength = 256;
-    
-    private int _ackPointer;
-    private int _lastAckTime;
-    private int _sendPointer;
-    
-    private readonly Guid _targetId;
-    private readonly RouterPacketDispatcher _routerPacketDispatcher;
     private readonly IPacketCodec _codec;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger _logger;
-    
+    private readonly RouterPacketDispatcher _routerPacketDispatcher;
+
     private readonly TransDatagram[] _sendBuffer = new TransDatagram[BufferLength];
     private readonly BitArray _sendBufferAckFlag = new(BufferLength);
-    
-    public bool IsConnected { get; private set; }
-    public IDispatcher Dispatcher { get; }
-    
+
+    private readonly Guid _targetId;
+
+    private int _ackPointer;
+    private int _lastAckTime;
+    private int _sendPointer;
+
     public P2PConnection(
         Guid targetId,
         IDispatcher dispatcher,
@@ -42,16 +39,34 @@ public class P2PConnection : ISender
         ILogger<P2PConnection> logger)
     {
         Dispatcher = dispatcher;
-        
+
         _targetId = targetId;
         _routerPacketDispatcher = routerPacketDispatcher;
         _codec = codec;
         _lifetime = lifetime;
         _logger = logger;
-        
+
         Task.Run(StartResendCoroutineAsync, _lifetime.ApplicationStopping).Forget();
 
         _routerPacketDispatcher.OnReceive<TransDatagram>(OnTransDatagramReceived);
+    }
+
+    public bool IsConnected { get; private set; }
+    public IDispatcher Dispatcher { get; }
+
+    public void Send(ReadOnlyMemory<byte> payload)
+    {
+        SendDatagram(TransDatagram.CreateNormal(_sendPointer, payload));
+    }
+
+    public void SendData<T>(T data)
+    {
+        using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream();
+        _codec.Encode(data, stream);
+
+        stream.Seek(0, SeekOrigin.Begin);
+
+        Send(stream.GetMemory());
     }
 
     private void OnTransDatagramReceived(TransDatagram datagram, PacketContext context)
@@ -60,9 +75,9 @@ public class P2PConnection : ISender
         {
             // 握手的回复
             _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateShakeHandSecond(1));
-            
+
             _logger.LogReceiveFirstShakeHandPacket(_targetId);
-            
+
             IsConnected = true;
             return;
         }
@@ -78,10 +93,10 @@ public class P2PConnection : ISender
                 if (message == null)
                 {
                     _logger.LogDecodeMessageFailed(stream.Length, _targetId);
-                    
+
                     return;
                 }
-                
+
                 Dispatcher.Dispatch(SessionPlaceHolder.Shared, message);
             }
 
@@ -119,17 +134,14 @@ public class P2PConnection : ISender
         {
             await TaskHelper.WaitUntilAsync(needResend, _lifetime.ApplicationStopping);
 
-            if (!_lifetime.ApplicationStopping.IsCancellationRequested)
-            {
-                _logger.LogResendCoroutineStarted(_targetId);
-            }
+            if (!_lifetime.ApplicationStopping.IsCancellationRequested) _logger.LogResendCoroutineStarted(_targetId);
         }
     }
-    
+
     public async Task<bool> ConnectAsync()
     {
         _logger.LogConnectingTo(_targetId);
-        
+
         if (IsConnected) return true;
 
         using var cts = new CancellationTokenSource();
@@ -141,11 +153,11 @@ public class P2PConnection : ISender
             TransDatagram.CreateShakeHandFirst(0),
             IsSecondShakeHand,
             cts.Token);
-        
+
         if (!succeed)
         {
             _logger.LogConnectFailed(_targetId);
-            
+
             return false;
         }
 
@@ -161,42 +173,29 @@ public class P2PConnection : ISender
         }
     }
 
-    public void Send(ReadOnlyMemory<byte> payload)
-    {
-        SendDatagram(TransDatagram.CreateNormal(_sendPointer, payload));
-    }
-
-    public void SendData<T>(T data)
-    {
-        using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream();
-        _codec.Encode(data, stream);
-
-        stream.Seek(0, SeekOrigin.Begin);
-        
-        Send(stream.GetMemory());
-    }
-    
     public void Disconnect()
     {
         IsConnected = false;
     }
-    
+
     private void SendDatagram(TransDatagram datagram)
     {
         _sendBuffer[_sendPointer] = datagram;
         _sendBufferAckFlag[_sendPointer] = false;
         _sendPointer = (_sendPointer + 1) % BufferLength;
-        
+
         _routerPacketDispatcher.Send(_targetId, datagram);
     }
 }
 
 internal static partial class P2PConnectionLoggers
 {
-    [LoggerMessage(LogLevel.Trace, "[P2P_CONNECTION] Receive first shakehand packet, send second shakehand packet. (TargetId: {Id})")]
+    [LoggerMessage(LogLevel.Trace,
+        "[P2P_CONNECTION] Receive first shakehand packet, send second shakehand packet. (TargetId: {Id})")]
     public static partial void LogReceiveFirstShakeHandPacket(this ILogger logger, Guid id);
 
-    [LoggerMessage(LogLevel.Error, "[P2P_CONNECTION] Decode message with payload length [{Length}] failed. (TargetId: {Id})")]
+    [LoggerMessage(LogLevel.Error,
+        "[P2P_CONNECTION] Decode message with payload length [{Length}] failed. (TargetId: {Id})")]
     public static partial void LogDecodeMessageFailed(this ILogger logger, long length, Guid id);
 
     [LoggerMessage(LogLevel.Debug, "[P2P_CONNECTION] Resend coroutine started. (TargetId: {Id})")]

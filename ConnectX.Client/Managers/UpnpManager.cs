@@ -7,25 +7,24 @@ namespace ConnectX.Client.Managers;
 
 public class UpnpManager : BackgroundService
 {
+    private const string MappingPrefix = "ConnectX";
+
+    private readonly ILogger _logger;
     private int _idInc;
     private List<Mapping>? _mappings;
-    private const string MappingPrefix = "ConnectX";
-    
-    private readonly ILogger _logger;
-    
+
     public UpnpManager(ILogger<UpnpManager> logger)
     {
         _logger = logger;
     }
-    
+
     public bool IsFetchingStatus { get; private set; }
     public bool IsUpnpAvailable { get; private set; }
     public NatDevice? Device { get; private set; }
-    
+
     private async Task RemoveOldMappingsAsync(NatDevice device, IEnumerable<Mapping> mappings)
     {
         foreach (var mapping in mappings.Where(m => m.Description.StartsWith(MappingPrefix)))
-        {
             try
             {
                 await device.DeletePortMapAsync(mapping);
@@ -34,9 +33,8 @@ public class UpnpManager : BackgroundService
             {
                 _logger.LogFailedToRemoveOldMappings(e);
             }
-        }
     }
-    
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var cts = new CancellationTokenSource(5000);
@@ -44,10 +42,10 @@ public class UpnpManager : BackgroundService
         try
         {
             IsFetchingStatus = true;
-            
+
             var discoverer = new NatDiscoverer();
             var device = await discoverer.DiscoverDeviceAsync(PortMapper.Upnp, cts);
-            
+
             _mappings = (await device.GetAllMappingsAsync())?.ToList() ?? [];
             await RemoveOldMappingsAsync(device, _mappings);
 
@@ -58,7 +56,7 @@ public class UpnpManager : BackgroundService
                 IsUpnpAvailable = false;
                 return;
             }
-            
+
             Device = device;
             IsUpnpAvailable = true;
         }
@@ -76,7 +74,7 @@ public class UpnpManager : BackgroundService
             IsFetchingStatus = false;
         }
     }
-    
+
     public async Task<Mapping?> CreatePortMapAsync(Protocol protocol, int privatePort)
     {
         if (Device == null) return null;

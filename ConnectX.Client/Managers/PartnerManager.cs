@@ -11,14 +11,12 @@ namespace ConnectX.Client.Managers;
 
 public class PartnerManager
 {
-    private readonly PeerManager _peerManager;
     private readonly IDispatcher _dispatcher;
+    private readonly ILogger _logger;
+    private readonly PeerManager _peerManager;
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
 
-    public ConcurrentDictionary<Guid, Partner> Partners { get; } = new();
-    
     public PartnerManager(
         PeerManager peerManager,
         IDispatcher dispatcher,
@@ -31,10 +29,12 @@ public class PartnerManager
         _serverLinkHolder = serverLinkHolder;
         _serviceProvider = serviceProvider;
         _logger = logger;
-        
+
         _dispatcher.AddHandler<GroupUserStateChanged>(OnGroupUserStateChanged);
     }
-    
+
+    public ConcurrentDictionary<Guid, Partner> Partners { get; } = new();
+
     public event Action<Partner>? OnPartnerAdded;
 
     private void OnGroupUserStateChanged(MessageContext<GroupUserStateChanged> ctx)
@@ -58,7 +58,7 @@ public class PartnerManager
                 throw new ArgumentOutOfRangeException();
         }
     }
-    
+
     public bool AddPartner(Guid partnerId)
     {
         if (partnerId == _serverLinkHolder.UserId) return false;
@@ -68,7 +68,7 @@ public class PartnerManager
             _serviceProvider,
             partnerId,
             dispatcher);
-        
+
         if (Partners.ContainsKey(partnerId)) return false;
 
         var partner = ActivatorUtilities.CreateInstance<Partner>(
@@ -78,23 +78,23 @@ public class PartnerManager
             p2PConnection);
 
         if (!Partners.TryAdd(partnerId, partner)) return false;
-        
+
         _peerManager.AddLink(partnerId);
         OnPartnerAdded?.Invoke(partner);
 
         return true;
     }
-    
+
     public bool RemovePartner(Guid partnerId)
     {
         if (!Partners.TryRemove(partnerId, out var partner)) return false;
-        
+
         partner.Disconnect();
         // _peerManager.RemoveLink(partnerId);
 
         return true;
     }
-    
+
     public void RemoveAllPartners()
     {
         foreach (var (_, partner) in Partners)

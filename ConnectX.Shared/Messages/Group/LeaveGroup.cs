@@ -8,6 +8,6 @@ namespace ConnectX.Shared.Messages.Group;
 [MemoryPackable]
 public partial class LeaveGroup : IRequireAssignedUserId
 {
-    public required Guid UserId { get; init; }
     public required Guid GroupId { get; init; }
+    public required Guid UserId { get; init; }
 }

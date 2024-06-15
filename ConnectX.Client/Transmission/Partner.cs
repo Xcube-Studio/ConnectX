@@ -7,18 +7,15 @@ namespace ConnectX.Client.Transmission;
 
 public class Partner
 {
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly ILogger _logger;
+    private readonly Guid _partnerId;
+
+    private readonly Guid _selfId;
+    private readonly IServiceProvider _serviceProvider;
     private bool _isLastTimeConnected;
     private PingChecker? _pingChecker;
 
-    private readonly Guid _selfId;
-    private readonly Guid _partnerId;
-    private readonly IHostApplicationLifetime _lifetime;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger _logger;
-    
-    public P2PConnection Connection { get; }
-    public int Latency { get; private set; }
-    
     public Partner(
         Guid selfId,
         Guid partnerId,
@@ -28,16 +25,19 @@ public class Partner
         ILogger<Partner> logger)
     {
         Connection = connection;
-        
+
         _selfId = selfId;
         _partnerId = partnerId;
         _lifetime = lifetime;
         _serviceProvider = serviceProvider;
         _logger = logger;
-        
+
         KeepConnectAsync().Forget();
     }
-    
+
+    public P2PConnection Connection { get; }
+    public int Latency { get; private set; }
+
     public event Action<Partner>? OnDisconnected;
     public event Action<Partner>? OnConnected;
 
@@ -50,9 +50,9 @@ public class Partner
                 if (_isLastTimeConnected)
                 {
                     _logger.LogDisconnectedWithPartnerId(_partnerId);
-                    
+
                     OnDisconnected?.Invoke(this);
-                    
+
                     _isLastTimeConnected = false;
                     _pingChecker = null;
                 }
@@ -60,9 +60,9 @@ public class Partner
                 if (await Connection.ConnectAsync())
                 {
                     _logger.LogConnectedWithPartnerId(_partnerId);
-                    
+
                     _isLastTimeConnected = true;
-                    
+
                     OnConnected?.Invoke(this);
                 }
             }
@@ -71,9 +71,9 @@ public class Partner
                 if (_isLastTimeConnected == false)
                 {
                     _logger.LogConnectedWithPartnerId(_partnerId);
-                    
+
                     _isLastTimeConnected = true;
-                    
+
                     OnConnected?.Invoke(this);
                 }
 

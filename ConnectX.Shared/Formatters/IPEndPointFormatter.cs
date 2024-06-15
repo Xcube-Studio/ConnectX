@@ -5,7 +5,8 @@ namespace ConnectX.Shared.Formatters;
 
 public class IPEndPointFormatter : MemoryPackFormatter<IPEndPoint>
 {
-    public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer, scoped ref IPEndPoint? value)
+    public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer,
+        scoped ref IPEndPoint? value)
     {
         if (value == null)
         {
@@ -26,7 +27,7 @@ public class IPEndPointFormatter : MemoryPackFormatter<IPEndPoint>
             value = null;
             return;
         }
-        
+
         value = endPoint;
     }
 }

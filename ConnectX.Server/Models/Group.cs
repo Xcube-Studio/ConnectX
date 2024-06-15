@@ -31,7 +31,7 @@ public class Group(
             RoomName = group.RoomName,
             RoomOwnerId = group.RoomOwner.UserId,
             RoomShortId = group.RoomShortId,
-            Users = group.Users.Select(x => (UserInfo) x).ToArray()
+            Users = group.Users.Select(x => (UserInfo)x).ToArray()
         };
     }
 }

@@ -1,8 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
-using ConnectX.Shared.Helpers;
 using ConnectX.Server.Interfaces;
 using ConnectX.Server.Managers;
+using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Messages.Query;
@@ -17,21 +17,22 @@ namespace ConnectX.Server;
 
 public class Server : BackgroundService
 {
-    private long _currentSessionCount;
     private const int MaxSessionLoginTimeout = 600;
+    private readonly IAcceptor<TcpSession> _acceptor;
+    private readonly ClientManager _clientManager;
 
     private readonly IDispatcher _dispatcher;
-    private readonly IAcceptor<TcpSession> _acceptor;
-    private readonly IServerSettingProvider _serverSettingProvider;
-    private readonly QueryManager _queryManager;
     private readonly GroupManager _groupManager;
-    private readonly ClientManager _clientManager;
-    private readonly P2PManager _p2PManager;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger _logger;
+    private readonly P2PManager _p2PManager;
+    private readonly QueryManager _queryManager;
+    private readonly IServerSettingProvider _serverSettingProvider;
 
     private readonly ConcurrentDictionary<SessionId, (DateTime AddTime, ISession Session)>
         _tempSessionMapping = new();
+
+    private long _currentSessionCount;
 
     public Server(
         IDispatcher dispatcher,
@@ -53,10 +54,10 @@ public class Server : BackgroundService
         _p2PManager = p2PManager;
         _lifetime = lifetime;
         _logger = logger;
-        
+
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
         _p2PManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
-        
+
         _acceptor.BindTo(_dispatcher);
         _dispatcher.AddHandler<SigninMessage>(OnSigninMessageReceived);
         _dispatcher.AddHandler<TempQuery>(OnTempQueryReceived);
@@ -71,14 +72,14 @@ public class Server : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogStartingServer();
-        
+
         while (!stoppingToken.IsCancellationRequested)
         {
             foreach (var (id, (add, session)) in _tempSessionMapping)
             {
                 var currentTime = DateTime.UtcNow;
                 if (!((currentTime - add).TotalSeconds > MaxSessionLoginTimeout)) continue;
-                
+
                 _logger.LogSessionLoginTimeout(session.Id);
                 _logger.LogCurrentOnline(Interlocked.Read(ref _currentSessionCount));
 
@@ -96,9 +97,9 @@ public class Server : BackgroundService
 
         _acceptor.StartAcceptLoop(cancellationToken);
         _acceptor.OnSessionCreated += AcceptorOnOnSessionCreated;
-        
+
         _clientManager.StartWatchDog(cancellationToken);
-        
+
         _logger.LogServerStarted(_serverSettingProvider.ListenIpEndPoint);
 
         await base.StartAsync(cancellationToken);
@@ -129,11 +130,8 @@ public class Server : BackgroundService
         // Remove temp session mapping
         if (!_tempSessionMapping.TryRemove(session.Id, out _))
             return;
-        
-        _queryManager.ProcessQuery(ctx).ContinueWith(_ =>
-        {
-            session.Close();
-        }, TaskScheduler.Default).Forget();
+
+        _queryManager.ProcessQuery(ctx).ContinueWith(_ => { session.Close(); }, TaskScheduler.Default).Forget();
     }
 
     private void OnSigninMessageReceived(MessageContext<SigninMessage> ctx)
@@ -143,7 +141,7 @@ public class Server : BackgroundService
         // Remove temp session mapping
         if (!_tempSessionMapping.TryRemove(session.Id, out _))
             return;
-        
+
         var newVal = Interlocked.Increment(ref _currentSessionCount);
         _logger.LogCurrentOnline(newVal);
 
@@ -152,7 +150,7 @@ public class Server : BackgroundService
         if (ctx.Message.Id != default)
         {
             _logger.LogUserCreatedTempLink(ctx.Message.Id);
-            
+
             _p2PManager.AttachTempSession(session, ctx.Message);
             _dispatcher.SendAsync(session, new SigninSucceeded(ctx.Message.Id)).Forget();
         }
@@ -160,7 +158,7 @@ public class Server : BackgroundService
         {
             _clientManager.AttachSession(session.Id, session);
             var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
-            
+
             _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
             _p2PManager.AttachSession(session, userId, ctx.Message);
         }
@@ -190,13 +188,15 @@ internal static partial class ServerLoggers
     [LoggerMessage(LogLevel.Information, "Server started on endpoint [{endPoint}]")]
     public static partial void LogServerStarted(this ILogger logger, IPEndPoint endPoint);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT] New Session joined, EndPoint [{endPoint}] ID [{id}], wait for signin message.")]
+    [LoggerMessage(LogLevel.Information,
+        "[CLIENT] New Session joined, EndPoint [{endPoint}] ID [{id}], wait for signin message.")]
     public static partial void LogNewSessionJoined(this ILogger logger, IPEndPoint endPoint, SessionId id);
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] SigninMessage received from [{endPoint}] ID [{id}]")]
     public static partial void LogSigninMessageReceived(this ILogger logger, IPEndPoint endPoint, SessionId id);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT] User [{userId}] created a temp link for P2P connection. Attach session to P2PManager.")]
+    [LoggerMessage(LogLevel.Information,
+        "[CLIENT] User [{userId}] created a temp link for P2P connection. Attach session to P2PManager.")]
     public static partial void LogUserCreatedTempLink(this ILogger logger, Guid userId);
 
     [LoggerMessage(LogLevel.Information, "Server stopped.")]

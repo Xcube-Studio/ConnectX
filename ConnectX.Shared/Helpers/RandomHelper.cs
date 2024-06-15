@@ -5,12 +5,12 @@ namespace ConnectX.Shared.Helpers;
 public static class RandomHelper
 {
     private static readonly char[] Chars;
-    
+
     static RandomHelper()
     {
         var arr = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".ToCharArray();
         Random.Shared.Shuffle(arr);
-        
+
         Chars = arr;
     }
 

@@ -7,7 +7,7 @@ namespace ConnectX.Client.Proxy;
 public class GenericProxyPair : IDisposable
 {
     private readonly IDispatcher _dispatcher;
-    
+
     public GenericProxyPair(
         Guid id,
         GenericProxyBase proxyBase,
@@ -23,7 +23,7 @@ public class GenericProxyPair : IDisposable
         Sender = sender;
 
         _dispatcher = dispatcher;
-        
+
         dispatcher.AddHandler<ForwardPacketCarrier>(ReceivedForwardPacket);
         proxyBase.OutwardSenders.Add(OnSend);
     }
@@ -47,6 +47,14 @@ public class GenericProxyPair : IDisposable
     /// </summary>
     public ushort RemoteRealPort { get; }
 
+    public void Dispose()
+    {
+        _dispatcher.RemoveHandler<ForwardPacketCarrier>(ReceivedForwardPacket);
+        ProxyBase?.Dispose();
+
+        GC.SuppressFinalize(this);
+    }
+
     public bool OnSend(ForwardPacketCarrier data)
     {
         if (data.SelfRealPort != LocalRealPort) return false;
@@ -58,13 +66,5 @@ public class GenericProxyPair : IDisposable
     private void ReceivedForwardPacket(MessageContext<ForwardPacketCarrier> ctx)
     {
         ProxyBase?.OnReceiveMcPacketCarrier(ctx.Message);
-    }
-    
-    public void Dispose()
-    {
-        _dispatcher.RemoveHandler<ForwardPacketCarrier>(ReceivedForwardPacket);
-        ProxyBase?.Dispose();
-        
-        GC.SuppressFinalize(this);
     }
 }

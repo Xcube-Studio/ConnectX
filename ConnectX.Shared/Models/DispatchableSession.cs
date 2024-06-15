@@ -6,9 +6,6 @@ namespace ConnectX.Shared.Models;
 
 public class DispatchableSession : IDisposable
 {
-    public ISession Session { get; init; }
-    public IDispatcher Dispatcher { get; init; }
-    
     public DispatchableSession(
         ISession session,
         IDispatcher dispatcher,
@@ -16,10 +13,13 @@ public class DispatchableSession : IDisposable
     {
         Session = session;
         Dispatcher = dispatcher;
-        
+
         Session.BindTo(Dispatcher);
         Session.StartAsync(cancellationToken).Forget();
     }
+
+    public ISession Session { get; init; }
+    public IDispatcher Dispatcher { get; init; }
 
     public void Dispose()
     {

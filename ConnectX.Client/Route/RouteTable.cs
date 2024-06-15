@@ -6,10 +6,9 @@ namespace ConnectX.Client.Route;
 
 public class RouteTable
 {
-    private readonly IServerLinkHolder _serverLinkHolder;
-    private readonly ILogger _logger;
-    
     private readonly Dictionary<Guid, LinkStatePacket> _linkStates = [];
+    private readonly ILogger _logger;
+    private readonly IServerLinkHolder _serverLinkHolder;
     private Dictionary<Guid, Guid> _routeTableInternal = [];
 
     public RouteTable(
@@ -52,7 +51,7 @@ public class RouteTable
     {
         if (!_linkStates.TryGetValue(_serverLinkHolder.UserId, out var selfConnectDirectly))
             return;
-        
+
         _logger.LogCalculateRouteTable(selfConnectDirectly.Source, selfConnectDirectly.Timestamp);
 
         HashSet<Guid> notChecked = [];
@@ -64,7 +63,7 @@ public class RouteTable
             notChecked.Add(guid);
             dist.Add(guid, int.MaxValue);
         }
-        
+
         routeTableTmp.Add(_serverLinkHolder.UserId, _serverLinkHolder.UserId);
         dist[_serverLinkHolder.UserId] = 0;
         notChecked.Remove(_serverLinkHolder.UserId);
@@ -81,7 +80,7 @@ public class RouteTable
         {
             var minId = notChecked.First();
             var minDist = int.MaxValue;
-            
+
             foreach (var id in notChecked.Where(id => dist[id] < minDist))
             {
                 minDist = dist[id];

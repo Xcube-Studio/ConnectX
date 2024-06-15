@@ -10,6 +10,5 @@ public sealed partial class Pong : RouteLayerPacket
 {
     public required uint SeqId { get; init; }
 
-    [MemoryPackIgnore]
-    public long SelfReceiveTime { get; set; }
+    [MemoryPackIgnore] public long SelfReceiveTime { get; set; }
 }

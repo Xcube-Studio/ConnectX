@@ -8,8 +8,8 @@ namespace ConnectX.Shared.Messages.Group;
 [MemoryPackable]
 public partial class JoinGroup : IRequireAssignedUserId
 {
-    public required Guid UserId { get; init; }
     public Guid GroupId { get; init; }
     public string? RoomShortId { get; init; }
     public string? RoomPassword { get; init; }
+    public required Guid UserId { get; init; }
 }

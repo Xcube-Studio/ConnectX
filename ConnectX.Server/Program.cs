@@ -9,7 +9,7 @@ namespace ConnectX.Server;
 
 public class Program
 {
-    static void Main(string[] args)
+    private static void Main(string[] args)
     {
         var builder = Host
             .CreateDefaultBuilder(args)
