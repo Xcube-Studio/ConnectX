@@ -57,13 +57,20 @@ public static partial class StunHelper
 
         ArgumentNullException.ThrowIfNull(serverAddr);
 
-        using var client = new StunClient5389UDP(
-            new IPEndPoint(serverAddr, port),
-            localEndPoint);
+        try
+        {
+            using var client = new StunClient5389UDP(
+                new IPEndPoint(serverAddr, port),
+                localEndPoint);
 
-        await client.QueryAsync(cancellationToken);
+            await client.QueryAsync(cancellationToken);
 
-        return client.State with { };
+            return client.State with { };
+        }
+        catch (Exception e)
+        {
+            return new StunResult5389();
+        }
     }
 
     public static NatTypes ToNatTypes(StunResult5389 stun)

@@ -159,7 +159,7 @@ public class FakeServerMultiCaster : BackgroundService
                     //ignore
                 }
             }
-        }, stoppingToken);
+        });
     }
 }
 
