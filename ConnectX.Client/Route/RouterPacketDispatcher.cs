@@ -84,7 +84,7 @@ public class RouterPacketDispatcher
     {
         void InvokeCallback(MethodBase? actMethod, object receiver, object message1)
         {
-            actMethod?.Invoke(receiver, new[] { message1, new PacketContext(packet.From, this) });
+            actMethod?.Invoke(receiver, [message1, new PacketContext(packet.From, this)]);
         }
 
         using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream(packet.Payload.Span);
