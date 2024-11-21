@@ -13,7 +13,7 @@ public class RouterPacketDispatcher
     private readonly CancellationTokenSource _cancelTokenSource;
     private readonly IPacketCodec _codec;
     private readonly ILogger<RouterPacketDispatcher> _logger;
-    private readonly Dictionary<Type, CallbackWarp> _receiveCallbackDic = new();
+    private readonly Dictionary<Type, CallbackWarp> _receiveCallbackDic = [];
 
     private readonly Router _router;
 

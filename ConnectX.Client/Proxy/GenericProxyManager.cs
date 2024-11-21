@@ -12,12 +12,12 @@ namespace ConnectX.Client.Proxy;
 
 public abstract class GenericProxyManager : BackgroundService
 {
-    private readonly Dictionary<TunnelIdentifier, Socket> _acceptedSockets = new();
-    private readonly Dictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = new();
+    private readonly Dictionary<TunnelIdentifier, Socket> _acceptedSockets = [];
+    private readonly Dictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = [];
     private readonly IHostApplicationLifetime _lifetime;
 
     //使用一个二元组确定一个连接
-    private readonly Dictionary<TunnelIdentifier, GenericProxyPair> _proxies = new();
+    private readonly Dictionary<TunnelIdentifier, GenericProxyPair> _proxies = [];
     private readonly IServiceProvider _serviceProvider;
 
     protected readonly ILogger Logger;

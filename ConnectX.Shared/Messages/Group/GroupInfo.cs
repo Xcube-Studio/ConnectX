@@ -17,7 +17,7 @@ public partial record GroupInfo
         RoomDescription = string.Empty,
         CurrentUserCount = 0,
         MaxUserCount = 0,
-        Users = Array.Empty<UserInfo>()
+        Users = []
     };
 
     public required Guid RoomId { get; init; }

@@ -12,7 +12,7 @@ namespace ConnectX.Client.Proxy;
 public sealed class ProxyManager : GenericProxyManager
 {
     private readonly PartnerManager _partnerManager;
-    private readonly ConcurrentBag<(IDispatcher, HandlerId)> _registeredHandlers = new();
+    private readonly ConcurrentBag<(IDispatcher, HandlerId)> _registeredHandlers = [];
 
     public ProxyManager(
         PartnerManager partnerManager,
