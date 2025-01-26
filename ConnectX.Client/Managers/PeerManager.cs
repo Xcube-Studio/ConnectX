@@ -192,7 +192,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         }
     }
 
-    private async Task<DispatchableSession?> CreateTempServerLinkAsync(Guid partnerId,
+    private async Task<DispatchableSession?> CreateTempServerLinkAsync(
+        Guid partnerId,
         CancellationToken cancellationToken)
     {
         if (_tmpLinkMakerDic.TryRemove(partnerId, out var old))

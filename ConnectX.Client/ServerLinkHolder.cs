@@ -1,8 +1,10 @@
 ﻿using System.Net;
+using System.Threading;
 using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
+using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
@@ -61,12 +63,23 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     {
         _logger.LogGettingClientNatType();
 
-        var natType = await StunHelper.GetNatTypeAsync(cancellationToken: cancellationToken);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var natType = await StunHelper.GetNatTypeAsync(cancellationToken: cancellationToken);
 
-        NatType = natType;
+            if (natType == null)
+            {
+                _logger.LogFailedToAcquireNatType();
+                await Task.Delay(250, cancellationToken);
+                continue;
+            }
 
-        _logger.LogClientNatType(natType);
-        _logger.LogConnectXNatType(StunHelper.ToNatTypes(natType));
+            NatType = natType;
+            break;
+        }
+
+        _logger.LogClientNatType(NatType);
+        _logger.LogConnectXNatType(StunHelper.ToNatTypes(NatType!));
         _logger.LogConnectingToServer();
 
         var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
@@ -86,9 +99,9 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         await Task.Delay(1000, cancellationToken);
         await _dispatcher.SendAsync(session, new SigninMessage
         {
-            BindingTestResult = natType.BindingTestResult,
-            FilteringBehavior = natType.FilteringBehavior,
-            MappingBehavior = natType.MappingBehavior,
+            BindingTestResult = NatType!.BindingTestResult,
+            FilteringBehavior = NatType.FilteringBehavior,
+            MappingBehavior = NatType.MappingBehavior,
             JoinP2PNetwork = _settingProvider.JoinP2PNetwork
         });
 
@@ -138,8 +151,18 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     {
         _logger.LogStartSendingHeartbeat();
 
+        await TaskHelper.WaitUntilAsync(() => IsConnected, stoppingToken);
+
+        var lastInterconnectUserFetchTime = DateTime.UtcNow;
+
         while (!stoppingToken.IsCancellationRequested && IsConnected && ServerSession != null)
         {
+            if (DateTime.UtcNow - lastInterconnectUserFetchTime > TimeSpan.FromMinutes(1))
+            {
+                await _dispatcher.SendAsync(ServerSession, new RequestP2PInterconnectList());
+                lastInterconnectUserFetchTime = DateTime.UtcNow;
+            }
+
             await _dispatcher.SendAsync(ServerSession, new HeartBeat());
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
@@ -150,6 +173,9 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
 internal static partial class ServerLinkHolderLoggers
 {
+    [LoggerMessage(LogLevel.Warning, "[CLIENT] Failed to fetch NAT type, retrying...")]
+    public static partial void LogFailedToAcquireNatType(this ILogger logger);
+
     [LoggerMessage(LogLevel.Information, "[CLIENT] Starting server link holder...")]
     public static partial void LogStartingServerLinkHolder(this ILogger logger);
 

@@ -4,13 +4,14 @@ using ConnectX.Shared.Messages;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Server.Managers;
 
 public delegate void SessionDisconnectedHandler(SessionId sessionId);
 
-public class ClientManager
+public class ClientManager : BackgroundService
 {
     private readonly IDispatcher _dispatcher;
     private readonly ILogger _logger;
@@ -80,16 +81,11 @@ public class ClientManager
         watchDog.Received();
     }
 
-    public void StartWatchDog(CancellationToken token)
-    {
-        WatchDogCheckLoopAsync(token).Forget();
-    }
-
-    private async Task WatchDogCheckLoopAsync(CancellationToken token)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogWatchDogStarted();
 
-        while (!token.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
             foreach (var (id, watchDog) in _watchDogMapping)
             {
@@ -104,7 +100,7 @@ public class ClientManager
                 _watchDogMapping.TryRemove(id, out _);
             }
 
-            await Task.Delay(500, token);
+            await Task.Delay(500, stoppingToken);
         }
 
         _logger.LogWatchDogStopped();

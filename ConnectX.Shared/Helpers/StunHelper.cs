@@ -17,59 +17,124 @@ namespace ConnectX.Shared.Helpers;
 
 public static partial class StunHelper
 {
-    public static readonly string[] StunServers =
+    private static readonly string[] StunServers =
     [
         "stunserver.stunprotocol.org",
         "stun.hot-chilli.net",
         "stun.fitauto.ru",
         "stun.syncthing.net",
         "stun.qq.com",
-        "stun.miwifi.com"
+        "stun.miwifi.com",
+        "stun.l.google.com",
+        "stun1.l.google.com",
+        "stun2.l.google.com",
+        "stun3.l.google.com",
+        "stun4.l.google.com",
+        //"stun.botonakis.com",
+        //"stun.budgetsip.com",
+        //"stun.cablenet-as.net",
+        //"stun.callromania.ro",
+        //"stun.callwithus.com",
+        //"stun.chathelp.ru",
+        //"stun.cheapvoip.com",
+        //"stun.ciktel.com",
+        //"stun.cloopen.com",
+        //"stun.comfi.com",
+        //"stun.commpeak.com",
+        //"stun.comtube.com",
+        //"stun.comtube.ru",
+        //"stun.cope.es",
+        //"stun.counterpath.com",
+        //"stun.counterpath.net",
+        //"stun.datamanagement.it",
+        //"stun.dcalling.de",
+        //"stun.demos.ru",
+        //"stun.develz.org",
+        //"stun.dingaling.ca",
+        //"stun.doublerobotics.com",
+        //"stun.dus.net",
+        //"stun.easycall.pl",
+        //"stun.easyvoip.com",
+        //"stun.ekiga.net",
+        //"stun.epygi.com",
+        //"stun.etoilediese.fr",
+        //"stun.faktortel.com.au",
+        //"stun.freecall.com",
+        //"stun.freeswitch.org",
+        //"stun.freevoipdeal.com",
+        //"stun.gmx.de",
+        //"stun.gmx.net",
+        //"stun.gradwell.com",
+        //"stun.halonet.pl",
+        //"stun.hellonanu.com",
+        //"stun.hoiio.com",
+        //"stun.hosteurope.de",
+        //"stun.ideasip.com",
+        //"stun.infra.net",
+        //"stun.internetcalls.com",
+        //"stun.intervoip.com",
+        //"stun.ipcomms.net",
+        //"stun.ipfire.org",
+        //"stun.ippi.fr",
+        //"stun.ipshka.com",
+        //"stun.irian.at",
+        //"stun.it1.hr",
+        //"stun.ivao.aero",
+        //"stun.jumblo.com",
+        //"stun.justvoip.com",
+        //"stun.kanet.ru",
+        //"stun.kiwilink.co.nz"
     ];
 
-    public static async Task<StunResult5389> GetNatTypeAsync(
-        string? serverAddress = null,
+    public static async Task<StunResult5389?> GetNatTypeAsync(
+        string? stunServerAddress = null,
         TransportType transportType = TransportType.Udp,
         bool useV6 = false,
         CancellationToken cancellationToken = default)
     {
-        serverAddress ??= Random.Shared.GetItems(StunServers, 1)[0];
+        stunServerAddress ??= Random.Shared.GetItems(StunServers, 1)[0];
 
         var localEndPoint = useV6
             ? new IPEndPoint(IPAddress.IPv6Any, IPEndPoint.MinPort)
             : new IPEndPoint(IPAddress.Any, IPEndPoint.MinPort);
-        var dnsClient = new LookupClient(new LookupClientOptions { UseCache = true });
-        var port = transportType == TransportType.Tls
-            ? StunServer.DefaultTlsPort
-            : StunServer.DefaultPort;
-
-        var queryResult = await dnsClient.QueryAsync(
-            serverAddress,
-            useV6 ? QueryType.AAAA : QueryType.A,
-            cancellationToken: cancellationToken);
-
-        if (queryResult.HasError)
-            throw new InvalidOperationException(queryResult.ErrorMessage);
-
-        var serverAddr = useV6
-            ? queryResult.Answers.AaaaRecords().FirstOrDefault()?.Address
-            : queryResult.Answers.ARecords().FirstOrDefault()?.Address;
-
-        ArgumentNullException.ThrowIfNull(serverAddr);
 
         try
         {
+            var dnsClient = new LookupClient(new LookupClientOptions { UseCache = true });
+            var port = transportType == TransportType.Tls
+                ? StunServer.DefaultTlsPort
+                : StunServer.DefaultPort;
+
+            var queryResult = await dnsClient.QueryAsync(
+                stunServerAddress,
+                useV6 ? QueryType.AAAA : QueryType.A,
+                cancellationToken: cancellationToken);
+
+            if (queryResult.HasError)
+                throw new InvalidOperationException(queryResult.ErrorMessage);
+
+            var resolvedServerAddress = useV6
+                ? queryResult.Answers.AaaaRecords().FirstOrDefault()?.Address
+                : queryResult.Answers.ARecords().FirstOrDefault()?.Address;
+
+            ArgumentNullException.ThrowIfNull(resolvedServerAddress);
+
             using var client = new StunClient5389UDP(
-                new IPEndPoint(serverAddr, port),
+                new IPEndPoint(resolvedServerAddress, port),
                 localEndPoint);
 
             await client.QueryAsync(cancellationToken);
 
+            if (client.State.BindingTestResult == BindingTestResult.Fail ||
+                client.State.MappingBehavior == MappingBehavior.Fail ||
+                client.State.FilteringBehavior == FilteringBehavior.UnsupportedServer)
+                return null;
+
             return client.State with { };
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            return new StunResult5389();
+            return null;
         }
     }
 

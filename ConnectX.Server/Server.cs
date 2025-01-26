@@ -98,8 +98,6 @@ public class Server : BackgroundService
         _acceptor.StartAcceptLoop(cancellationToken);
         _acceptor.OnSessionCreated += AcceptorOnOnSessionCreated;
 
-        _clientManager.StartWatchDog(cancellationToken);
-
         _logger.LogServerStarted(_serverSettingProvider.ListenIpEndPoint);
 
         await base.StartAsync(cancellationToken);
@@ -147,7 +145,7 @@ public class Server : BackgroundService
 
         _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
 
-        if (ctx.Message.Id != default)
+        if (ctx.Message.Id != Guid.Empty)
         {
             _logger.LogUserCreatedTempLink(ctx.Message.Id);
 

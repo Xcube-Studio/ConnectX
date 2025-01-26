@@ -40,6 +40,7 @@ public class P2PManager
         _dispatcher.AddHandler<ShutdownMessage>(OnReceivedShutdownMessage);
         _dispatcher.AddHandler<P2PConRequest>(OnReceivedP2PConRequest);
         _dispatcher.AddHandler<P2PConAccept>(OnReceivedP2PConAccept);
+        _dispatcher.AddHandler<RequestP2PInterconnectList>(OnReceivedRequestP2PInterconnectList);
     }
 
     public event SessionDisconnectedHandler? OnSessionDisconnected;
@@ -63,7 +64,7 @@ public class P2PManager
 
     private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
     {
-        Guid key = default;
+        var key = Guid.Empty;
         ISession? sessionToRemove = null;
 
         foreach (var (id, list) in _tempLinkMappings)
@@ -235,7 +236,11 @@ public class P2PManager
 
         var possibleInterconnectUsers = GetPossibleInterconnectUsers(userId).ToArray();
 
-        if (possibleInterconnectUsers.Length == 0) return;
+        if (possibleInterconnectUsers.Length == 0)
+        {
+            _logger.NoInterconnectUserFound();
+            return;
+        }
 
         _logger.LogUserHasPossibleInterconnectUsers(possibleInterconnectUsers.Length, session.Id.Id);
 
@@ -243,10 +248,39 @@ public class P2PManager
 
         _dispatcher.SendAsync(session, message).Forget();
     }
+
+    private void OnReceivedRequestP2PInterconnectList(MessageContext<RequestP2PInterconnectList> obj)
+    {
+        if (!_sessionIdMapping.TryGetValue(obj.FromSession.Id, out var userId))
+        {
+            _logger.LogSessionNotFound(obj.FromSession.Id);
+            return;
+        }
+
+        var possibleInterconnectUsers = GetPossibleInterconnectUsers(userId).ToArray();
+
+        if (possibleInterconnectUsers.Length == 0)
+        {
+            _logger.LogNoInterconnectUserFound();
+            return;
+        }
+
+        _logger.LogUserHasPossibleInterconnectUsers(possibleInterconnectUsers.Length, obj.FromSession.Id.Id);
+
+        var message = new P2PInterconnect(possibleInterconnectUsers);
+
+        _dispatcher.SendAsync(obj.FromSession, message).Forget();
+    }
 }
 
 internal static partial class P2PManagerLoggers
 {
+    [LoggerMessage(LogLevel.Error, "[P2P_MANAGER] Session [{sessionId}] not found in the record!")]
+    public static partial void LogSessionNotFound(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] No possible interconnect user found!")]
+    public static partial void LogNoInterconnectUserFound(this ILogger logger);
+
     [LoggerMessage(LogLevel.Information, "[P2P_MANAGER] User disconnected, session id: {sessionId}")]
     public static partial void LogUserDisconnected(this ILogger logger, SessionId sessionId);
 

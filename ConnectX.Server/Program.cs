@@ -27,6 +27,8 @@ public class Program
             services.AddSingleton<ClientManager>();
             services.AddSingleton<GroupManager>();
             services.AddSingleton<P2PManager>();
+
+            services.AddHostedService(sc => sc.GetRequiredService<ClientManager>());
             services.AddHostedService<NatTestService>();
             services.AddHostedService<Server>();
         });

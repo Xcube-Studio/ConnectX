@@ -16,9 +16,22 @@ public class NatTestService(ILogger<NatTestService> logger) : BackgroundService
 
         try
         {
-            var testResult = await StunHelper.GetNatTypeAsync(cancellationToken: stoppingToken);
-            _logger.LogNatType(testResult);
-            _logger.LogNatType(StunHelper.ToNatTypes(testResult));
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var testResult = await StunHelper.GetNatTypeAsync(cancellationToken: stoppingToken);
+
+                if (testResult == null)
+                {
+                    _logger.LogFailedToAcquireNatType();
+                    await Task.Delay(250, stoppingToken);
+                    continue;
+                }
+
+                _logger.LogNatType(testResult);
+                _logger.LogNatType(StunHelper.ToNatTypes(testResult));
+
+                break;
+            }
         }
         catch (Exception e)
         {
@@ -29,6 +42,9 @@ public class NatTestService(ILogger<NatTestService> logger) : BackgroundService
 
 internal static partial class NatTestServiceLoggers
 {
+    [LoggerMessage(LogLevel.Warning, "[NAT] Failed to fetch NAT type, retrying...")]
+    public static partial void LogFailedToAcquireNatType(this ILogger logger);
+
     [LoggerMessage(LogLevel.Information, "[NAT] Starting NAT test service...")]
     public static partial void LogStartingNatTestService(this ILogger logger);
 
