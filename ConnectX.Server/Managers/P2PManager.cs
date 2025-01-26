@@ -238,7 +238,7 @@ public class P2PManager
 
         if (possibleInterconnectUsers.Length == 0)
         {
-            _logger.NoInterconnectUserFound();
+            _logger.LogNoInterconnectUserFound();
             return;
         }
 
