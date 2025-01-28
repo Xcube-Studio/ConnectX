@@ -5,7 +5,6 @@ using ConnectX.Server.Managers;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
-using ConnectX.Shared.Messages.Query;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
@@ -25,8 +24,6 @@ public class Server : BackgroundService
     private readonly GroupManager _groupManager;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger _logger;
-    private readonly P2PManager _p2PManager;
-    private readonly QueryManager _queryManager;
     private readonly IServerSettingProvider _serverSettingProvider;
 
     private readonly ConcurrentDictionary<SessionId, (DateTime AddTime, ISession Session)>
@@ -38,29 +35,23 @@ public class Server : BackgroundService
         IDispatcher dispatcher,
         IAcceptor<TcpSession> acceptor,
         IServerSettingProvider serverSettingProvider,
-        QueryManager queryManager,
         GroupManager groupManager,
         ClientManager clientManager,
-        P2PManager p2PManager,
         IHostApplicationLifetime lifetime,
         ILogger<Server> logger)
     {
         _dispatcher = dispatcher;
         _acceptor = acceptor;
         _serverSettingProvider = serverSettingProvider;
-        _queryManager = queryManager;
         _groupManager = groupManager;
         _clientManager = clientManager;
-        _p2PManager = p2PManager;
         _lifetime = lifetime;
         _logger = logger;
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
-        _p2PManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
         _acceptor.BindTo(_dispatcher);
         _dispatcher.AddHandler<SigninMessage>(OnSigninMessageReceived);
-        _dispatcher.AddHandler<TempQuery>(OnTempQueryReceived);
     }
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
@@ -121,17 +112,6 @@ public class Server : BackgroundService
         _logger.LogNewSessionJoined(session.RemoteEndPoint!, id);
     }
 
-    private void OnTempQueryReceived(MessageContext<TempQuery> ctx)
-    {
-        var session = ctx.FromSession;
-
-        // Remove temp session mapping
-        if (!_tempSessionMapping.TryRemove(session.Id, out _))
-            return;
-
-        _queryManager.ProcessQuery(ctx).ContinueWith(_ => { session.Close(); }, TaskScheduler.Default).Forget();
-    }
-
     private void OnSigninMessageReceived(MessageContext<SigninMessage> ctx)
     {
         var session = ctx.FromSession;
@@ -145,21 +125,10 @@ public class Server : BackgroundService
 
         _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
 
-        if (ctx.Message.Id != Guid.Empty)
-        {
-            _logger.LogUserCreatedTempLink(ctx.Message.Id);
+        _clientManager.AttachSession(session.Id, session);
+        var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
 
-            _p2PManager.AttachTempSession(session, ctx.Message);
-            _dispatcher.SendAsync(session, new SigninSucceeded(ctx.Message.Id)).Forget();
-        }
-        else
-        {
-            _clientManager.AttachSession(session.Id, session);
-            var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
-
-            _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
-            _p2PManager.AttachSession(session, userId, ctx.Message);
-        }
+        _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

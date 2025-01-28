@@ -17,11 +17,13 @@ public partial record GroupInfo
         RoomDescription = string.Empty,
         CurrentUserCount = 0,
         MaxUserCount = 0,
-        Users = []
+        Users = [],
+        RoomNetworkId = 0
     };
 
     public required Guid RoomId { get; init; }
     public required Guid RoomOwnerId { get; init; }
+    public required ulong RoomNetworkId { get; init; }
     public required string RoomShortId { get; init; }
     public required bool IsPrivate { get; init; }
     public required string RoomName { get; init; }

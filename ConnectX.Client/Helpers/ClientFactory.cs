@@ -22,14 +22,14 @@ public static class ClientFactory
         services.AddSingleton<Router>();
         services.AddHostedService(sp => sp.GetRequiredService<Router>());
 
+        services.AddSingleton<IZeroTierNodeLinkHolder, ZeroTierNodeLinkHolder>();
         services.AddSingleton<IServerLinkHolder, ServerLinkHolder>();
+
+        services.AddHostedService(sp => sp.GetRequiredService<IZeroTierNodeLinkHolder>());
         services.AddHostedService(sp => sp.GetRequiredService<IServerLinkHolder>());
 
         services.AddSingleton<PeerManager>();
         services.AddHostedService(sp => sp.GetRequiredService<PeerManager>());
-
-        services.AddSingleton<UpnpManager>();
-        services.AddHostedService(sp => sp.GetRequiredService<UpnpManager>());
 
         services.AddSingleton<ProxyManager>();
         services.AddHostedService(sp => sp.GetRequiredService<ProxyManager>());

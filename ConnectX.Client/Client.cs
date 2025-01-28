@@ -79,52 +79,52 @@ public class Client
         return groupInfo;
     }
 
-    private async Task<(GroupOpResult?, string?)> PerformGroupOpAsync<T>(T message) where T : IRequireAssignedUserId
+    private async Task<GroupOpResult?> PerformGroupOpAsync<T>(T message) where T : IRequireAssignedUserId
     {
         var result =
             await _dispatcher.SendAndListenOnce<T, GroupOpResult>(
                 _serverLinkHolder.ServerSession!,
                 message);
 
-        if (!(result?.IsSucceeded ?? false))
-        {
-            _logger.LogFailedToCreateGroup(result?.ErrorMessage ?? "-");
-            return (null, result?.ErrorMessage ?? "-");
-        }
+        if (result is { Status: GroupCreationStatus.Succeeded })
+            return result;
 
-        return (result, null);
+        _logger.LogFailedToCreateGroup(result?.ErrorMessage ?? "-");
+        return result;
     }
 
-    private async Task<(GroupInfo?, string?)> PerformOpAndGetRoomInfoAsync<T>(T message)
+    private async Task<(GroupInfo?, GroupCreationStatus, string?)> PerformOpAndGetRoomInfoAsync<T>(T message)
         where T : IRequireAssignedUserId
     {
         var createResult = await PerformGroupOpAsync(message);
 
-        if (createResult.Item1 == null)
-            return (null, createResult.Item2);
+        if (createResult == null)
+            return (null, GroupCreationStatus.Other, null);
 
-        var groupInfo = await AcquireGroupInfoAsync(createResult.Item1!.GroupId);
+        var groupInfo = await AcquireGroupInfoAsync(createResult.GroupId);
 
         if (groupInfo == null)
-            return (null, "Failed to acquire group info");
+            return (null, GroupCreationStatus.Other, "Failed to acquire group info");
 
         _isInGroup = true;
 
-        return (groupInfo, null);
+        return (groupInfo, GroupCreationStatus.Succeeded, null);
     }
 
-    public async Task<(GroupInfo? Info, string? Error)> CreateGroupAsync(CreateGroup createGroup)
+    public async Task<(GroupInfo? Info, GroupCreationStatus Status, string? Error)> CreateGroupAsync(CreateGroup createGroup)
     {
-        if (!_serverLinkHolder.IsConnected) return (null, "Not connected to the server");
-        if (!_serverLinkHolder.IsSignedIn) return (null, "Not signed in");
+        if (!_serverLinkHolder.IsConnected) return (null, GroupCreationStatus.Other, "Not connected to the server");
+        if (!_serverLinkHolder.IsSignedIn) return (null, GroupCreationStatus.Other, "Not signed in");
 
         return await PerformOpAndGetRoomInfoAsync(createGroup);
     }
 
-    public async Task<(GroupInfo?, string?)> JoinGroupAsync(JoinGroup joinGroup)
+    public async Task<(GroupInfo?, GroupCreationStatus, string?)> JoinGroupAsync(JoinGroup joinGroup)
     {
-        if (!_serverLinkHolder.IsConnected) return (null, "Not connected to the server");
-        if (!_serverLinkHolder.IsSignedIn) return (null, "Not signed in");
+        if (!_serverLinkHolder.IsConnected)
+            return (null, GroupCreationStatus.Other, "Not connected to the server");
+        if (!_serverLinkHolder.IsSignedIn)
+            return (null, GroupCreationStatus.Other, "Not signed in");
 
         return await PerformOpAndGetRoomInfoAsync(joinGroup);
     }
@@ -137,7 +137,10 @@ public class Client
 
         var result = await PerformGroupOpAsync(leaveGroup);
 
-        return (result.Item1?.IsSucceeded ?? false, result.Item2);
+        if (result == null)
+            return (false, "Failed to leave the group");
+
+        return (result.Status == GroupCreationStatus.Succeeded, result.ErrorMessage);
     }
 
     public async Task<(bool, string?)> KickUserAsync(KickUser kickUser)
@@ -148,39 +151,10 @@ public class Client
 
         var result = await PerformGroupOpAsync(kickUser);
 
-        return (result.Item1?.IsSucceeded ?? false, result.Item2);
-    }
+        if (result == null)
+            return (false, "Failed to kick user");
 
-    /// <summary>
-    ///     获取和目标用户的连接情况
-    /// </summary>
-    /// <param name="partnerId">目标用户的ID</param>
-    /// <returns>(是否可以连通，是否直连，ping)</returns>
-    public (bool, bool, int) GetPartnerConState(Guid partnerId)
-    {
-        var forwardInterface = _router.RouteTable.GetForwardInterface(partnerId);
-
-        if (forwardInterface == Guid.Empty) return (false, false, int.MaxValue);
-
-        var linkState = _router.RouteTable.GetSelfLinkState();
-        var ping = -1;
-
-        if (linkState == null)
-            return (true, forwardInterface == partnerId, ping);
-
-        var guidList = linkState.Interfaces;
-        for (var index = 0; index < guidList.Length; index++)
-        {
-            var guid = guidList[index];
-
-            if (guid != partnerId) continue;
-
-            ping = linkState.Costs[index];
-            break;
-            // todo 现在只能获取能直接连接的用户的ping
-        }
-
-        return (true, forwardInterface == partnerId, ping);
+        return (result.Status == GroupCreationStatus.Succeeded, result.ErrorMessage);
     }
 }
 

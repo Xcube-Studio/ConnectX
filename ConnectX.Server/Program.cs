@@ -18,18 +18,26 @@ public class Program
                 .Enrich.FromLogContext()
                 .WriteTo.Console());
 
-        builder.ConfigureServices(services =>
+        builder.ConfigureServices((ctx, services) =>
         {
+            var configuration = ctx.Configuration;
+
+            services.AddHttpClient<IZeroTierApiService, ZeroTierApiService>(client =>
+            {
+                client.BaseAddress = new Uri(configuration["ZeroTier:Token"]!);
+                client.DefaultRequestHeaders.Add("X-ZT1-AUTH", configuration["ZeroTier:Token"]);
+            });
+
             services.AddSingleton<IServerSettingProvider, ConfigSettingProvider>();
             services.AddConnectXEssentials();
 
-            services.AddSingleton<QueryManager>();
             services.AddSingleton<ClientManager>();
             services.AddSingleton<GroupManager>();
-            services.AddSingleton<P2PManager>();
+
+            services.AddSingleton<IZeroTierNodeInfoService, ZeroTierNodeInfoService>();
+            services.AddHostedService(sc => sc.GetRequiredService<IZeroTierNodeInfoService>());
 
             services.AddHostedService(sc => sc.GetRequiredService<ClientManager>());
-            services.AddHostedService<NatTestService>();
             services.AddHostedService<Server>();
         });
 

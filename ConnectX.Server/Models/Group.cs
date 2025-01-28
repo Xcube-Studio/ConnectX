@@ -6,18 +6,19 @@ namespace ConnectX.Server.Models;
 public class Group(
     string roomName,
     string? roomPassword,
-    User roomOwner,
-    List<User> users)
+    UserSessionInfo roomOwner,
+    List<UserSessionInfo> users)
 {
     public Guid RoomId { get; } = Guid.NewGuid();
-    public User RoomOwner { get; } = roomOwner;
+    public UserSessionInfo RoomOwner { get; } = roomOwner;
     public string RoomShortId { get; } = RandomHelper.GetRandomString();
+    public required ulong NetworkId { get; set; }
     public bool IsPrivate { get; set; }
     public string RoomName { get; set; } = roomName;
     public string? RoomDescription { get; set; }
     public string? RoomPassword { get; } = roomPassword;
     public required int MaxUserCount { get; init; }
-    public List<User> Users { get; } = users;
+    public List<UserSessionInfo> Users { get; } = users;
 
     public static implicit operator GroupInfo(Group group)
     {
@@ -31,6 +32,7 @@ public class Group(
             RoomName = group.RoomName,
             RoomOwnerId = group.RoomOwner.UserId,
             RoomShortId = group.RoomShortId,
+            RoomNetworkId = group.NetworkId,
             Users = group.Users.Select(x => (UserInfo)x).ToArray()
         };
     }

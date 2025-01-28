@@ -1,4 +1,5 @@
-﻿using ConnectX.Shared.Interfaces;
+﻿using System.Net;
+using ConnectX.Shared.Interfaces;
 using Hive.Codec.Shared;
 using MemoryPack;
 
@@ -12,4 +13,6 @@ public partial class JoinGroup : IRequireAssignedUserId
     public string? RoomShortId { get; init; }
     public string? RoomPassword { get; init; }
     public required Guid UserId { get; init; }
+    public required string NodeId { get; init; }
+    public required IPAddress[] IpAddresses { get; init; }
 }

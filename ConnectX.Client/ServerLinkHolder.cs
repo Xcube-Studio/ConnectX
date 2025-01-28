@@ -1,17 +1,13 @@
 ﻿using System.Net;
-using System.Threading;
 using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
-using ConnectX.Shared.Messages.P2P;
-using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using STUN.StunResult;
 
 namespace ConnectX.Client;
 
@@ -42,7 +38,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public bool IsConnected { get; private set; }
     public bool IsSignedIn { get; private set; }
     public Guid UserId { get; private set; }
-    public StunResult5389? NatType { get; private set; }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -62,24 +57,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
         _logger.LogGettingClientNatType();
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var natType = await StunHelper.GetNatTypeAsync(cancellationToken: cancellationToken);
-
-            if (natType == null)
-            {
-                _logger.LogFailedToAcquireNatType();
-                await Task.Delay(250, cancellationToken);
-                continue;
-            }
-
-            NatType = natType;
-            break;
-        }
-
-        _logger.LogClientNatType(NatType);
-        _logger.LogConnectXNatType(StunHelper.ToNatTypes(NatType!));
         _logger.LogConnectingToServer();
 
         var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
@@ -99,10 +76,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         await Task.Delay(1000, cancellationToken);
         await _dispatcher.SendAsync(session, new SigninMessage
         {
-            BindingTestResult = NatType!.BindingTestResult,
-            FilteringBehavior = NatType.FilteringBehavior,
-            MappingBehavior = NatType.MappingBehavior,
-            JoinP2PNetwork = _settingProvider.JoinP2PNetwork
+            JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
+            DisplayName = session.RemoteEndPoint?.ToString() ?? Guid.NewGuid().ToString("N")
         });
 
         await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
@@ -153,16 +128,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         await TaskHelper.WaitUntilAsync(() => IsConnected, stoppingToken);
 
-        var lastInterconnectUserFetchTime = DateTime.UtcNow;
-
         while (!stoppingToken.IsCancellationRequested && IsConnected && ServerSession != null)
         {
-            if (DateTime.UtcNow - lastInterconnectUserFetchTime > TimeSpan.FromMinutes(1))
-            {
-                await _dispatcher.SendAsync(ServerSession, new RequestP2PInterconnectList());
-                lastInterconnectUserFetchTime = DateTime.UtcNow;
-            }
-
             await _dispatcher.SendAsync(ServerSession, new HeartBeat());
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
@@ -184,12 +151,6 @@ internal static partial class ServerLinkHolderLoggers
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] Getting client NAT type...")]
     public static partial void LogGettingClientNatType(this ILogger logger);
-
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Client NAT type: {natType}")]
-    public static partial void LogClientNatType(this ILogger logger, StunResult5389? natType);
-
-    [LoggerMessage(LogLevel.Information, "[CLIENT] ConnectX NAT type: {natType}")]
-    public static partial void LogConnectXNatType(this ILogger logger, NatTypes natType);
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] Connecting to server...")]
     public static partial void LogConnectingToServer(this ILogger logger);
