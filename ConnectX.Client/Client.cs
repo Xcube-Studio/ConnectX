@@ -17,19 +17,25 @@ public class Client
     private readonly ILogger _logger;
 
     private readonly Router _router;
+    private readonly IRoomInfoManager _roomInfoManager;
     private readonly IServerLinkHolder _serverLinkHolder;
+    private readonly IZeroTierNodeLinkHolder _zeroTierNodeLinkHolder;
     private bool _isInGroup;
 
     public Client(
         Router router,
         PartnerManager _,
+        IRoomInfoManager roomInfoManager,
         IDispatcher dispatcher,
         IServerLinkHolder serverLinkHolder,
+        IZeroTierNodeLinkHolder zeroTierNodeLinkHolder,
         ILogger<Client> logger)
     {
         _router = router;
+        _roomInfoManager = roomInfoManager;
         _dispatcher = dispatcher;
         _serverLinkHolder = serverLinkHolder;
+        _zeroTierNodeLinkHolder = zeroTierNodeLinkHolder;
         _logger = logger;
 
         _dispatcher.AddHandler<GroupUserStateChanged>(OnGroupUserStateChanged);
@@ -52,33 +58,6 @@ public class Client
         OnGroupStateChanged?.Invoke(state, userInfo);
     }
 
-    private async Task<GroupInfo?> AcquireGroupInfoAsync(Guid groupId)
-    {
-        if (!_serverLinkHolder.IsConnected) return null;
-        if (!_serverLinkHolder.IsSignedIn) return null;
-
-        var message = new AcquireGroupInfo
-        {
-            GroupId = groupId,
-            UserId = _serverLinkHolder.UserId
-        };
-        var groupInfo =
-            await _dispatcher.SendAndListenOnce<AcquireGroupInfo, GroupInfo>(
-                _serverLinkHolder.ServerSession!,
-                message);
-
-        if (groupInfo == null ||
-            groupInfo == GroupInfo.Invalid ||
-            groupInfo.Users.Length == 0)
-        {
-            _logger.LogFailedToAcquireGroupInfo(groupId);
-
-            return null;
-        }
-
-        return groupInfo;
-    }
-
     private async Task<GroupOpResult?> PerformGroupOpAsync<T>(T message) where T : IRequireAssignedUserId
     {
         var result =
@@ -93,7 +72,7 @@ public class Client
         return result;
     }
 
-    private async Task<(GroupInfo?, GroupCreationStatus, string?)> PerformOpAndGetRoomInfoAsync<T>(T message)
+    private async Task<(GroupInfo?, GroupCreationStatus, string?)> PerformOpAndGetRoomInfoAsync<T>(T message, CancellationToken ct)
         where T : IRequireAssignedUserId
     {
         var createResult = await PerformGroupOpAsync(message);
@@ -101,32 +80,51 @@ public class Client
         if (createResult == null)
             return (null, GroupCreationStatus.Other, null);
 
-        var groupInfo = await AcquireGroupInfoAsync(createResult.GroupId);
+        var groupInfo = await _roomInfoManager.AcquireGroupInfoAsync(createResult.GroupId);
 
         if (groupInfo == null)
             return (null, GroupCreationStatus.Other, "Failed to acquire group info");
+
+        if (message is JoinGroup)
+        {
+            if (createResult.Status != GroupCreationStatus.Succeeded)
+                return (null, createResult.Status, createResult.ErrorMessage);
+
+            var networkResult = await _zeroTierNodeLinkHolder.JoinNetworkAsync(groupInfo.RoomNetworkId, ct);
+
+            if (!networkResult)
+            {
+                return (null, GroupCreationStatus.Other, "Failed to join the network");
+            }
+        }
+
+        if (message is LeaveGroup)
+        {
+            await _zeroTierNodeLinkHolder.LeaveNetworkAsync(ct);
+            _roomInfoManager.ClearRoomInfo();
+        }
 
         _isInGroup = true;
 
         return (groupInfo, GroupCreationStatus.Succeeded, null);
     }
 
-    public async Task<(GroupInfo? Info, GroupCreationStatus Status, string? Error)> CreateGroupAsync(CreateGroup createGroup)
+    public async Task<(GroupInfo? Info, GroupCreationStatus Status, string? Error)> CreateGroupAsync(CreateGroup createGroup, CancellationToken ct)
     {
         if (!_serverLinkHolder.IsConnected) return (null, GroupCreationStatus.Other, "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn) return (null, GroupCreationStatus.Other, "Not signed in");
 
-        return await PerformOpAndGetRoomInfoAsync(createGroup);
+        return await PerformOpAndGetRoomInfoAsync(createGroup, ct);
     }
 
-    public async Task<(GroupInfo?, GroupCreationStatus, string?)> JoinGroupAsync(JoinGroup joinGroup)
+    public async Task<(GroupInfo?, GroupCreationStatus, string?)> JoinGroupAsync(JoinGroup joinGroup, CancellationToken ct)
     {
         if (!_serverLinkHolder.IsConnected)
             return (null, GroupCreationStatus.Other, "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn)
             return (null, GroupCreationStatus.Other, "Not signed in");
 
-        return await PerformOpAndGetRoomInfoAsync(joinGroup);
+        return await PerformOpAndGetRoomInfoAsync(joinGroup, ct);
     }
 
     public async Task<(bool, string?)> LeaveGroupAsync(LeaveGroup leaveGroup)

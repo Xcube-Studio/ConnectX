@@ -19,6 +19,7 @@ public class Server : BackgroundService
     private const int MaxSessionLoginTimeout = 600;
     private readonly IAcceptor<TcpSession> _acceptor;
     private readonly ClientManager _clientManager;
+    private readonly P2PManager _p2pManager;
 
     private readonly IDispatcher _dispatcher;
     private readonly GroupManager _groupManager;
@@ -37,6 +38,7 @@ public class Server : BackgroundService
         IServerSettingProvider serverSettingProvider,
         GroupManager groupManager,
         ClientManager clientManager,
+        P2PManager p2pManager,
         IHostApplicationLifetime lifetime,
         ILogger<Server> logger)
     {
@@ -45,10 +47,12 @@ public class Server : BackgroundService
         _serverSettingProvider = serverSettingProvider;
         _groupManager = groupManager;
         _clientManager = clientManager;
+        _p2pManager = p2pManager;
         _lifetime = lifetime;
         _logger = logger;
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
+        _p2pManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
         _acceptor.BindTo(_dispatcher);
         _dispatcher.AddHandler<SigninMessage>(OnSigninMessageReceived);
@@ -125,10 +129,21 @@ public class Server : BackgroundService
 
         _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
 
-        _clientManager.AttachSession(session.Id, session);
-        var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
+        if (ctx.Message.Id != Guid.Empty)
+        {
+            _logger.LogUserCreatedTempLink(ctx.Message.Id);
 
-        _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
+            _p2pManager.AttachTempSession(session, ctx.Message);
+            _dispatcher.SendAsync(session, new SigninSucceeded(ctx.Message.Id)).Forget();
+        }
+        else
+        {
+            _clientManager.AttachSession(session.Id, session);
+            var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
+
+            _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
+            _p2pManager.AttachSession(session, userId, ctx.Message);
+        }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

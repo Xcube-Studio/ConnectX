@@ -24,7 +24,7 @@ public class Program
 
             services.AddHttpClient<IZeroTierApiService, ZeroTierApiService>(client =>
             {
-                client.BaseAddress = new Uri(configuration["ZeroTier:Token"]!);
+                client.BaseAddress = new Uri(configuration["ZeroTier:EndPoint"]!);
                 client.DefaultRequestHeaders.Add("X-ZT1-AUTH", configuration["ZeroTier:Token"]);
             });
 
@@ -33,6 +33,7 @@ public class Program
 
             services.AddSingleton<ClientManager>();
             services.AddSingleton<GroupManager>();
+            services.AddSingleton<P2PManager>();
 
             services.AddSingleton<IZeroTierNodeInfoService, ZeroTierNodeInfoService>();
             services.AddHostedService(sc => sc.GetRequiredService<IZeroTierNodeInfoService>());

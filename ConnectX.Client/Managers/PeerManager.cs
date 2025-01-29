@@ -3,8 +3,10 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using ConnectX.Client.Interfaces;
+using ConnectX.Client.P2P;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Identity;
+using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
@@ -12,6 +14,7 @@ using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ZeroTier.Core;
 using TaskHelper = Hive.Common.Shared.Helpers.TaskHelper;
 
 namespace ConnectX.Client.Managers;
@@ -19,34 +22,37 @@ namespace ConnectX.Client.Managers;
 public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Peer>>
 {
     private readonly ConcurrentDictionary<Guid, bool> _allPeers = new();
-
     private readonly ConcurrentDictionary<Guid, int> _bargainsDic = [];
     private readonly IClientSettingProvider _clientSettingProvider;
     private readonly ConcurrentDictionary<Guid, Peer> _connectedPeers = [];
+    private readonly IRoomInfoManager _roomInfoManager;
     private readonly IDispatcher _dispatcher;
     private readonly ConcurrentDictionary<Guid, P2PConInitiator> _initiator = [];
     private readonly ILogger _logger;
     private readonly IServerLinkHolder _serverLinkHolder;
+    private readonly IZeroTierNodeLinkHolder _zeroTierNodeLinkHolder;
     private readonly IServiceProvider _serviceProvider;
     private readonly ConcurrentDictionary<Guid, (DispatchableSession, CancellationToken)> _tmpLinkMakerDic = new();
-    private readonly UpnpManager _upnpManager;
 
     public PeerManager(
-        UpnpManager upnpManager,
+        IRoomInfoManager roomInfoManager,
         IDispatcher dispatcher,
         IServerLinkHolder serverLinkHolder,
         IClientSettingProvider clientSettingProvider,
         IServiceProvider serviceProvider,
+        IZeroTierNodeLinkHolder zeroTierNodeLinkHolder,
         ILogger<PeerManager> logger)
     {
-        _upnpManager = upnpManager;
+        _roomInfoManager = roomInfoManager;
         _dispatcher = dispatcher;
         _serverLinkHolder = serverLinkHolder;
         _clientSettingProvider = clientSettingProvider;
+        _zeroTierNodeLinkHolder = zeroTierNodeLinkHolder;
         _serviceProvider = serviceProvider;
         _logger = logger;
 
-        _dispatcher.AddHandler<P2PInterconnect>(OnReceivedP2PInterconnect);
+        _zeroTierNodeLinkHolder.OnRouteInfoUpdated += ZeroTierNodeLinkHolderOnOnRouteInfoUpdated;
+
         _dispatcher.AddHandler<P2PConNotification>(OnReceivedP2PConNotification);
     }
 
@@ -69,42 +75,51 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     public event Action<Guid, Peer>? OnPeerAdded;
     public event Action<Guid, Peer>? OnPeerRemoved;
 
-    private void OnReceivedP2PInterconnect(MessageContext<P2PInterconnect> ctx)
+    private void ZeroTierNodeLinkHolderOnOnRouteInfoUpdated(RouteInfo[] routes)
     {
-        var message = ctx.Message;
-
-        if (message.PossibleUsers.Length == 0)
+        if (_roomInfoManager.CurrentGroupInfo == null)
         {
-            _logger.LogServerDidNotReturnAnyP2PInterconnectInfo();
+            _logger.LogRoomInfoEmpty();
             return;
         }
 
-        Task.Run(async () =>
+        foreach (var routeInfo in routes)
         {
-            foreach (var user in message.PossibleUsers)
-            {
-                if (user == _serverLinkHolder.UserId)
-                    continue;
-                if (_connectedPeers.ContainsKey(user))
-                    continue;
+            var userInfo = _roomInfoManager.CurrentGroupInfo.Users
+                .FirstOrDefault(u => u.IpAddresses.Contains(routeInfo.Target));
 
-                _logger.LogTryingToEstablishP2PConnectionWithUser(user);
+            if (userInfo == null)
+            {
+                _logger.LogUserWithAddressNotFound(routeInfo.Target);
+                continue;
+            }
+
+            var userId = userInfo.UserId;
+
+            if (userId == _serverLinkHolder.UserId)
+                continue;
+            if (_connectedPeers.ContainsKey(userId))
+                continue;
+
+            Task.Run(async () =>
+            {
+                _logger.LogTryingToEstablishP2PConnectionWithUser(userId);
 
                 try
                 {
-                    var conResult = await RequestConnectPartnerAsync(user, false, CancellationToken.None);
+                    var conResult = await RequestConnectPartnerAsync(userId, false, CancellationToken.None);
 
                     if (conResult)
-                        _logger.LogSuccessfullyEstablishedP2PConnectionWithUser(user);
+                        _logger.LogSuccessfullyEstablishedP2PConnectionWithUser(userId);
                     else
-                        _logger.LogFailedToEstablishP2PConnectionWithUser(user);
+                        _logger.LogFailedToEstablishP2PConnectionWithUser(userId);
                 }
                 catch (Exception e)
                 {
-                    _logger.LogFailedToEstablishP2PConnectionWithUser(e, user);
+                    _logger.LogFailedToEstablishP2PConnectionWithUser(e, userId);
                 }
-            }
-        }).Forget();
+            });
+        }
     }
 
     private void OnReceivedP2PConNotification(MessageContext<P2PConNotification> ctx)
@@ -145,8 +160,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
                 return;
             }
 
-            var privatePort = tmpLink.Session.LocalEndPoint?.Port ?? NetworkHelper.GetAvailablePrivatePort();
-            var conContext = await GetSelfConContextAsync(privatePort, message.UseUdp, cts.Token);
+            var conContext = await GetSelfConContextAsync(message.UseUdp, cts.Token);
             var conAccept = new P2PConAccept(message.Bargain, _serverLinkHolder.UserId, conContext);
             var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
             var conInitiator =
@@ -229,11 +243,9 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         var dispatchSession = new DispatchableSession(tmpLink, dispatcher, cancellationToken);
         var signin = new SigninMessage
         {
-            BindingTestResult = BindingTestResult.Unknown,
-            FilteringBehavior = FilteringBehavior.Unknown,
-            MappingBehavior = MappingBehavior.Unknown,
+            Id = _serverLinkHolder.UserId,
             JoinP2PNetwork = false,
-            Id = _serverLinkHolder.UserId
+            DisplayName = _serverLinkHolder.UserId.ToString("N")
         };
 
         _logger.LogSendingASigninMessageToServerToCreateATempLinkWithPartner(partnerId);
@@ -258,47 +270,22 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     }
 
     private async Task<P2PConContextInit> GetSelfConContextAsync(
-        int privatePort,
         bool useUdp,
         CancellationToken cancellationToken)
     {
-        await TaskHelper.WaitUtil(() => !_upnpManager.IsFetchingStatus, cancellationToken);
+        await TaskHelper.WaitUtil(_zeroTierNodeLinkHolder.IsNodeOnline, cancellationToken);
 
-        var portMap = await _upnpManager.CreatePortMapAsync(Protocol.Tcp, privatePort);
-        P2PConContextInit conInfo;
+        var publicAddress = _zeroTierNodeLinkHolder.GetFirstAvailableV4Address();
 
-        // If UPNP is available, use UPNP
-        if (portMap != null)
+        ArgumentNullException.ThrowIfNull(publicAddress);
+
+        var conInfo = new P2PConContextInit
         {
-            _logger.LogUpnpIsAvailableUsingUpnpToConnectToPartner();
-            conInfo = new P2PConContextInit
-            {
-                PortDeterminationMode = PortDeterminationMode.Upnp,
-                PublicPort = (ushort)portMap.PublicPort
-            };
-        }
-        // If NAT's behavior is not symmetric, use the same port as the temp link
-        else if ((_serverLinkHolder.NatType?.MappingBehavior ?? MappingBehavior.Unknown)
-                 is MappingBehavior.Direct or MappingBehavior.EndpointIndependent)
-        {
-            _logger.LogNatsBehaviorIsNotSymmetricUsingTheSamePortAsTheTempLink();
-            conInfo = new P2PConContextInit
-            {
-                PortDeterminationMode = PortDeterminationMode.UseTempLinkPort,
-                PublicPort = (ushort)privatePort
-            };
-        }
-        else
-        {
-            _logger.LogNatsBehaviorIsSymmetricUsingPortPredictionToConnectToPartner();
-            var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
-            var predictPorts =
-                await StunHelper.PredictPublicPortAsync(_serviceProvider, _logger, endPoint, cancellationToken);
+            PublicPort = (ushort)Random.Shared.Next(20000, 65533),
+            PublicAddress = publicAddress,
+            UseUdp = useUdp
+        };
 
-            conInfo = predictPorts.ToP2PConInfoInit() with { PortDeterminationMode = PortDeterminationMode.Predict };
-        }
-
-        conInfo = conInfo with { UseUdp = useUdp };
         return conInfo;
     }
 
@@ -426,19 +413,16 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             return false;
         }
 
-        var privatePort =
-            tmpLink.Session.LocalEndPoint?.Port ?? NetworkHelper.GetAvailablePrivatePort();
         var bargain = Random.Shared.Next();
 
         _bargainsDic.AddOrUpdate(partnerId, bargain, (_, _) => bargain);
 
         var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
-        var conContext = await GetSelfConContextAsync(privatePort, useUdp, cancellationToken);
+        var conContext = await GetSelfConContextAsync(useUdp, cancellationToken);
         var conRequest = new P2PConRequest(
             bargain,
             partnerId,
             _serverLinkHolder.UserId,
-            (ushort)privatePort,
             conContext);
         var conProcessor = ActivatorUtilities.CreateInstance<P2PConInitiator>(
             _serviceProvider,
@@ -466,6 +450,15 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
 internal static partial class PeerManagerLoggers
 {
+    [LoggerMessage(LogLevel.Warning, "[Peer] Network is not ready yet, no public address found!")]
+    public static partial void LogNetworkNotReady(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] Room info is null, might be an internal error!")]
+    public static partial void LogRoomInfoEmpty(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "[Peer] No matched user with address [{address}] not found, waiting for the next event...")]
+    public static partial void LogUserWithAddressNotFound(this ILogger logger, IPAddress address);
+
     [LoggerMessage(LogLevel.Information, "[Peer] Server didn't return any P2P interconnect info")]
     public static partial void LogServerDidNotReturnAnyP2PInterconnectInfo(this ILogger logger);
 

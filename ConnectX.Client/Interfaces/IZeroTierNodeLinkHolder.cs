@@ -1,9 +1,18 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using System.Net;
+using Microsoft.Extensions.Hosting;
 using ZeroTier.Core;
 
 namespace ConnectX.Client.Interfaces;
 
 public interface IZeroTierNodeLinkHolder : IHostedService
 {
-    Node Node { get; }
+    Node? Node { get; }
+    Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken);
+    Task LeaveNetworkAsync(CancellationToken cancellationToken);
+
+    IPAddress? GetFirstAvailableV4Address();
+    IPAddress? GetFirstAvailableV6Address();
+
+    bool IsNodeOnline();
+    event Action<RouteInfo[]> OnRouteInfoUpdated;
 }

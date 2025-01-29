@@ -74,14 +74,14 @@ public class NodeStatusModel
     public required string Version { get; init; }
 
     [JsonPropertyName("versionBuild")]
-    public required string VersionBuild { get; init; }
+    public required uint VersionBuild { get; init; }
 
     [JsonPropertyName("versionMajor")]
-    public required string VersionMajor { get; init; }
+    public required uint VersionMajor { get; init; }
 
     [JsonPropertyName("versionMinor")]
-    public required string VersionMinor { get; init; }
+    public required uint VersionMinor { get; init; }
 
     [JsonPropertyName("versionRev")]
-    public required string VersionRev { get; init; }
+    public required uint VersionRev { get; init; }
 }

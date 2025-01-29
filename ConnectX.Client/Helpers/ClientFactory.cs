@@ -37,6 +37,7 @@ public static class ClientFactory
         services.AddHostedService<FakeServerMultiCaster>();
 
         services.AddSingleton<PartnerManager>();
+        services.AddSingleton<IRoomInfoManager, RoomInfoManager>();
         services.AddSingleton<Client>();
     }
 }

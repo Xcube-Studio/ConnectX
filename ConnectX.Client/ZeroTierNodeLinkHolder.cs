@@ -1,4 +1,5 @@
 ﻿using System.Net;
+using ConnectX.Client.Helpers;
 using ConnectX.Client.Interfaces;
 using Microsoft.Extensions.Hosting;
 using Hive.Common.Shared.Helpers;
@@ -9,36 +10,65 @@ namespace ConnectX.Client;
 
 public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : BackgroundService, IZeroTierNodeLinkHolder
 {
-    private const ulong NetworkId = 0x8011c71f8e;
+    private ulong? _networkId;
 
-    public Node Node { get; } = new ();
+    // If this is not null, then you can assume that you are currently in a room
+    public Node? Node { get; private set; }
 
-    public override async Task StartAsync(CancellationToken cancellationToken)
+    public IPAddress? GetFirstAvailableV4Address()
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(IsNodeOnline(), false);
+
+        var address = Node!.GetNetworkAddresses(_networkId!.Value);
+
+        ArgumentNullException.ThrowIfNull(address);
+        ArgumentOutOfRangeException.ThrowIfEqual(address.Count, 0);
+
+        return address.GetFirstAvailableV4();
+    }
+
+    public IPAddress? GetFirstAvailableV6Address()
+    {
+        ArgumentOutOfRangeException.ThrowIfEqual(IsNodeOnline(), false);
+
+        var address = Node!.GetNetworkAddresses(_networkId!.Value);
+
+        ArgumentNullException.ThrowIfNull(address);
+        ArgumentOutOfRangeException.ThrowIfEqual(address.Count, 0);
+
+        return address.GetFirstAvailableV6();
+    }
+
+    public bool IsNodeOnline()
+    {
+        return Node is { Online: true } &&
+               Node.Networks.Count != 0;
+    }
+
+    public event Action<RouteInfo[]>? OnRouteInfoUpdated;
+
+    public async Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken)
     {
         logger.LogStartingZeroTierNodeLinkHolder();
 
-        Node.Start();
+        ResetNode();
 
-        Node.InitAllowNetworkCaching(false);
-        Node.InitAllowPeerCaching(true);
-        Node.InitSetEventHandler(OnReceivedZeroTierEvent);
-
-        await TaskHelper.WaitUtil(() => Node.Online, cancellationToken);
+        await TaskHelper.WaitUtil(() => Node!.Online, cancellationToken);
 
         logger.LogZeroTierConnected(
-            Node.IdString,
+            Node!.IdString,
             Node.Version,
             Node.PrimaryPort,
             Node.SecondaryPort,
             Node.TertiaryPort);
 
-        Node.Join(NetworkId);
+        Node.Join(networkId);
 
-        await TaskHelper.WaitUtil(() => Node.Networks.Count == 0, cancellationToken);
+        await TaskHelper.WaitUtil(() => Node.Networks.Count != 0, cancellationToken);
 
         logger.LogNetworkJoined();
 
-        var addresses = Node.GetNetworkAddresses(NetworkId);
+        var addresses = Node.GetNetworkAddresses(networkId);
 
         ArgumentNullException.ThrowIfNull(addresses);
         ArgumentOutOfRangeException.ThrowIfEqual(addresses.Count, 0);
@@ -50,7 +80,32 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
             logger.LogAssignedAddress(index, address);
         }
 
-        await base.StartAsync(cancellationToken);
+        _networkId = networkId;
+
+        return true;
+    }
+
+    public Task LeaveNetworkAsync(CancellationToken cancellationToken)
+    {
+        Node?.Free();
+        Node?.Stop();
+
+        Node = null;
+        _networkId = null;
+
+        return Task.CompletedTask;
+    }
+
+    private void ResetNode()
+    {
+        Node?.Free();
+        Node?.Stop();
+
+        Node = new Node();
+
+        Node.InitAllowNetworkCaching(false);
+        Node.InitAllowPeerCaching(true);
+        Node.InitSetEventHandler(OnReceivedZeroTierEvent);
     }
 
     private void OnReceivedZeroTierEvent(Event nodeEvent)
@@ -60,18 +115,37 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        Node.Free();
-        Node.Stop();
+        Node?.Free();
+        Node?.Stop();
 
         logger.LogZeroTierNodeLinkHolderStopped();
 
         return base.StopAsync(cancellationToken);
     }
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     { 
         // Update peers
-        throw new NotImplementedException();
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            if (!IsNodeOnline() || !_networkId.HasValue)
+            {
+                await Task.Delay(1000, stoppingToken);
+                continue;
+            }
+
+            var routes = Node!.GetNetworkRoutes(_networkId.Value);
+
+            if (routes == null || routes.Count == 0)
+            {
+                await Task.Delay(1000, stoppingToken);
+                continue;
+            }
+
+            OnRouteInfoUpdated?.Invoke(routes.ToArray());
+
+            await Task.Delay(1000, stoppingToken);
+        }
     }
 }
 
