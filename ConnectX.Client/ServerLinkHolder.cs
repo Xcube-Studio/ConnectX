@@ -108,6 +108,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         IsSignedIn = true;
         UserId = obj.Message.UserId;
 
+        _logger.LogSuccessfullyLoggedIn(UserId);
+
         _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
     }
 
@@ -140,6 +142,9 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
 internal static partial class ServerLinkHolderLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Successfully logged into server, assigned id: {id}")]
+    public static partial void LogSuccessfullyLoggedIn(this ILogger logger, Guid id);
+
     [LoggerMessage(LogLevel.Warning, "[CLIENT] Failed to fetch NAT type, retrying...")]
     public static partial void LogFailedToAcquireNatType(this ILogger logger);
 

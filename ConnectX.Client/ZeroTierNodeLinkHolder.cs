@@ -1,8 +1,8 @@
 ﻿using System.Net;
 using ConnectX.Client.Helpers;
 using ConnectX.Client.Interfaces;
-using Microsoft.Extensions.Hosting;
 using Hive.Common.Shared.Helpers;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ZeroTier.Core;
 
@@ -14,6 +14,13 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
     // If this is not null, then you can assume that you are currently in a room
     public Node? Node { get; private set; }
+
+    public IPAddress[] GetIpAddresses()
+    {
+        ArgumentNullException.ThrowIfNull(Node);
+
+        return Node.GetNetworkAddresses(_networkId!.Value).ToArray();
+    }
 
     public IPAddress? GetFirstAvailableV4Address()
     {
@@ -45,15 +52,19 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
                Node.Networks.Count != 0;
     }
 
-    public event Action<RouteInfo[]>? OnRouteInfoUpdated;
-
     public async Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken)
     {
         logger.LogStartingZeroTierNodeLinkHolder();
 
         ResetNode();
 
+        Node!.Start();
+
         await TaskHelper.WaitUtil(() => Node!.Online, cancellationToken);
+
+        Node!.Join(networkId);
+
+        await TaskHelper.WaitUtil(() => Node.Networks.Count != 0, cancellationToken);
 
         logger.LogZeroTierConnected(
             Node!.IdString,
@@ -62,9 +73,7 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
             Node.SecondaryPort,
             Node.TertiaryPort);
 
-        Node.Join(networkId);
-
-        await TaskHelper.WaitUtil(() => Node.Networks.Count != 0, cancellationToken);
+        await TaskHelper.WaitUtil(() => Node.IsNetworkTransportReady(networkId), cancellationToken);
 
         logger.LogNetworkJoined();
 
@@ -103,7 +112,7 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
         Node = new Node();
 
-        Node.InitAllowNetworkCaching(false);
+        Node.InitAllowNetworkCaching(true);
         Node.InitAllowPeerCaching(true);
         Node.InitSetEventHandler(OnReceivedZeroTierEvent);
     }
@@ -113,18 +122,8 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
         logger.LogEventReceived(nodeEvent.Code, nodeEvent.Name);
     }
 
-    public override Task StopAsync(CancellationToken cancellationToken)
-    {
-        Node?.Free();
-        Node?.Stop();
-
-        logger.LogZeroTierNodeLinkHolderStopped();
-
-        return base.StopAsync(cancellationToken);
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    { 
+    {
         // Update peers
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -142,10 +141,18 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
                 continue;
             }
 
-            OnRouteInfoUpdated?.Invoke(routes.ToArray());
-
             await Task.Delay(1000, stoppingToken);
         }
+    }
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        Node?.Free();
+        Node?.Stop();
+
+        logger.LogZeroTierNodeLinkHolderStopped();
+
+        return base.StopAsync(cancellationToken);
     }
 }
 

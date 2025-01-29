@@ -48,6 +48,7 @@ public class GroupManager
         _dispatcher.AddHandler<LeaveGroup>(OnLeaveGroupReceived);
         _dispatcher.AddHandler<KickUser>(OnKickUserReceived);
         _dispatcher.AddHandler<AcquireGroupInfo>(OnAcquireGroupInfoReceived);
+        _dispatcher.AddHandler<UpdateRoomMemberNetworkInfo>(OnUpdateRoomMemberNetworkInfoReceived);
     }
 
     /// <summary>
@@ -68,7 +69,7 @@ public class GroupManager
             return Guid.Empty;
         }
 
-        var assignedId = GuidHelper.Hash(signinMessage.DisplayName);
+        var assignedId = Guid.NewGuid();
         var user = new BasicUserInfo
         {
             UserId = assignedId,
@@ -177,9 +178,9 @@ public class GroupManager
         return true;
     }
 
-    private async Task NotifyGroupMembersAsync(
+    private async Task NotifyGroupMembersAsync<T>(
         Group group,
-        GroupUserStateChanged stateChange)
+        T stateChange)
     {
         foreach (var member in group.Users)
             await _dispatcher.SendAsync(member.Session, stateChange);
@@ -207,6 +208,38 @@ public class GroupManager
 
         DeleteGroupNetworkAsync(group).Forget();
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, group.RoomOwner)).Forget();
+    }
+
+    private void OnUpdateRoomMemberNetworkInfoReceived(MessageContext<UpdateRoomMemberNetworkInfo> ctx)
+    {
+        if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
+        if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
+        if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
+
+        var groupId = ctx.Message.GroupId;
+
+        if (!TryGetGroup(groupId, ctx.Dispatcher, ctx.FromSession, out var group)) return;
+
+        var user = group.Users.FirstOrDefault(u => u.UserId == ctx.Message.UserId);
+
+        if (user == null)
+        {
+            var err = new GroupOpResult(GroupCreationStatus.UserNotExists, "User not found");
+            ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
+            return;
+        }
+
+        if (user.UserId == group.RoomOwner.UserId)
+        {
+            group.RoomOwner.NetworkNodeId = ctx.Message.NetworkNodeId;
+        }
+
+        user.NetworkNodeId = ctx.Message.NetworkNodeId;
+
+        var result = new GroupOpResult(GroupCreationStatus.Succeeded);
+        ctx.Dispatcher.SendAsync(ctx.FromSession, result).Forget();
+
+        NotifyGroupMembersAsync(group, new RoomMemberInfoUpdated { UserInfo = user }).Forget();
     }
 
     private void OnCreateGroupReceived(MessageContext<CreateGroup> ctx)
@@ -245,7 +278,7 @@ public class GroupManager
                 }
             ],
             Mtu = 2800,
-            Private = true,
+            Private = false,
             Routes =
             [
                 new Route
@@ -288,11 +321,7 @@ public class GroupManager
 
         var message = ctx.Message;
         var owner = _userMapping[userId];
-        var ownerSession = new UserSessionInfo(owner)
-        {
-            IpAddresses = ctx.Message.IpAddresses,
-            NodeId = ctx.Message.NodeId
-        };
+        var ownerSession = new UserSessionInfo(owner);
 
         var group = new Group(message.RoomName, message.RoomPassword, ownerSession, [ownerSession])
         {
@@ -357,11 +386,7 @@ public class GroupManager
         }
 
         var user = _userMapping[message.UserId];
-        var info = new UserSessionInfo(user)
-        {
-            IpAddresses = ctx.Message.IpAddresses,
-            NodeId = ctx.Message.NodeId
-        };
+        var info = new UserSessionInfo(user);
 
         group.Users.Add(info);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, info)).Forget();
@@ -411,11 +436,14 @@ public class GroupManager
 
     private async Task DeleteGroupNetworkMemberAsync(Group group, UserInfo user)
     {
+        if (string.IsNullOrEmpty(user.NetworkNodeId))
+            return;
+
         try
         {
             var networkId = group.NetworkId.ToString("X").ToLowerInvariant();
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            await _zeroTierApiService.DeleteNetworkMemberAsync(networkId, user.NodeId, cts.Token);
+            await _zeroTierApiService.DeleteNetworkMemberAsync(networkId, user.NetworkNodeId, cts.Token);
 
             _logger.LogNetworkMemberDeleted(networkId);
         }

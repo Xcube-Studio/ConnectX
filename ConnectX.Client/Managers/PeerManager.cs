@@ -51,7 +51,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         _serviceProvider = serviceProvider;
         _logger = logger;
 
-        _zeroTierNodeLinkHolder.OnRouteInfoUpdated += ZeroTierNodeLinkHolderOnOnRouteInfoUpdated;
+        _roomInfoManager.OnMemberAddressInfoUpdated += ZeroTierNodeLinkHolderOnOnRouteInfoUpdated;
 
         _dispatcher.AddHandler<P2PConNotification>(OnReceivedP2PConNotification);
     }
@@ -75,7 +75,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     public event Action<Guid, Peer>? OnPeerAdded;
     public event Action<Guid, Peer>? OnPeerRemoved;
 
-    private void ZeroTierNodeLinkHolderOnOnRouteInfoUpdated(RouteInfo[] routes)
+    private void ZeroTierNodeLinkHolderOnOnRouteInfoUpdated(IPAddress[] addresses)
     {
         if (_roomInfoManager.CurrentGroupInfo == null)
         {
@@ -83,14 +83,14 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             return;
         }
 
-        foreach (var routeInfo in routes)
+        foreach (var address in addresses)
         {
             var userInfo = _roomInfoManager.CurrentGroupInfo.Users
-                .FirstOrDefault(u => u.IpAddresses.Contains(routeInfo.Target));
+                .FirstOrDefault(u => u.NetworkIpAddresses?.Contains(address) ?? false);
 
             if (userInfo == null)
             {
-                _logger.LogUserWithAddressNotFound(routeInfo.Target);
+                _logger.LogUserWithAddressNotFound(address);
                 continue;
             }
 

@@ -10,8 +10,8 @@ public class UserSessionInfo(BasicUserInfo basicUserInfo)
     public string DisplayName { get; set; } = basicUserInfo.DisplayName;
     public ISession Session { get; init; } = basicUserInfo.Session;
     public Guid UserId { get; init; } = basicUserInfo.UserId;
-    public required string NodeId { get; init; }
-    public required IPAddress[] IpAddresses { get; init; }
+    public string? NetworkNodeId { get; set; }
+    public IPAddress[]? NetworkAddresses { get; set; }
 
     public static implicit operator UserInfo(UserSessionInfo user)
     {
@@ -20,8 +20,8 @@ public class UserSessionInfo(BasicUserInfo basicUserInfo)
             DisplayName = user.DisplayName,
             JoinP2PNetwork = user.JoinP2PNetwork,
             UserId = user.UserId,
-            IpAddresses = user.IpAddresses,
-            NodeId = user.NodeId
+            NetworkIpAddresses = user.NetworkAddresses,
+            NetworkNodeId = user.NetworkNodeId
         };
     }
 }

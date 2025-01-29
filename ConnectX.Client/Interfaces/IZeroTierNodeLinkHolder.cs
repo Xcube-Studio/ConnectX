@@ -10,9 +10,9 @@ public interface IZeroTierNodeLinkHolder : IHostedService
     Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken);
     Task LeaveNetworkAsync(CancellationToken cancellationToken);
 
+    IPAddress[] GetIpAddresses();
     IPAddress? GetFirstAvailableV4Address();
     IPAddress? GetFirstAvailableV6Address();
 
     bool IsNodeOnline();
-    event Action<RouteInfo[]> OnRouteInfoUpdated;
 }

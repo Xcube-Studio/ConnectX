@@ -46,7 +46,7 @@ public class ClientManager : BackgroundService
             return default;
         }
 
-        session.BindTo(_dispatcher);
+        //session.BindTo(_dispatcher);
         _logger.LogSessionAttached(id);
 
         return id;

@@ -1,6 +1,7 @@
 ﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
 using ConnectX.Client.Route;
+using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Models;
@@ -39,9 +40,15 @@ public class Client
         _logger = logger;
 
         _dispatcher.AddHandler<GroupUserStateChanged>(OnGroupUserStateChanged);
+        _dispatcher.AddHandler<RoomMemberInfoUpdated>(OnRoomMemberInfoUpdated);
     }
 
     public event GroupStateChangedHandler? OnGroupStateChanged;
+
+    private void OnRoomMemberInfoUpdated(MessageContext<RoomMemberInfoUpdated> obj)
+    {
+        _roomInfoManager.UpdateRoomMemberInfo(obj.Message.UserInfo);
+    }
 
     private void OnGroupUserStateChanged(MessageContext<GroupUserStateChanged> ctx)
     {
@@ -85,26 +92,51 @@ public class Client
         if (groupInfo == null)
             return (null, GroupCreationStatus.Other, "Failed to acquire group info");
 
-        if (message is JoinGroup)
+        if (message is JoinGroup or CreateGroup)
         {
             if (createResult.Status != GroupCreationStatus.Succeeded)
                 return (null, createResult.Status, createResult.ErrorMessage);
 
+            _logger.LogJoiningNetwork(groupInfo.RoomNetworkId);
+
             var networkResult = await _zeroTierNodeLinkHolder.JoinNetworkAsync(groupInfo.RoomNetworkId, ct);
 
             if (!networkResult)
-            {
                 return (null, GroupCreationStatus.Other, "Failed to join the network");
-            }
+
+            await TaskHelper.WaitUntilAsync(_zeroTierNodeLinkHolder.IsNodeOnline, ct);
+
+            var userId = message switch
+            {
+                JoinGroup joinGroup => joinGroup.UserId,
+                CreateGroup createGroup => createGroup.UserId,
+                _ => throw new ArgumentOutOfRangeException(nameof(message))
+            };
+            var nodeId = _zeroTierNodeLinkHolder.Node!.IdString;
+            var updateInfo = new UpdateRoomMemberNetworkInfo
+            {
+                GroupId = createResult.GroupId,
+                UserId = userId,
+                NetworkNodeId = nodeId,
+                NetworkIpAddresses = _zeroTierNodeLinkHolder.GetIpAddresses()
+            };
+
+            var result = await _dispatcher.SendAndListenOnce<UpdateRoomMemberNetworkInfo, GroupOpResult>(
+                _serverLinkHolder.ServerSession!,
+                updateInfo, ct);
+
+            if (result is not { Status: GroupCreationStatus.Succeeded })
+                return (null, result?.Status ?? GroupCreationStatus.Other, "Failed to update room member network info");
+
+            _isInGroup = true;
         }
 
         if (message is LeaveGroup)
         {
+            _isInGroup = false;
             await _zeroTierNodeLinkHolder.LeaveNetworkAsync(ct);
             _roomInfoManager.ClearRoomInfo();
         }
-
-        _isInGroup = true;
 
         return (groupInfo, GroupCreationStatus.Succeeded, null);
     }
@@ -158,6 +190,9 @@ public class Client
 
 internal static partial class ClientLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Network info received [0x{roomId:X}], trying to join the network...")]
+    public static partial void LogJoiningNetwork(this ILogger logger, ulong roomId);
+
     [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to acquire group info, group id: {groupId}")]
     public static partial void LogFailedToAcquireGroupInfo(this ILogger logger, Guid groupId);
 

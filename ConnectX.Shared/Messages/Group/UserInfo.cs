@@ -12,8 +12,8 @@ public partial class UserInfo : IRequireAssignedUserId, IEquatable<UserInfo>
     public required bool JoinP2PNetwork { get; init; }
     public required string DisplayName { get; init; }
     public required Guid UserId { get; init; }
-    public required string NodeId { get; init; }
-    public required IPAddress[] IpAddresses { get; init; }
+    public string? NetworkNodeId { get; init; }
+    public IPAddress[]? NetworkIpAddresses { get; init; }
 
     public bool Equals(UserInfo? other)
     {
@@ -22,8 +22,8 @@ public partial class UserInfo : IRequireAssignedUserId, IEquatable<UserInfo>
         return JoinP2PNetwork == other.JoinP2PNetwork &&
                DisplayName == other.DisplayName &&
                UserId.Equals(other.UserId) &&
-               NodeId.Equals(other.NodeId) &&
-               IpAddresses.SequenceEqual(other.IpAddresses);
+               (NetworkNodeId?.Equals(other.NetworkNodeId) ?? false) &&
+               (NetworkIpAddresses?.SequenceEqual(other.NetworkIpAddresses ?? []) ?? false);
     }
 
     public override bool Equals(object? obj)
@@ -37,6 +37,6 @@ public partial class UserInfo : IRequireAssignedUserId, IEquatable<UserInfo>
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(JoinP2PNetwork, DisplayName, UserId, NodeId, IpAddresses);
+        return HashCode.Combine(JoinP2PNetwork, DisplayName, UserId, NetworkNodeId, NetworkIpAddresses);
     }
 }

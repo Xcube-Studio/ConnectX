@@ -24,9 +24,11 @@ public static class ClientFactory
 
         services.AddSingleton<IZeroTierNodeLinkHolder, ZeroTierNodeLinkHolder>();
         services.AddSingleton<IServerLinkHolder, ServerLinkHolder>();
+        services.AddSingleton<IRoomInfoManager, RoomInfoManager>();
 
         services.AddHostedService(sp => sp.GetRequiredService<IZeroTierNodeLinkHolder>());
         services.AddHostedService(sp => sp.GetRequiredService<IServerLinkHolder>());
+        services.AddHostedService(sp => sp.GetRequiredService<IRoomInfoManager>());
 
         services.AddSingleton<PeerManager>();
         services.AddHostedService(sp => sp.GetRequiredService<PeerManager>());
@@ -37,7 +39,7 @@ public static class ClientFactory
         services.AddHostedService<FakeServerMultiCaster>();
 
         services.AddSingleton<PartnerManager>();
-        services.AddSingleton<IRoomInfoManager, RoomInfoManager>();
+        
         services.AddSingleton<Client>();
     }
 }

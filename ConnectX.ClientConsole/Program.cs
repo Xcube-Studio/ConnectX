@@ -1,8 +1,10 @@
-﻿using System.Net;
+﻿using System.CommandLine;
+using System.Net;
 using ConnectX.Client;
 using ConnectX.Client.Helpers;
 using ConnectX.Client.Interfaces;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
@@ -34,7 +36,11 @@ internal class Program
                 .Enrich.FromLogContext()
                 .WriteTo.Console());
 
-        builder.ConfigureServices((ctx, services) => { services.UseConnectX(() => GetSettings(ctx.Configuration)); });
+        builder.ConfigureServices((ctx, services) =>
+        {
+            services.AddHostedService<ConsoleService>();
+            services.UseConnectX(() => GetSettings(ctx.Configuration));
+        });
 
         var app = builder.Build();
 

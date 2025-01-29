@@ -72,7 +72,7 @@ public class NetworkDetailsReqModel
     public ushort? Mtu { get; init; }
 
     [JsonPropertyName("dns")]
-    public Dns? Dns { get; init; }
+    public Dns[]? Dns { get; init; }
 
     [JsonPropertyName("private")]
     public required bool Private { get; init; }
@@ -111,7 +111,7 @@ public class NetworkDetailsModel
     public ulong CreationTime { get; init; }
 
     [JsonPropertyName("dns")]
-    public required Dns Dns { get; init; }
+    public required Dns[] Dns { get; init; }
 
     [JsonPropertyName("enableBroadcast")]
     public bool EnableBroadcast { get; init; }
