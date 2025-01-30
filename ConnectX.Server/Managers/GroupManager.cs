@@ -291,7 +291,7 @@ public class GroupManager
                 }
             ],
             V4AssignMode = new V4AssignMode { Zt = true },
-            V6AssignMode = new V6AssignMode { Zt = true, Rfc4193 = true },
+            V6AssignMode = new V6AssignMode { Zt = false, Rfc4193 = false },
             MulticastLimit = 32
         };
 
