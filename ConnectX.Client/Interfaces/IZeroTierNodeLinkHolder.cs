@@ -6,6 +6,9 @@ namespace ConnectX.Client.Interfaces;
 
 public interface IZeroTierNodeLinkHolder : IHostedService
 {
+    public const ushort RandomPortLower = 30000;
+    public const ushort RandomPortUpper = 40000;
+
     Node? Node { get; }
     Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken);
     Task LeaveNetworkAsync(CancellationToken cancellationToken);
@@ -15,4 +18,5 @@ public interface IZeroTierNodeLinkHolder : IHostedService
     IPAddress? GetFirstAvailableV6Address();
 
     bool IsNodeOnline();
+    bool IsNetworkReady();
 }

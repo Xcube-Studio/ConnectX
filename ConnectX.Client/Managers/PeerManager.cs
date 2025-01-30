@@ -5,6 +5,7 @@ using System.Net.Sockets;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.P2P;
 using ConnectX.Shared.Helpers;
+using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
@@ -14,7 +15,6 @@ using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ZeroTier.Core;
 using TaskHelper = Hive.Common.Shared.Helpers.TaskHelper;
 
 namespace ConnectX.Client.Managers;
@@ -75,7 +75,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     public event Action<Guid, Peer>? OnPeerAdded;
     public event Action<Guid, Peer>? OnPeerRemoved;
 
-    private void ZeroTierNodeLinkHolderOnOnRouteInfoUpdated(IPAddress[] addresses)
+    private void ZeroTierNodeLinkHolderOnOnRouteInfoUpdated(UserInfo[] userInfos)
     {
         if (_roomInfoManager.CurrentGroupInfo == null)
         {
@@ -83,17 +83,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             return;
         }
 
-        foreach (var address in addresses)
+        foreach (var userInfo in userInfos)
         {
-            var userInfo = _roomInfoManager.CurrentGroupInfo.Users
-                .FirstOrDefault(u => u.NetworkIpAddresses?.Contains(address) ?? false);
-
-            if (userInfo == null)
-            {
-                _logger.LogUserWithAddressNotFound(address);
-                continue;
-            }
-
             var userId = userInfo.UserId;
 
             if (userId == _serverLinkHolder.UserId)
@@ -107,7 +98,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
                 try
                 {
-                    var conResult = await RequestConnectPartnerAsync(userId, false, CancellationToken.None);
+                    var conResult = await RequestConnectPartnerAsync(userId, CancellationToken.None);
 
                     if (conResult)
                         _logger.LogSuccessfullyEstablishedP2PConnectionWithUser(userId);
@@ -160,7 +151,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
                 return;
             }
 
-            var conContext = await GetSelfConContextAsync(message.UseUdp, cts.Token);
+            var conContext = await GetSelfConContextAsync(cts.Token);
             var conAccept = new P2PConAccept(message.Bargain, _serverLinkHolder.UserId, conContext);
             var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
             var conInitiator =
@@ -270,10 +261,10 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     }
 
     private async Task<P2PConContextInit> GetSelfConContextAsync(
-        bool useUdp,
         CancellationToken cancellationToken)
     {
         await TaskHelper.WaitUtil(_zeroTierNodeLinkHolder.IsNodeOnline, cancellationToken);
+        await TaskHelper.WaitUtil(_zeroTierNodeLinkHolder.IsNetworkReady, cancellationToken);
 
         var publicAddress = _zeroTierNodeLinkHolder.GetFirstAvailableV4Address();
 
@@ -281,9 +272,10 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
         var conInfo = new P2PConContextInit
         {
-            PublicPort = (ushort)Random.Shared.Next(20000, 65533),
-            PublicAddress = publicAddress,
-            UseUdp = useUdp
+            PublicPort = (ushort)Random.Shared.Next(
+                IZeroTierNodeLinkHolder.RandomPortLower,
+                IZeroTierNodeLinkHolder.RandomPortUpper),
+            PublicAddress = publicAddress
         };
 
         return conInfo;
@@ -388,12 +380,10 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     ///     Active connect to partner
     /// </summary>
     /// <param name="partnerId"></param>
-    /// <param name="useUdp"></param>
     /// <param name="cancellationToken"></param>
     /// <returns></returns>
     private async Task<bool> RequestConnectPartnerAsync(
         Guid partnerId,
-        bool useUdp,
         CancellationToken cancellationToken)
     {
         if (_bargainsDic.ContainsKey(partnerId))
@@ -418,7 +408,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         _bargainsDic.AddOrUpdate(partnerId, bargain, (_, _) => bargain);
 
         var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
-        var conContext = await GetSelfConContextAsync(useUdp, cancellationToken);
+        var conContext = await GetSelfConContextAsync(cancellationToken);
         var conRequest = new P2PConRequest(
             bargain,
             partnerId,
@@ -442,7 +432,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
             _logger.LogTryingToConnectToPartner(key);
 
-            RequestConnectPartnerAsync(key, trying, cancellationToken).Forget();
+            RequestConnectPartnerAsync(key, cancellationToken).Forget();
             _allPeers.TryUpdate(key, true, false);
         }
     }

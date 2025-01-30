@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using ConnectX.Client.Interfaces;
+using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
 using Hive.Both.General.Dispatchers;
 using Microsoft.Extensions.Hosting;
@@ -36,6 +37,8 @@ public class RoomInfoManager(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var needToRefreshRoomInfo = false;
+        var lastRefreshTime = DateTime.MinValue;
+        var hashset = new HashSet<Guid>();
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -44,6 +47,9 @@ public class RoomInfoManager(
                 await Task.Delay(1000, stoppingToken);
                 continue;
             }
+
+            await TaskHelper.WaitUntilAsync(zeroTierNodeLinkHolder.IsNodeOnline, stoppingToken);
+            await TaskHelper.WaitUntilAsync(zeroTierNodeLinkHolder.IsNetworkReady, stoppingToken);
 
             if (needToRefreshRoomInfo)
             {
@@ -92,23 +98,51 @@ public class RoomInfoManager(
                 continue;
             }
 
+            if (CurrentGroupInfo.RoomOwnerId != self.UserId &&
+                DateTime.UtcNow - lastRefreshTime >= TimeSpan.FromMinutes(1) &&
+                CurrentGroupInfo.Users.Length < 2)
+            {
+                needToRefreshRoomInfo = true;
+                lastRefreshTime = DateTime.UtcNow;
+
+                logger.LogUpdatingRoomInfo();
+
+                continue;
+            }
+
+            var possibleUsers = new List<UserInfo>();
+
             foreach (var user in CurrentGroupInfo.Users)
             {
+                if (user.UserId == serverLinkHolder.UserId)
+                    continue;
+
                 if (user.NetworkIpAddresses == null ||
                     user.NetworkIpAddresses.Length == 0)
+                {
+                    needToRefreshRoomInfo = true;
                     continue;
+                }
 
                 foreach (var address in user.NetworkIpAddresses)
                 {
+                    if (hashset.Contains(user.UserId)) continue;
                     if (address.AddressFamily != AddressFamily.InterNetwork) continue;
                     if (address.GetAddressBytes()[3] == 0)
                         continue;
 
                     logger.LogPeerDiscovered(address);
 
-                    OnMemberAddressInfoUpdated?.Invoke([address]);
+                    hashset.Add(user.UserId);
+                    possibleUsers.Add(user);
+                    break;
                 }
             }
+
+            if (possibleUsers.Count > 0)
+                OnMemberAddressInfoUpdated?.Invoke(possibleUsers.ToArray());
+
+            await Task.Delay(1000, stoppingToken);
         }
     }
 
@@ -143,7 +177,7 @@ public class RoomInfoManager(
         return groupInfo;
     }
 
-    public event Action<IPAddress[]>? OnMemberAddressInfoUpdated;
+    public event Action<UserInfo[]>? OnMemberAddressInfoUpdated;
 }
 
 internal static partial class RoomInfoManagerLoggers

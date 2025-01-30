@@ -176,31 +176,19 @@ public class P2PConInitiator : IDisposable
         P2PConContext selfContext,
         CancellationToken token)
     {
-        P2PLinkMaker linkMaker;
-
         _logger.LogCreateP2PLinkMaker(selfContext);
         _logger.LogBothSidesCanConfirmTheirPortsUsingSinglePortLinkMaker();
 
         var remoteIpe = new IPEndPoint(targetContext.PublicAddress, targetContext.PublicPort);
 
-        if (selfContext.UseUdp)
-            linkMaker = ActivatorUtilities.CreateInstance<UdpSinglePortLinkMaker>(
-                _serviceProvider,
-                time,
-                partnerId,
-                selfContext.PublicAddress,
-                selfContext.PublicPort,
-                remoteIpe,
-                token);
-        else
-            linkMaker = ActivatorUtilities.CreateInstance<TcpSinglePortLinkMaker>(
-                _serviceProvider,
-                time,
-                partnerId,
-                selfContext.PublicAddress,
-                selfContext.PublicPort,
-                remoteIpe,
-                token);
+        var linkMaker = ActivatorUtilities.CreateInstance<ZtTcpSinglePortLinkMaker>(
+            _serviceProvider,
+            time,
+            partnerId,
+            selfContext.PublicAddress,
+            selfContext.PublicPort,
+            remoteIpe,
+            token);
 
         return linkMaker;
     }

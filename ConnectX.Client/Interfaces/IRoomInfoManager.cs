@@ -1,5 +1,4 @@
-﻿using System.Net;
-using ConnectX.Shared.Messages.Group;
+﻿using ConnectX.Shared.Messages.Group;
 using Microsoft.Extensions.Hosting;
 
 namespace ConnectX.Client.Interfaces;
@@ -14,5 +13,5 @@ public interface IRoomInfoManager : IHostedService
 
     Task<GroupInfo?> AcquireGroupInfoAsync(Guid groupId);
 
-    event Action<IPAddress[]> OnMemberAddressInfoUpdated;
+    event Action<UserInfo[]> OnMemberAddressInfoUpdated;
 }

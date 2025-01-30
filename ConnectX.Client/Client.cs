@@ -48,6 +48,11 @@ public class Client
     private void OnRoomMemberInfoUpdated(MessageContext<RoomMemberInfoUpdated> obj)
     {
         _roomInfoManager.UpdateRoomMemberInfo(obj.Message.UserInfo);
+
+        if (!_isInGroup || _roomInfoManager.CurrentGroupInfo?.RoomId == null)
+            return;
+
+        _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo.RoomId).Forget();
     }
 
     private void OnGroupUserStateChanged(MessageContext<GroupUserStateChanged> ctx)

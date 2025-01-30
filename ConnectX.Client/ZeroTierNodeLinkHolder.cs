@@ -52,6 +52,12 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
                Node.Networks.Count != 0;
     }
 
+    public bool IsNetworkReady()
+    {
+        return _networkId.HasValue &&
+               (Node?.IsNetworkTransportReady(_networkId.Value) ?? false);
+    }
+
     public async Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken)
     {
         logger.LogStartingZeroTierNodeLinkHolder();
@@ -112,8 +118,9 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
         Node = new Node();
 
-        Node.InitAllowNetworkCaching(true);
+        Node.InitAllowNetworkCaching(false);
         Node.InitAllowPeerCaching(true);
+        Node.InitSetRandomPortRange(IZeroTierNodeLinkHolder.RandomPortLower, IZeroTierNodeLinkHolder.RandomPortUpper);
         Node.InitSetEventHandler(OnReceivedZeroTierEvent);
     }
 

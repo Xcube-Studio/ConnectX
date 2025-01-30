@@ -148,7 +148,7 @@ public class P2PConnection : ISender
         cts.CancelAfter(Timeout);
 
         // SYN
-        var succeed = await _routerPacketDispatcher.SendAndListenOnceAsync<TransDatagram>(
+        var succeed = await _routerPacketDispatcher.SendAndListenOnceAsync<TransDatagram, TransDatagram>(
             _targetId,
             TransDatagram.CreateShakeHandFirst(0),
             IsSecondShakeHand,

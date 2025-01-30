@@ -232,12 +232,16 @@ public class GroupManager
         if (user.UserId == group.RoomOwner.UserId)
         {
             group.RoomOwner.NetworkNodeId = ctx.Message.NetworkNodeId;
+            group.RoomOwner.NetworkAddresses = ctx.Message.NetworkIpAddresses;
         }
 
         user.NetworkNodeId = ctx.Message.NetworkNodeId;
+        user.NetworkAddresses = ctx.Message.NetworkIpAddresses;
 
         var result = new GroupOpResult(GroupCreationStatus.Succeeded);
         ctx.Dispatcher.SendAsync(ctx.FromSession, result).Forget();
+
+        _logger.LogMemberInfoUpdated(ctx.Message.UserId, ctx.Message);
 
         NotifyGroupMembersAsync(group, new RoomMemberInfoUpdated { UserInfo = user }).Forget();
     }
@@ -539,6 +543,9 @@ public class GroupManager
 
 internal static partial class GroupManagerLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{id}] updated its member info: {@info}")]
+    public static partial void LogMemberInfoUpdated(this ILogger logger, Guid id, UpdateRoomMemberNetworkInfo info);
+
     [LoggerMessage(LogLevel.Error,
         "[GROUP_MANAGER] Failed to attach session, session id: {sessionId}, invalid session.")]
     public static partial void LogFailedToAttachSession(this ILogger logger, SessionId sessionId);

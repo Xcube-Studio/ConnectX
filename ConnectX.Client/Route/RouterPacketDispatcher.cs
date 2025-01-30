@@ -29,14 +29,14 @@ public class RouterPacketDispatcher
         router.OnDelivery += OnReceiveTransDatagram;
     }
 
-    public void Send(Guid target, object data)
+    public void Send<T>(Guid target, T data)
     {
-        _logger.LogSend(data.GetType().Name, target);
+        _logger.LogSend(typeof(T).Name, target);
 
         SendToRouter(target, data);
     }
 
-    private void SendToRouter(Guid targetId, object datagram)
+    private void SendToRouter<T>(Guid targetId, T datagram)
     {
         using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream();
         _codec.Encode(datagram, stream);
@@ -50,9 +50,9 @@ public class RouterPacketDispatcher
     ///     发送并接收，使用processor处理结果，如果processor返回true，则停止等待并返回true，否则继续接收下一个包，直到超时返回false
     /// </summary>
     /// <returns>返回处理结果，如果processor返回了true，则为true<br />如果processor一直没返回true，超时了则返回false</returns>
-    public async Task<bool> SendAndListenOnceAsync<T>(
+    public async Task<bool> SendAndListenOnceAsync<TData, T>(
         Guid target,
-        object data,
+        TData data,
         Func<T, bool> processor,
         CancellationToken token = default)
     {
@@ -61,7 +61,7 @@ public class RouterPacketDispatcher
         _receiveCallbackDic[typeof(T)].TempCallback[target] = (T t, PacketContext _) => { received = processor(t); };
         SendToRouter(target, data);
 
-        await TaskHelper.WaitUntilAsync(() => received, token == default ? _cancelTokenSource.Token : token);
+        await TaskHelper.WaitUntilAsync(() => received, token == CancellationToken.None ? _cancelTokenSource.Token : token);
 
         _receiveCallbackDic[typeof(T)].TempCallback.Remove(target);
 

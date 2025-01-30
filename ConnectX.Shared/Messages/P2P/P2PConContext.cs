@@ -5,7 +5,6 @@ namespace ConnectX.Shared.Messages.P2P;
 
 public record P2PConContextInit
 {
-    public bool UseUdp { get; init; }
     public required IPAddress PublicAddress { get; init; }
     public int Diff { get; init; }
     public bool SameIfNotConflict { get; init; }
@@ -26,7 +25,6 @@ public abstract partial class P2PConContext
 
     protected P2PConContext(P2PConContext context)
     {
-        UseUdp = context.UseUdp;
         PublicPort = context.PublicPort;
         Diff = context.Diff;
         SameIfNotConflict = context.SameIfNotConflict;
@@ -36,15 +34,12 @@ public abstract partial class P2PConContext
 
     protected P2PConContext(P2PConContextInit context)
     {
-        UseUdp = context.UseUdp;
         PublicPort = context.PublicPort;
         Diff = context.Diff;
         SameIfNotConflict = context.SameIfNotConflict;
         CurrentUsedPort = context.CurrentUsedPort;
         PublicAddress = context.PublicAddress;
     }
-
-    public bool UseUdp { get; set; }
 
     [MemoryPackAllowSerialize]
     public IPAddress PublicAddress { get; init; }
