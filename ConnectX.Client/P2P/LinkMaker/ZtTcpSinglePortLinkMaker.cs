@@ -45,7 +45,7 @@ public class ZtTcpSinglePortLinkMaker(
 
         Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
 
-        var acceptTask =  Task.Run(async () =>
+        var acceptTask = Task.Run(async () =>
         {
             var tryTime = defaultTryTime;
 
