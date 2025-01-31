@@ -277,8 +277,8 @@ public class GroupManager
             [
                 new IpAssignment
                 {
-                    IpRangeStart = "10.0.0.1",
-                    IpRangeEnd = "10.0.0.254"
+                    IpRangeStart = "114.51.4.1",
+                    IpRangeEnd = "114.51.4.254"
                 }
             ],
             Mtu = 2800,
@@ -287,7 +287,7 @@ public class GroupManager
             [
                 new Route
                 {
-                    Target = "10.0.0.0/24"
+                    Target = "114.51.4.0/24"
                 }
             ],
             V4AssignMode = new V4AssignMode { Zt = true },
