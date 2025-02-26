@@ -160,6 +160,8 @@ public class P2PConInitiator : IDisposable
                 IsSucceeded = EstablishedConnection != null;
                 IsConnecting = false;
 
+                _logger.LogP2PConnInfo(RemoteEndPoint!);
+
                 _completionSource!.TrySetResult(EstablishedConnection);
             }
             catch (Exception e)
@@ -196,6 +198,9 @@ public class P2PConInitiator : IDisposable
 
 internal static partial class P2PConInitiatorLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] P2P connection info: [Remote EndPoint [{Remote}]]")]
+    public static partial void LogP2PConnInfo(this ILogger logger, IPEndPoint remote);
+
     [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Sending P2PConRequest to {PartnerId}")]
     public static partial void LogSendingP2PConRequest(this ILogger logger, Guid partnerId);
 

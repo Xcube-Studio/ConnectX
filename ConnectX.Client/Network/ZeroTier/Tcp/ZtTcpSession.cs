@@ -35,6 +35,10 @@ public sealed class ZtTcpSession : AbstractSession
 
     public override ValueTask<int> SendOnce(ArraySegment<byte> data, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(Socket);
+
+        Logger.LogInformation("Send Once! {length}", data.Count);
+
         var len = Socket.Send(data.ToArray());
 
         if (len == 0)
@@ -45,7 +49,11 @@ public sealed class ZtTcpSession : AbstractSession
 
     public override ValueTask<int> ReceiveOnce(ArraySegment<byte> buffer, CancellationToken token)
     {
+        ArgumentNullException.ThrowIfNull(Socket);
+
         var len = Socket.Receive(buffer.Array);
+
+        Logger.LogInformation("Receive Once! {length}", len);
 
         return ValueTask.FromResult(len);
     }

@@ -33,35 +33,36 @@ public class ZtTcpSinglePortLinkMaker(
     {
         const int defaultTryTime = 10;
 
-        var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-        receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
-        receiveSocket.Listen(defaultTryTime);
-
         ZtTcpSession? connectLink = null;
         ZtTcpSession? acceptedLink = null;
 
-        Socket conSocket;
-
         Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
 
         var acceptTask = Task.Run(async () =>
         {
             var tryTime = defaultTryTime;
+            var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+            receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
+            receiveSocket.Listen(defaultTryTime);
 
             logger.LogStartedToAcceptP2PConnection();
 
-            while (!Token.IsCancellationRequested && tryTime > 0)
+            while (!cts.Token.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
             {
+                Socket conSocket;
+
                 try
                 {
                     tryTime--;
 
                     conSocket = receiveSocket.Accept();
-                    connectLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(ServiceProvider,
+                    acceptedLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(ServiceProvider,
                         0, conSocket);
 
-                    ArgumentNullException.ThrowIfNull(connectLink);
+                    ArgumentNullException.ThrowIfNull(acceptedLink);
                 }
                 catch (ArgumentNullException) { continue; }
                 catch (SocketException e)
@@ -82,28 +83,27 @@ public class ZtTcpSinglePortLinkMaker(
                 logger.LogConnectionAccepted((IPEndPoint)conSocket.RemoteEndPoint);
                 break;
             }
-        });
+        }, CancellationToken.None);
 
         var connectTask = Task.Run(async () =>
         {
             var tryTime = defaultTryTime;
+            var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             Logger.LogStartedToTryTcpConnectionWithRemoteIpe(LocalPort, RemoteIpe);
 
             await TaskHelper.WaitUtil(() => !Token.IsCancellationRequested &&
                                             DateTime.UtcNow.Ticks < StartTimeTick, Token);
             
-            while (!Token.IsCancellationRequested && tryTime > 0)
+            while (!cts.Token.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
             {
                 try
                 {
                     tryTime--;
 
                     receiveSocket.Connect(RemoteIpe);
-
-                    conSocket = receiveSocket;
                     connectLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(ServiceProvider,
-                        0, conSocket);
+                        0, receiveSocket);
 
                     ArgumentNullException.ThrowIfNull(connectLink);
                 }
@@ -128,11 +128,14 @@ public class ZtTcpSinglePortLinkMaker(
                 Logger.LogSucceedToConnectToRemoteIpe(LocalPort, RemoteIpe);
                 break;
             }
-        }, Token);
+        }, CancellationToken.None);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        await Task.WhenAny(acceptTask, connectTask);
+        await cts.CancelAsync();
 
-        await Task.WhenAny(acceptTask, connectTask).WaitAsync(cts.Token);
+        Logger.LogConnectionEstablished();
+        Logger.LogEstablishSessionInfo("Accepted", acceptedLink?.LocalEndPoint, acceptedLink?.RemoteEndPoint);
+        Logger.LogEstablishSessionInfo("Connect", connectLink?.LocalEndPoint, connectLink?.RemoteEndPoint);
 
         if (connectLink == null || acceptedLink == null)
         {
@@ -160,6 +163,12 @@ public class ZtTcpSinglePortLinkMaker(
 
 internal static partial class ZtTcpSinglePortLinkMakerLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[ZT_TCP_S2S] Established [{type}] session info: [Local {local}] [Remote {remote}]")]
+    public static partial void LogEstablishSessionInfo(this ILogger logger, string type, IPEndPoint? local, IPEndPoint? remote);
+
+    [LoggerMessage(LogLevel.Information, "[ZT_TCP_S2S] Connection established.")]
+    public static partial void LogConnectionEstablished(this ILogger logger);
+
     [LoggerMessage(LogLevel.Information, "[ZT_TCP_S2S] New connection accepted, remote endpoint: {remoteIpe}.")]
     public static partial void LogConnectionAccepted(this ILogger logger, IPEndPoint remoteIpe);
 

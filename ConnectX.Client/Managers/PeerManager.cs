@@ -366,6 +366,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             _bargainsDic.TryRemove(partnerId, out _);
             _initiator.TryRemove(partnerId, out _);
             conInitiator.Dispose();
+
+            _logger.LogConInitiatorDisposed();
         }
 
         return resultLink != null;
@@ -440,6 +442,9 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
 internal static partial class PeerManagerLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[Peer] P2P Conn established, ConInitiator disposed.")]
+    public static partial void LogConInitiatorDisposed(this ILogger logger);
+
     [LoggerMessage(LogLevel.Warning, "[Peer] Network is not ready yet, no public address found!")]
     public static partial void LogNetworkNotReady(this ILogger logger);
 

@@ -73,14 +73,13 @@ public sealed class ZtTcpAcceptor : AbstractAcceptor<ZtTcpSession>
         FireOnSessionCreate(clientSession);
     }
 
-    private void OnSocketError(object sender, SocketError e)
+    private void OnSocketError(object? sender, SocketError e)
     {
-        if (sender is ZtTcpSession session)
-        {
-            Logger.LogSocketError(session.Id, e);
-            session.Close();
-            FireOnSessionClosed(session);
-        }
+        if (sender is not ZtTcpSession session) return;
+
+        Logger.LogSocketError(session.Id, e);
+        session.Close();
+        FireOnSessionClosed(session);
     }
 
     public override void Dispose()
