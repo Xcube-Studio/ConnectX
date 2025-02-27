@@ -92,10 +92,9 @@ public class RouteTable
             if (minDist == int.MaxValue)
                 continue;
 
-            if (!_linkStates.ContainsKey(minId))
+            if (!_linkStates.TryGetValue(minId, out var linkState))
                 continue;
 
-            var linkState = _linkStates[minId];
             for (var i = 0; i < linkState.Interfaces.Length; i++) //更新最小距离
                 if (dist.TryGetValue(linkState.Interfaces[i], out var value) && value != int.MaxValue)
                 {

@@ -121,19 +121,21 @@ public class P2PConnection : ISender
 
     private async Task StartResendCoroutineAsync()
     {
-        var needResend = () =>
+        while (_lifetime.ApplicationStopping.IsCancellationRequested == false)
+        {
+            await TaskHelper.WaitUntilAsync(NeedResend, _lifetime.ApplicationStopping);
+
+            if (!_lifetime.ApplicationStopping.IsCancellationRequested) _logger.LogResendCoroutineStarted(_targetId);
+        }
+
+        return;
+
+        bool NeedResend()
         {
             if (_ackPointer == _sendPointer) return false;
             var now = DateTime.Now.Millisecond;
             var time = now - _lastAckTime;
             return time > Timeout;
-        };
-
-        while (_lifetime.ApplicationStopping.IsCancellationRequested == false)
-        {
-            await TaskHelper.WaitUntilAsync(needResend, _lifetime.ApplicationStopping);
-
-            if (!_lifetime.ApplicationStopping.IsCancellationRequested) _logger.LogResendCoroutineStarted(_targetId);
         }
     }
 

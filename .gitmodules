@@ -2,6 +2,3 @@
 	path = Hive.Framework
 	url = https://github.com/Corona-Studio/Hive.Framework.git
 	branch = data-sync
-[submodule "Open.NAT"]
-	path = Open.NAT
-	url = https://github.com/Corona-Studio/Open.NAT

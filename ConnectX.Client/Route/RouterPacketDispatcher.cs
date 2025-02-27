@@ -107,9 +107,9 @@ public class RouterPacketDispatcher
         foreach (var callback in callbackWarp.UniformCallback) InvokeCallback(actMethod, callback, message);
         return;
 
-        void InvokeCallback(MethodBase? actMethod, object receiver, object message1)
+        void InvokeCallback(MethodBase? callback, object receiver, object message1)
         {
-            actMethod?.Invoke(receiver, [message1, new PacketContext(packet.From, this)]);
+            callback?.Invoke(receiver, [message1, new PacketContext(packet.From, this)]);
         }
     }
 
