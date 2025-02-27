@@ -24,7 +24,9 @@ public class P2PConInitiator : IDisposable
     private readonly IServiceProvider _serviceProvider;
     private readonly InitializedDispatchableSession _serverLink;
 
+    // ReSharper disable once InconsistentNaming
     private readonly HandlerId _p2pOpResultHandler;
+    // ReSharper disable once InconsistentNaming
     private readonly HandlerId _p2pConReadyHandler;
 
     private TaskCompletionSource<ISession?>? _completionSource;

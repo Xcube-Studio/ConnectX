@@ -18,7 +18,6 @@ public abstract class P2PLinkMaker(
     public long StartTimeTick { get; } = startTimeTick;
     public Guid PartnerId { get; } = partnerId;
 
-    public bool IsConnected { get; }
     public abstract IPEndPoint? RemoteIpEndPoint { get; }
     public abstract Task<ISession?> BuildLinkAsync();
     public event Action<ISession>? OnLinkBuilt;
