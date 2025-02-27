@@ -30,7 +30,7 @@ public sealed class ZtTcpConnector : IConnector<ZtTcpSession>
             var socket = new Socket(remoteEndPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             socket.Connect(remoteEndPoint);
 
-            var session = ActivatorUtilities.CreateInstance<ZtTcpSession>(_serviceProvider, GetNextSessionId(), socket);
+            var session = ActivatorUtilities.CreateInstance<ZtTcpSession>(_serviceProvider, GetNextSessionId(), false, socket);
 
             return ValueTask.FromResult(session)!;
         }

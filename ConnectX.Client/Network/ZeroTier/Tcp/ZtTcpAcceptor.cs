@@ -18,7 +18,7 @@ public sealed class ZtTcpAcceptor : AbstractAcceptor<ZtTcpSession>
         ILogger<ZtTcpAcceptor> logger)
         : base(serviceProvider, logger)
     {
-        _sessionFactory = ActivatorUtilities.CreateFactory<ZtTcpSession>([typeof(int), typeof(Socket)]);
+        _sessionFactory = ActivatorUtilities.CreateFactory<ZtTcpSession>([typeof(int), typeof(bool), typeof(Socket)]);
     }
 
     public override IPEndPoint? EndPoint => _serverSocket?.LocalEndPoint as IPEndPoint;
@@ -68,7 +68,7 @@ public sealed class ZtTcpAcceptor : AbstractAcceptor<ZtTcpSession>
     private void CreateSession(Socket acceptSocket)
     {
         var sessionId = GetNextSessionId();
-        var clientSession = _sessionFactory.Invoke(ServiceProvider, [sessionId, acceptSocket]);
+        var clientSession = _sessionFactory.Invoke(ServiceProvider, [sessionId, true, acceptSocket]);
         clientSession.OnSocketError += OnSocketError;
         FireOnSessionCreate(clientSession);
     }

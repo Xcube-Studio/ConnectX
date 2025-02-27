@@ -65,8 +65,12 @@ public class ZtTcpSinglePortLinkMaker(
                     tryTime--;
 
                     conSocket = receiveSocket.Accept();
-                    acceptedLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(ServiceProvider,
-                        0, conSocket);
+                    conSocket.Blocking = false;
+                    acceptedLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(
+                        ServiceProvider,
+                        0,
+                        true,
+                        conSocket);
 
                     ArgumentNullException.ThrowIfNull(acceptedLink);
                 }
@@ -129,8 +133,12 @@ public class ZtTcpSinglePortLinkMaker(
                     tryTime--;
 
                     receiveSocket.Connect(RemoteIpe);
-                    connectLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(ServiceProvider,
-                        0, receiveSocket);
+                    receiveSocket.Blocking = false;
+                    connectLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(
+                        ServiceProvider,
+                        0,
+                        false,
+                        receiveSocket);
 
                     ArgumentNullException.ThrowIfNull(connectLink);
                 }

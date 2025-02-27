@@ -14,16 +14,15 @@ public record Peer(
     ILogger<Peer> Logger)
 {
     private DateTime _lastHeartBeatTime = DateTime.UtcNow;
+
     public Guid Id { get; } = Id;
     public IPEndPoint RemoteIpe { get; } = RemoteIpe;
     public int LocalPrivatePort { get; } = DirectLink.Session.LocalEndPoint?.Port ?? 0;
     public DispatchableSession DirectLink { get; } = DirectLink;
-    public CancellationTokenSource HeartBeatCtSource { get; private set; } = CancellationTokenSource;
     public bool IsConnected { get; private set; } = true;
 
     public void StartHeartBeat()
     {
-        HeartBeatCtSource = new CancellationTokenSource();
         DirectLink.Dispatcher.AddHandler<ChatMessage>(ctx =>
         {
             _lastHeartBeatTime = DateTime.UtcNow;
@@ -32,7 +31,7 @@ public record Peer(
 
         Task.Run(async () =>
         {
-            while (!HeartBeatCtSource.IsCancellationRequested &&
+            while (!CancellationTokenSource.IsCancellationRequested &&
                    (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds <= 20)
                 try
                 {
@@ -43,7 +42,7 @@ public record Peer(
                             Message = $"Hello from {Id}[{DirectLink.Session.RemoteEndPoint}]"
                         });
 
-                    await Task.Delay(TimeSpan.FromSeconds(10), HeartBeatCtSource.Token);
+                    await Task.Delay(TimeSpan.FromSeconds(10), CancellationTokenSource.Token);
                 }
                 catch (TaskCanceledException)
                 {
@@ -55,14 +54,14 @@ public record Peer(
             Logger.LogHeartBeatStopped(DirectLink.Session.RemoteEndPoint, _lastHeartBeatTime);
 
             IsConnected = false;
-        }, HeartBeatCtSource.Token).Forget();
+        }, CancellationTokenSource.Token).Forget();
     }
 
     public void StopHeartBeat()
     {
         DirectLink.Dispose();
-        HeartBeatCtSource.Cancel();
-        HeartBeatCtSource.Dispose();
+        CancellationTokenSource.Cancel();
+        CancellationTokenSource.Dispose();
     }
 }
 

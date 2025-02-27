@@ -1,21 +1,28 @@
 ﻿using Hive.Network.Shared;
-using Hive.Network.Shared.Session;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Sockets;
+using Hive.Network.Shared.Session;
 using Socket = ZeroTier.Sockets.Socket;
 
 namespace ConnectX.Client.Network.ZeroTier.Tcp;
 
 public sealed class ZtTcpSession : AbstractSession
 {
+    private bool _closed;
+    private readonly bool _isAcceptedSocket;
+
     public ZtTcpSession(
         int sessionId,
+        bool isAcceptedSocket,
         Socket socket,
         ILogger<ZtTcpSession> logger)
         : base(sessionId, logger)
     {
+        _isAcceptedSocket = isAcceptedSocket;
+
         Socket = socket;
+        socket.SendBufferSize = NetworkSettings.DefaultSocketBufferSize;
         socket.ReceiveBufferSize = NetworkSettings.DefaultSocketBufferSize;
     }
 
@@ -29,7 +36,7 @@ public sealed class ZtTcpSession : AbstractSession
 
     public override bool CanReceive => IsConnected;
 
-    public override bool IsConnected => Socket is { Connected: true };
+    public override bool IsConnected => (_isAcceptedSocket && !_closed) || Socket is { Connected: true };
 
     public event EventHandler<SocketError>? OnSocketError;
 
@@ -56,6 +63,7 @@ public sealed class ZtTcpSession : AbstractSession
 
     public override void Close()
     {
+        _closed = true;
         IsConnected = false;
         Socket?.Close();
         Socket = null;
