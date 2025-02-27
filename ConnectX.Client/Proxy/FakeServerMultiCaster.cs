@@ -119,47 +119,44 @@ public class FakeServerMultiCaster : BackgroundService
     {
         _logger.LogStartListeningLanMulticast();
 
-        await Task.Run(async () =>
+        while (!stoppingToken.IsCancellationRequested)
         {
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
+            
+            multicastSocket.SetSocketOption(
+                SocketOptionLevel.IP,
+                SocketOptionName.AddMembership,
+                multicastOption);
 
-                var multicastAddress = IPAddress.Parse("224.0.2.60");
-                var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
-                multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership,
-                    multicastOption);
-                multicastSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            multicastSocket.SetSocketOption(
+                SocketOptionLevel.Socket,
+                SocketOptionName.ReuseAddress,
+                true);
 
-                var multicastIpe = new IPEndPoint(multicastAddress, 4445);
+            var multicastAddress = IPAddress.Parse("224.0.2.60");
+            var multicastIpe = new IPEndPoint(multicastAddress, 4445);
 
-                multicastSocket.Bind(new IPEndPoint(IPAddress.Any, 4445));
+            multicastSocket.Bind(new IPEndPoint(IPAddress.Any, 4445));
 
-                var buffer = new byte[256];
-                EndPoint remoteEp = multicastIpe;
-                var len = multicastSocket.ReceiveFrom(buffer, ref remoteEp);
+            var buffer = new byte[256];
+            EndPoint remoteEp = multicastIpe;
+            var len = multicastSocket.ReceiveFrom(buffer, ref remoteEp);
 
-                var message = Encoding.UTF8.GetString(buffer, 0, len);
-                var serverName = message[6..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
-                var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
-                var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
-                var port = ushort.Parse(message[portStart..portEnd]);
+            var message = Encoding.UTF8.GetString(buffer, 0, len);
+            var serverName = message[6..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
+            var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
+            var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
+            var port = ushort.Parse(message[portStart..portEnd]);
 
-                if (!serverName.StartsWith($"[{Prefix}]")) //如果[ConnectX]开头，则是自己发出的，忽略
-                    ListenedLanServer(serverName, port);
+            if (!serverName.StartsWith($"[{Prefix}]")) //如果[ConnectX]开头，则是自己发出的，忽略
+                ListenedLanServer(serverName, port);
 
-                multicastSocket.Close();
-                multicastSocket.Dispose();
-                try
-                {
-                    await Task.Delay(3000, stoppingToken);
-                }
-                catch (TaskCanceledException)
-                {
-                    //ignore
-                }
-            }
-        });
+            multicastSocket.Close();
+            multicastSocket.Dispose();
+
+            await Task.Delay(3000, stoppingToken);
+        }
     }
 }
 
