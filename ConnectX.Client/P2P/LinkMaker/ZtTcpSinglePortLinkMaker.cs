@@ -10,7 +10,13 @@ using SocketException = ZeroTier.Sockets.SocketException;
 
 namespace ConnectX.Client.P2P.LinkMaker;
 
+/// <summary>
+/// 基于 ZeroTier 的 TCP 单端口连接建立器
+/// 如果是主动方，那么就是接受远端；如果是被动方，那么就是连接远端
+/// </summary>
+/// <returns></returns>
 public class ZtTcpSinglePortLinkMaker(
+    bool isInitiator,
     long startTimeTick,
     Guid partnerId,
     IPAddress localAddress,
@@ -29,28 +35,31 @@ public class ZtTcpSinglePortLinkMaker(
         remoteIpe,
         cancellationToken)
 {
-    public override async Task<ISession?> BuildLinkAsync()
-    {
-        const int defaultTryTime = 10;
+    private const int DefaultTryTime = 10;
+    public Socket? ZtServerSocket { get; private set; }
 
-        ZtTcpSession? connectLink = null;
+    private async Task<ISession?> AcceptConnAsync()
+    {
         ZtTcpSession? acceptedLink = null;
+
+        var tryTime = DefaultTryTime;
+        var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+        receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
+        receiveSocket.Listen(DefaultTryTime);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var ct = cts.Token;
 
         Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-
-        var acceptTask = Task.Run(async () =>
+        await Task.Run(async () =>
         {
-            var tryTime = defaultTryTime;
-            var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-
-            receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
-            receiveSocket.Listen(defaultTryTime);
+            ZtServerSocket = receiveSocket;
 
             logger.LogStartedToAcceptP2PConnection();
 
-            while (!cts.Token.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
+            while (!ct.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
             {
                 Socket conSocket;
 
@@ -85,17 +94,43 @@ public class ZtTcpSinglePortLinkMaker(
             }
         }, CancellationToken.None);
 
-        var connectTask = Task.Run(async () =>
+        await cts.CancelAsync();
+
+        if (acceptedLink == null)
         {
-            var tryTime = defaultTryTime;
+            InvokeOnFailed();
+            return null;
+        }
+
+        Logger.LogConnectionEstablished();
+        Logger.LogEstablishSessionInfo("Accepted", acceptedLink.LocalEndPoint, acceptedLink.RemoteEndPoint);
+
+        InvokeOnConnected(acceptedLink);
+
+        return acceptedLink;
+    }
+
+    private async Task<ISession?> ConnectToRemoteAsync()
+    {
+        ZtTcpSession? connectLink = null;
+
+        var tryTime = DefaultTryTime;
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        var ct = cts.Token;
+
+        Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
+
+        await Task.Run(async () =>
+        {
             var receiveSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             Logger.LogStartedToTryTcpConnectionWithRemoteIpe(LocalPort, RemoteIpe);
 
             await TaskHelper.WaitUtil(() => !Token.IsCancellationRequested &&
                                             DateTime.UtcNow.Ticks < StartTimeTick, Token);
-            
-            while (!cts.Token.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
+
+            while (!ct.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
             {
                 try
                 {
@@ -107,7 +142,7 @@ public class ZtTcpSinglePortLinkMaker(
 
                     ArgumentNullException.ThrowIfNull(connectLink);
                 }
-                catch (ArgumentNullException){ continue; }
+                catch (ArgumentNullException) { continue; }
                 catch (SocketException e)
                 {
                     Logger.LogFailedToConnectToRemoteIpe(e, LocalPort, RemoteIpe, tryTime);
@@ -130,34 +165,30 @@ public class ZtTcpSinglePortLinkMaker(
             }
         }, CancellationToken.None);
 
-        await Task.WhenAny(acceptTask, connectTask);
         await cts.CancelAsync();
 
-        Logger.LogConnectionEstablished();
-        Logger.LogEstablishSessionInfo("Accepted", acceptedLink?.LocalEndPoint, acceptedLink?.RemoteEndPoint);
-        Logger.LogEstablishSessionInfo("Connect", connectLink?.LocalEndPoint, connectLink?.RemoteEndPoint);
-
-        if (connectLink == null || acceptedLink == null)
+        if (connectLink == null)
         {
-            var result = connectLink ?? acceptedLink;
-
-            InvokeOnConnected(result!);
-
-            return result;
+            InvokeOnFailed();
+            return null;
         }
 
-        var (linkToDispose, linkToKeep) = Random.Shared.Next(2) switch
+        Logger.LogConnectionEstablished();
+        Logger.LogEstablishSessionInfo("Connected", connectLink.LocalEndPoint, connectLink.RemoteEndPoint);
+
+        InvokeOnConnected(connectLink);
+
+        return connectLink;
+    }
+
+    public override async Task<ISession?> BuildLinkAsync()
+    {
+        if (isInitiator)
         {
-            0 => (connectLink, acceptedLink),
-            _ => (acceptedLink, connectLink)
-        };
+            return await AcceptConnAsync();
+        }
 
-        linkToDispose.Close();
-        linkToDispose.Dispose();
-
-        InvokeOnConnected(linkToKeep);
-
-        return linkToKeep;
+        return await ConnectToRemoteAsync();
     }
 }
 

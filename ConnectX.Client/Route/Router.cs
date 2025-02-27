@@ -258,7 +258,9 @@ public class Router : BackgroundService
         {
             foreach (var (key, peer) in _peerManager)
             {
-                var ping = _pingCheckers[peer.Id];
+                if (!_pingCheckers.TryGetValue(peer.Id, out var ping))
+                    continue;
+
                 pingTasks.Add((key, ping.CheckPingAsync()));
                 ipMappings.Add(key, peer.RemoteIpe);
 

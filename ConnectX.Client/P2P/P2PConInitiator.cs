@@ -8,6 +8,7 @@ using Hive.Common.Shared.Helpers;
 using Hive.Network.Abstractions.Session;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using ZeroTier.Sockets;
 
 namespace ConnectX.Client.P2P;
 
@@ -47,6 +48,7 @@ public class P2PConInitiator : IDisposable
 
     public bool IsSucceeded { get; private set; }
     public bool IsConnecting { get; private set; } = true;
+    public Socket? ZtServerSocket { get; private set; }
     public ISession? EstablishedConnection { get; private set; }
     public IPEndPoint? RemoteEndPoint { get; private set; }
 
@@ -160,6 +162,8 @@ public class P2PConInitiator : IDisposable
                 IsSucceeded = EstablishedConnection != null;
                 IsConnecting = false;
 
+                ZtServerSocket = connectionMaker.ZtServerSocket;
+
                 _logger.LogP2PConnInfo(RemoteEndPoint!);
 
                 _completionSource!.TrySetResult(EstablishedConnection);
@@ -171,7 +175,7 @@ public class P2PConInitiator : IDisposable
         }, _cancellationTokenSource.Token).CatchException();
     }
 
-    private P2PLinkMaker CreateLinkMaker(
+    private ZtTcpSinglePortLinkMaker CreateLinkMaker(
         Guid partnerId,
         long time,
         P2PConContext targetContext,
@@ -185,6 +189,7 @@ public class P2PConInitiator : IDisposable
 
         var linkMaker = ActivatorUtilities.CreateInstance<ZtTcpSinglePortLinkMaker>(
             _serviceProvider,
+            selfContext is P2PConRequest,
             time,
             partnerId,
             selfContext.PublicAddress,

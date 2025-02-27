@@ -23,6 +23,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 {
     private readonly ConcurrentDictionary<Guid, bool> _allPeers = new();
     private readonly ConcurrentDictionary<Guid, int> _bargainsDic = [];
+    private readonly ConcurrentDictionary<Guid, ZeroTier.Sockets.Socket> _ztServerSockets = [];
     private readonly IClientSettingProvider _clientSettingProvider;
     private readonly ConcurrentDictionary<Guid, Peer> _connectedPeers = [];
     private readonly IRoomInfoManager _roomInfoManager;
@@ -89,27 +90,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
             if (userId == _serverLinkHolder.UserId)
                 continue;
-            if (_connectedPeers.ContainsKey(userId))
-                continue;
 
-            Task.Run(async () =>
-            {
-                _logger.LogTryingToEstablishP2PConnectionWithUser(userId);
-
-                try
-                {
-                    var conResult = await RequestConnectPartnerAsync(userId, CancellationToken.None);
-
-                    if (conResult)
-                        _logger.LogSuccessfullyEstablishedP2PConnectionWithUser(userId);
-                    else
-                        _logger.LogFailedToEstablishP2PConnectionWithUser(userId);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogFailedToEstablishP2PConnectionWithUser(e, userId);
-                }
-            });
+            AddLink(userId);
         }
     }
 
@@ -423,14 +405,30 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             endPoint,
             conRequest);
 
-        return await DoP2PConProcessorAsync(partnerId, conProcessor, cancellationToken);
+        var result = await DoP2PConProcessorAsync(partnerId, conProcessor, cancellationToken);
+
+        if (result && conProcessor.ZtServerSocket != null)
+        {
+            _ztServerSockets.AddOrUpdate(partnerId, _ => conProcessor.ZtServerSocket, (_, old) =>
+            {
+                old.Shutdown(SocketShutdown.Both);
+                old.Close();
+
+                return conProcessor.ZtServerSocket;
+            });
+
+            _logger.LogActivelyConnectedToPartner(partnerId);
+        }
+
+        return result;
     }
 
     private void EstablishLink(CancellationToken cancellationToken)
     {
         foreach (var (key, trying) in _allPeers)
         {
-            if (_connectedPeers.ContainsKey(key) || trying) continue;
+            if (trying) continue;
+            if (_connectedPeers.ContainsKey(key)) continue;
 
             _logger.LogTryingToConnectToPartner(key);
 
@@ -442,6 +440,9 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
 internal static partial class PeerManagerLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[Peer] Successfully actively connected to partner [{partnerId}].")]
+    public static partial void LogActivelyConnectedToPartner(this ILogger logger, Guid partnerId);
+
     [LoggerMessage(LogLevel.Information, "[Peer] P2P Conn established, ConInitiator disposed.")]
     public static partial void LogConInitiatorDisposed(this ILogger logger);
 
@@ -456,18 +457,6 @@ internal static partial class PeerManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[Peer] Server didn't return any P2P interconnect info")]
     public static partial void LogServerDidNotReturnAnyP2PInterconnectInfo(this ILogger logger);
-
-    [LoggerMessage(LogLevel.Information, "[Peer] Trying to establish P2P connection with user {User}")]
-    public static partial void LogTryingToEstablishP2PConnectionWithUser(this ILogger logger, Guid user);
-
-    [LoggerMessage(LogLevel.Information, "[Peer] Successfully established P2P connection with user {User}")]
-    public static partial void LogSuccessfullyEstablishedP2PConnectionWithUser(this ILogger logger, Guid user);
-
-    [LoggerMessage(LogLevel.Warning, "[Peer] Failed to establish P2P connection with user {User}")]
-    public static partial void LogFailedToEstablishP2PConnectionWithUser(this ILogger logger, Guid user);
-
-    [LoggerMessage(LogLevel.Error, "[Peer] Failed to establish P2P connection with user {User}")]
-    public static partial void LogFailedToEstablishP2PConnectionWithUser(this ILogger logger, Exception ex, Guid user);
 
     [LoggerMessage(LogLevel.Warning,
         "[Peer] Received P2PConNotification with bargain {Bargain} from {PartnerId}, but this machine has sent a P2PConRequest with bigger bargain {Bigger}, ignore this request")]

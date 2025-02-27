@@ -16,6 +16,7 @@ public sealed class ZtTcpSession : AbstractSession
         : base(sessionId, logger)
     {
         Socket = socket;
+        socket.SendBufferSize = NetworkSettings.DefaultSocketBufferSize;
         socket.ReceiveBufferSize = NetworkSettings.DefaultSocketBufferSize;
     }
 

@@ -18,8 +18,8 @@ public class DispatchableSession : IDisposable
         Session.StartAsync(cancellationToken).Forget();
     }
 
-    public ISession Session { get; init; }
-    public IDispatcher Dispatcher { get; init; }
+    public ISession Session { get; }
+    public IDispatcher Dispatcher { get; }
 
     public void Dispose()
     {
