@@ -82,13 +82,7 @@ public class RouterPacketDispatcher
 
     private void OnReceiveTransDatagram(P2PPacket packet)
     {
-        void InvokeCallback(MethodBase? actMethod, object receiver, object message1)
-        {
-            actMethod?.Invoke(receiver, [message1, new PacketContext(packet.From, this)]);
-        }
-
-        using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream(packet.Payload.Span);
-        var message = _codec.Decode(stream);
+        var message = _codec.Decode(packet.Payload);
         var messageType = message!.GetType();
 
         _logger.LogReceived(messageType.Name, packet.From);
@@ -111,6 +105,12 @@ public class RouterPacketDispatcher
             InvokeCallback(actMethod, cbValue, message);
 
         foreach (var callback in callbackWarp.UniformCallback) InvokeCallback(actMethod, callback, message);
+        return;
+
+        void InvokeCallback(MethodBase? actMethod, object receiver, object message1)
+        {
+            actMethod?.Invoke(receiver, [message1, new PacketContext(packet.From, this)]);
+        }
     }
 
     private readonly struct CallbackWarp()

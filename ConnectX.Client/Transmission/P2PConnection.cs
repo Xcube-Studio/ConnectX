@@ -87,12 +87,11 @@ public class P2PConnection : ISender
         {
             if (datagram.Payload != null)
             {
-                using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream(datagram.Payload.Value.Span);
-                var message = _codec.Decode(stream);
+                var message = _codec.Decode(datagram.Payload.Value);
 
                 if (message == null)
                 {
-                    _logger.LogDecodeMessageFailed(stream.Length, _targetId);
+                    _logger.LogDecodeMessageFailed(datagram.Payload.Value.Length, _targetId);
 
                     return;
                 }
