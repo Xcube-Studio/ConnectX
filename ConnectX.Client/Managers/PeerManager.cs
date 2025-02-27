@@ -2,7 +2,6 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.P2P;
 using ConnectX.Shared.Helpers;
