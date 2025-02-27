@@ -2,16 +2,15 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.P2P;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
-using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
-using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -33,7 +32,6 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IZeroTierNodeLinkHolder _zeroTierNodeLinkHolder;
     private readonly IServiceProvider _serviceProvider;
-    private readonly ConcurrentDictionary<Guid, (DispatchableSession, CancellationToken)> _tmpLinkMakerDic = new();
 
     public PeerManager(
         IRoomInfoManager roomInfoManager,
@@ -97,6 +95,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
     private void OnReceivedP2PConNotification(MessageContext<P2PConNotification> ctx)
     {
+        ArgumentNullException.ThrowIfNull(_serverLinkHolder.ServerSession);
+
         var message = ctx.Message;
 
         if (_bargainsDic.TryGetValue(message.PartnerIds, out var value))
@@ -124,14 +124,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
         Task.Run(async () =>
         {
-            var tmpLink = await CreateTempServerLinkAsync(partnerId, cts.Token);
-
-            if (tmpLink == null)
-            {
-                _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(partnerId);
-
-                return;
-            }
+            var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
+            var dispatchSession = new InitializedDispatchableSession(_serverLinkHolder.ServerSession, dispatcher);
 
             var conContext = await GetSelfConContextAsync(cts.Token);
             var conAccept = new P2PConAccept(message.Bargain, _serverLinkHolder.UserId, conContext);
@@ -140,7 +134,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
                 ActivatorUtilities.CreateInstance<P2PConInitiator>(
                     _serviceProvider,
                     partnerId,
-                    tmpLink,
+                    dispatchSession,
                     endPoint,
                     conAccept);
 
@@ -173,73 +167,6 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             if (_connectedPeers.TryRemove(guid, out var peer))
                 peer.StopHeartBeat();
         }
-    }
-
-    private async Task<DispatchableSession?> CreateTempServerLinkAsync(
-        Guid partnerId,
-        CancellationToken cancellationToken)
-    {
-        if (_tmpLinkMakerDic.TryRemove(partnerId, out var old))
-        {
-            _logger.LogCancelingOldTempLinkMakerForPartner(partnerId);
-
-            var (oldSession, _) = old;
-
-            oldSession.Dispose();
-            oldSession.Session.Close();
-        }
-
-        var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
-        var tmpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        tmpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-
-        try
-        {
-            _logger.LogCreatingATempLinkWithServerToConnectWithPartner(partnerId);
-
-            await tmpSocket.ConnectAsync(endPoint, cancellationToken);
-            await Task.Delay(150, cancellationToken);
-        }
-        catch (SocketException e)
-        {
-            _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(e, partnerId);
-
-            return null;
-        }
-
-        _logger.LogSuccessfullyConnectedToServerToCreateATempLinkWithPartner(partnerId);
-
-        var tmpLink = ActivatorUtilities.CreateInstance<TcpSession>(
-            _serviceProvider,
-            0, tmpSocket);
-        var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
-        var dispatchSession = new DispatchableSession(tmpLink, dispatcher, cancellationToken);
-        var signin = new SigninMessage
-        {
-            Id = _serverLinkHolder.UserId,
-            JoinP2PNetwork = false,
-            DisplayName = _serverLinkHolder.UserId.ToString("N")
-        };
-
-        _logger.LogSendingASigninMessageToServerToCreateATempLinkWithPartner(partnerId);
-
-        var signinSucceeded = await dispatchSession.Dispatcher.SendAndListenOnce<SigninMessage, SigninSucceeded>(
-            dispatchSession.Session,
-            signin,
-            cancellationToken);
-
-        if (signinSucceeded == null)
-        {
-            _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(partnerId);
-            return null;
-        }
-
-        _tmpLinkMakerDic.TryAdd(partnerId, (dispatchSession, cancellationToken));
-
-        _logger.LogSuccessfullyCreatedATempLinkWithServerToConnectWithPartner(
-            partnerId, dispatchSession.Session.LocalEndPoint!, dispatchSession.Session.RemoteEndPoint!);
-
-        return dispatchSession;
     }
 
     private async Task<P2PConContextInit> GetSelfConContextAsync(
@@ -370,6 +297,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         Guid partnerId,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(_serverLinkHolder.ServerSession);
+
         if (_bargainsDic.ContainsKey(partnerId))
         {
             _logger.LogAlreadyTryingToConnectToPartner(partnerId);
@@ -378,19 +307,12 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
         _logger.LogTryingToConnectToPartner(partnerId);
 
-        var tmpLink = await CreateTempServerLinkAsync(partnerId, cancellationToken);
-
-        if (tmpLink == null)
-        {
-            _logger.LogFailedToCreateATempLinkWithServerToConnectWithPartner(partnerId);
-
-            return false;
-        }
-
         var bargain = Random.Shared.Next();
 
         _bargainsDic.AddOrUpdate(partnerId, bargain, (_, _) => bargain);
 
+        var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
+        var dispatchSession = new InitializedDispatchableSession(_serverLinkHolder.ServerSession, dispatcher);
         var endPoint = new IPEndPoint(_clientSettingProvider.ServerAddress, _clientSettingProvider.ServerPort);
         var conContext = await GetSelfConContextAsync(cancellationToken);
         var conRequest = new P2PConRequest(
@@ -401,7 +323,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
         var conProcessor = ActivatorUtilities.CreateInstance<P2PConInitiator>(
             _serviceProvider,
             partnerId,
-            tmpLink,
+            dispatchSession,
             endPoint,
             conRequest);
 

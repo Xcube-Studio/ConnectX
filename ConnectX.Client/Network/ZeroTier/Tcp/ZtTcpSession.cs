@@ -16,7 +16,6 @@ public sealed class ZtTcpSession : AbstractSession
         : base(sessionId, logger)
     {
         Socket = socket;
-        socket.SendBufferSize = NetworkSettings.DefaultSocketBufferSize;
         socket.ReceiveBufferSize = NetworkSettings.DefaultSocketBufferSize;
     }
 
@@ -38,8 +37,6 @@ public sealed class ZtTcpSession : AbstractSession
     {
         ArgumentNullException.ThrowIfNull(Socket);
 
-        Logger.LogInformation("Send Once! {length}", data.Count);
-
         var len = Socket.Send(data.ToArray());
 
         if (len == 0)
@@ -53,8 +50,6 @@ public sealed class ZtTcpSession : AbstractSession
         ArgumentNullException.ThrowIfNull(Socket);
 
         var len = Socket.Receive(buffer.Array);
-
-        Logger.LogInformation("Receive Once! {length}", len);
 
         return ValueTask.FromResult(len);
     }

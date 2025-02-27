@@ -48,18 +48,15 @@ public class ZtTcpSinglePortLinkMaker(
         receiveSocket.Bind(new IPEndPoint(IPAddress.Any, LocalPort));
         receiveSocket.Listen(DefaultTryTime);
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-        var ct = cts.Token;
+        ZtServerSocket = receiveSocket;
 
         Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
 
         await Task.Run(async () =>
         {
-            ZtServerSocket = receiveSocket;
-
             logger.LogStartedToAcceptP2PConnection();
 
-            while (!ct.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
+            while (!Token.IsCancellationRequested && tryTime > 0)
             {
                 Socket conSocket;
 
@@ -94,8 +91,6 @@ public class ZtTcpSinglePortLinkMaker(
             }
         }, CancellationToken.None);
 
-        await cts.CancelAsync();
-
         if (acceptedLink == null)
         {
             InvokeOnFailed();
@@ -116,9 +111,6 @@ public class ZtTcpSinglePortLinkMaker(
 
         var tryTime = DefaultTryTime;
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-        var ct = cts.Token;
-
         Logger.LogStartTime(new DateTime(StartTimeTick).ToLongTimeString());
 
         await Task.Run(async () =>
@@ -130,7 +122,7 @@ public class ZtTcpSinglePortLinkMaker(
             await TaskHelper.WaitUtil(() => !Token.IsCancellationRequested &&
                                             DateTime.UtcNow.Ticks < StartTimeTick, Token);
 
-            while (!ct.IsCancellationRequested && !Token.IsCancellationRequested && tryTime > 0)
+            while (!Token.IsCancellationRequested && tryTime > 0)
             {
                 try
                 {
@@ -164,8 +156,6 @@ public class ZtTcpSinglePortLinkMaker(
                 break;
             }
         }, CancellationToken.None);
-
-        await cts.CancelAsync();
 
         if (connectLink == null)
         {

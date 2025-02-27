@@ -52,7 +52,6 @@ public class Server : BackgroundService
         _logger = logger;
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
-        _p2pManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
         _acceptor.BindTo(_dispatcher);
         _dispatcher.AddHandler<SigninMessage>(OnSigninMessageReceived);
@@ -129,21 +128,11 @@ public class Server : BackgroundService
 
         _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
 
-        if (ctx.Message.Id != Guid.Empty)
-        {
-            _logger.LogUserCreatedTempLink(ctx.Message.Id);
+        _clientManager.AttachSession(session.Id, session);
+        var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
 
-            _p2pManager.AttachTempSession(session, ctx.Message);
-            _dispatcher.SendAsync(session, new SigninSucceeded(ctx.Message.Id)).Forget();
-        }
-        else
-        {
-            _clientManager.AttachSession(session.Id, session);
-            var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
-
-            _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
-            _p2pManager.AttachSession(session, userId, ctx.Message);
-        }
+        _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
+        _p2pManager.AttachSession(session, userId, ctx.Message);
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
@@ -176,10 +165,6 @@ internal static partial class ServerLoggers
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] SigninMessage received from [{endPoint}] ID [{id}]")]
     public static partial void LogSigninMessageReceived(this ILogger logger, IPEndPoint endPoint, SessionId id);
-
-    [LoggerMessage(LogLevel.Information,
-        "[CLIENT] User [{userId}] created a temp link for P2P connection. Attach session to P2PManager.")]
-    public static partial void LogUserCreatedTempLink(this ILogger logger, Guid userId);
 
     [LoggerMessage(LogLevel.Information, "Server stopped.")]
     public static partial void LogServerStopped(this ILogger logger);

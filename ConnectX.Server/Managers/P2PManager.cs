@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Messages.P2P;
 using Hive.Both.General.Dispatchers;
@@ -19,7 +18,6 @@ public class P2PManager
     private readonly ILogger _logger;
 
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionIdMapping = new();
-    private readonly ConcurrentDictionary<Guid, List<ISession>> _tempLinkMappings = new();
     private readonly ConcurrentDictionary<Guid, ISession> _userSessionMappings = new();
 
     public P2PManager(
@@ -35,12 +33,9 @@ public class P2PManager
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
-        _dispatcher.AddHandler<ShutdownMessage>(OnReceivedShutdownMessage);
         _dispatcher.AddHandler<P2PConRequest>(OnReceivedP2PConRequest);
         _dispatcher.AddHandler<P2PConAccept>(OnReceivedP2PConAccept);
     }
-
-    public event SessionDisconnectedHandler? OnSessionDisconnected;
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
@@ -49,44 +44,6 @@ public class P2PManager
         if (_sessionIdMapping.TryRemove(sessionId, out var userId) &&
             _userSessionMappings.TryRemove(userId, out var attachedSession))
             attachedSession.Close();
-
-        if (!_tempLinkMappings.TryRemove(userId, out var tempSessions)) return;
-
-        foreach (var session in tempSessions)
-        {
-            session.Close();
-            OnSessionDisconnected?.Invoke(session.Id);
-        }
-    }
-
-    private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
-    {
-        var key = Guid.Empty;
-        ISession? sessionToRemove = null;
-
-        foreach (var (id, list) in _tempLinkMappings)
-        {
-            if (sessionToRemove != null) break;
-
-            foreach (var session in list)
-            {
-                if (session.Id != ctx.FromSession.Id) continue;
-
-                key = id;
-                sessionToRemove = session;
-
-                break;
-            }
-        }
-
-        if (sessionToRemove == null) return;
-        if (_tempLinkMappings.TryGetValue(key, out var group) &&
-            group.Remove(sessionToRemove))
-        {
-            _logger.LogTempLinkDisconnected(ctx.FromSession.Id);
-
-            OnSessionDisconnected?.Invoke(sessionToRemove.Id);
-        }
     }
 
     private void OnReceivedP2PConRequest(MessageContext<P2PConRequest> ctx)
@@ -166,26 +123,6 @@ public class P2PManager
         _logger.LogUserAcceptedP2PConn(message.SelfId, ctx.FromSession.Id);
     }
 
-    public void AttachTempSession(
-        ISession session,
-        SigninMessage signinMessage)
-    {
-        _tempLinkMappings.AddOrUpdate(signinMessage.Id, [session], (_, list) =>
-        {
-            var old = list.FirstOrDefault(s => s.Id == session.Id);
-            if (old != null)
-            {
-                list.Remove(old);
-                old.Close();
-            }
-
-            list.Add(session);
-            return list;
-        });
-
-        _logger.LogUserRequestedToJoinTheP2PNetwork(signinMessage.Id, session.Id);
-    }
-
     public void AttachSession(
         ISession session,
         Guid userId,
@@ -239,11 +176,6 @@ internal static partial class P2PManagerLoggers
     [LoggerMessage(LogLevel.Warning,
         "[P2P_MANAGER] User {userId} trying to accept P2P conn, but the request does not exist, session id: {sessionId}")]
     public static partial void LogUserTryingToAcceptP2PConnButTheRequestDoesNotExist(this ILogger logger, Guid userId,
-        SessionId sessionId);
-
-    [LoggerMessage(LogLevel.Information,
-        "[P2P_MANAGER] User requested to join the P2P network, user id: {userId}, session id: {SessionId}")]
-    public static partial void LogUserRequestedToJoinTheP2PNetwork(this ILogger logger, Guid userId,
         SessionId sessionId);
 
     [LoggerMessage(LogLevel.Error,

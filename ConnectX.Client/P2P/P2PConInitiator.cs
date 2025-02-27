@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using ConnectX.Client.P2P.LinkMaker;
-using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.P2P;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
@@ -23,27 +22,31 @@ public class P2PConInitiator : IDisposable
     private readonly Guid _partnerId;
     private readonly P2PConContext _selfContext;
     private readonly IServiceProvider _serviceProvider;
-    private readonly DispatchableSession _tmpLinkToServer;
+    private readonly InitializedDispatchableSession _serverLink;
+
+    private readonly HandlerId _p2pOpResultHandler;
+    private readonly HandlerId _p2pConReadyHandler;
+
     private TaskCompletionSource<ISession?>? _completionSource;
 
     public P2PConInitiator(
         IServiceProvider serviceProvider,
         Guid partnerId,
-        DispatchableSession tmpLinkToServer,
+        InitializedDispatchableSession serverLink,
         IPEndPoint localEndPoint,
         P2PConContext selfContext,
         ILogger<P2PConInitiator> logger)
     {
         _serviceProvider = serviceProvider;
         _partnerId = partnerId;
-        _tmpLinkToServer = tmpLinkToServer;
+        _serverLink = serverLink;
         _localEndPoint = localEndPoint;
         _selfContext = selfContext;
         _logger = logger;
         _cancellationTokenSource = new CancellationTokenSource();
 
-        tmpLinkToServer.Dispatcher.AddHandler<P2POpResult>(OnP2POpResultReceived);
-        tmpLinkToServer.Dispatcher.AddHandler<P2PConReady>(OnP2PConReadyReceived);
+        _p2pOpResultHandler = serverLink.Dispatcher.AddHandler<P2POpResult>(OnP2POpResultReceived);
+        _p2pConReadyHandler = serverLink.Dispatcher.AddHandler<P2PConReady>(OnP2PConReadyReceived);
     }
 
     public bool IsSucceeded { get; private set; }
@@ -54,8 +57,8 @@ public class P2PConInitiator : IDisposable
 
     public void Dispose()
     {
-        _tmpLinkToServer.Session.Close();
-        _tmpLinkToServer?.Dispose();
+        _serverLink.Dispatcher.RemoveHandler(_p2pOpResultHandler);
+        _serverLink.Dispatcher.RemoveHandler(_p2pConReadyHandler);
         _cancellationTokenSource?.Dispose();
     }
 
@@ -67,11 +70,11 @@ public class P2PConInitiator : IDisposable
         {
             case P2PConRequest req:
                 _logger.LogSendingP2PConRequest(_partnerId);
-                await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, req);
+                await _serverLink.Dispatcher.SendAsync(_serverLink.Session, req);
                 break;
             case P2PConAccept accept:
                 _logger.LogSendingP2PConAccept(_partnerId);
-                await _tmpLinkToServer.Dispatcher.SendAsync(_tmpLinkToServer.Session, accept);
+                await _serverLink.Dispatcher.SendAsync(_serverLink.Session, accept);
                 break;
             default:
                 throw new InvalidOperationException("Invalid P2PConContext type");
@@ -82,24 +85,9 @@ public class P2PConInitiator : IDisposable
         return await _completionSource.Task;
     }
 
-    private async Task<ISession?> CreateDirectLinkToPartnerAsync(
-        P2PLinkMaker linkMaker,
-        DispatchableSession? serverTmpSocket = null)
+    private static async Task<ISession?> CreateDirectLinkToPartnerAsync(P2PLinkMaker linkMaker)
     {
-        var directLink = await linkMaker.BuildLinkAsync();
-
-        if (serverTmpSocket != null)
-        {
-            _logger.LogClosedTempConnectionWithServer();
-
-            await serverTmpSocket.Dispatcher.SendAsync(serverTmpSocket.Session, new ShutdownMessage());
-            await Task.Delay(500);
-
-            serverTmpSocket.Session.Close();
-            serverTmpSocket.Dispose();
-        }
-
-        return directLink;
+        return await linkMaker.BuildLinkAsync();
     }
 
     private void OnP2POpResultReceived(MessageContext<P2POpResult> ctx)
@@ -153,10 +141,10 @@ public class P2PConInitiator : IDisposable
         {
             try
             {
-                _logger.LogTryingToMakeConnection(_partnerId, _tmpLinkToServer.Session.LocalEndPoint,
+                _logger.LogTryingToMakeConnection(_partnerId, _serverLink.Session.LocalEndPoint,
                     message.PublicAddress, message.PublicPort);
 
-                EstablishedConnection = await CreateDirectLinkToPartnerAsync(connectionMaker, _tmpLinkToServer);
+                EstablishedConnection = await CreateDirectLinkToPartnerAsync(connectionMaker);
                 RemoteEndPoint = EstablishedConnection?.RemoteEndPoint;
 
                 IsSucceeded = EstablishedConnection != null;
@@ -214,9 +202,6 @@ internal static partial class P2PConInitiatorLoggers
 
     [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Started to establish P2P connection with {PartnerId}")]
     public static partial void LogStartedToEstablishP2PConnectionWithPartnerId(this ILogger logger, Guid partnerId);
-
-    [LoggerMessage(LogLevel.Information, "[P2P_CONN_INIT] Closed the temp connection with server")]
-    public static partial void LogClosedTempConnectionWithServer(this ILogger logger);
 
     [LoggerMessage(LogLevel.Error,
         "[P2P_CONN_INIT] Failed to establish P2P connection with {PartnerId}, reason: {Reason}")]
