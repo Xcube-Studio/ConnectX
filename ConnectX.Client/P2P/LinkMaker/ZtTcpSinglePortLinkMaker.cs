@@ -65,7 +65,6 @@ public class ZtTcpSinglePortLinkMaker(
                     tryTime--;
 
                     conSocket = receiveSocket.Accept();
-                    conSocket.Blocking = false;
                     acceptedLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(
                         ServiceProvider,
                         0,
@@ -133,7 +132,6 @@ public class ZtTcpSinglePortLinkMaker(
                     tryTime--;
 
                     receiveSocket.Connect(RemoteIpe);
-                    receiveSocket.Blocking = false;
                     connectLink = ActivatorUtilities.CreateInstance<ZtTcpSession>(
                         ServiceProvider,
                         0,
