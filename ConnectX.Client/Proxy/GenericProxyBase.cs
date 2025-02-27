@@ -113,7 +113,7 @@ public abstract class GenericProxyBase : IDisposable
     /// <param name="message"></param>
     public void OnReceiveMcPacketCarrier(ForwardPacketCarrier message)
     {
-        Logger.LogReceivedPacket(GetProxyInfoForLog(), message.Data.Length, RemoteClientPort);
+        Logger.LogReceivedPacket(GetProxyInfoForLog(), message.Payload.Length, RemoteClientPort);
 
         InwardBuffersQueue.Enqueue(message);
     }
@@ -144,13 +144,15 @@ public abstract class GenericProxyBase : IDisposable
                     {
                         Logger.LogCurrentlyRemainPacket(GetProxyInfoForLog(), InwardBuffersQueue.Count);
 
-                        var totalLen = packet.Data.Length;
+                        var totalLen = packet.Payload.Length;
                         var sentLen = 0;
-                        var buffer = packet.Data;
+                        var buffer = packet.Payload;
 
                         while (sentLen < totalLen)
-                            sentLen += await _innerSocket.SendAsync(buffer[sentLen..totalLen],
-                                SocketFlags.None, CancellationToken);
+                            sentLen += await _innerSocket.SendAsync(
+                                buffer.AsMemory()[sentLen..totalLen],
+                                SocketFlags.None,
+                                CancellationToken);
 
                         Logger.LogSentPacket(GetProxyInfoForLog(), totalLen, LocalServerPort);
                     }
@@ -210,8 +212,8 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerReceiveLoopAsync(CancellationToken cancellationToken)
     {
-        var bufferOwner = MemoryPool<byte>.Shared.Rent(1024);
-        var buffer = bufferOwner.Memory;
+        var bufferArray = ArrayPool<byte>.Shared.Rent(1024);
+        var buffer = new ArraySegment<byte>(bufferArray);
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -239,7 +241,7 @@ public abstract class GenericProxyBase : IDisposable
 
             var carrier = new ForwardPacketCarrier
             {
-                Data = buffer[..len],
+                Payload = buffer[..len].ToArray(),
                 LastTryTime = 0,
                 TryCount = 0,
                 SelfRealPort = LocalServerPort,
@@ -249,7 +251,7 @@ public abstract class GenericProxyBase : IDisposable
             OutwardBuffersQueue.Enqueue(carrier);
         }
 
-        bufferOwner.Dispose();
+        ArrayPool<byte>.Shared.Return(bufferArray);
     }
 
     protected void InvokeRealServerDisconnected()

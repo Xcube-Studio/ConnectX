@@ -77,7 +77,7 @@ public sealed class ZtTcpSession : AbstractSession
             if (receiveLen == 0) break;
             if (receiveLen == -1)
             {
-                // Data is not ready yet, wait for a while and try again
+                // Payload is not ready yet, wait for a while and try again
                 await Task.Delay(10, token);
                 continue;
             }
@@ -112,6 +112,6 @@ public sealed class ZtTcpSession : AbstractSession
 
 internal static partial class ZtTcpSessionLoggers
 {
-    [LoggerMessage(LogLevel.Trace, "Data received from [{endPoint}] with length [{length}]")]
+    [LoggerMessage(LogLevel.Trace, "Payload received from [{endPoint}] with length [{length}]")]
     public static partial void LogDataReceived(this ILogger logger, IPEndPoint endPoint, int length);
 }

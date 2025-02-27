@@ -9,7 +9,8 @@ public partial class ForwardPacketCarrier
 {
     public ushort TargetRealPort { get; set; }
     public ushort SelfRealPort { get; set; }
-    public ReadOnlyMemory<byte> Data { get; set; }
+
+    [BrotliFormatter] public byte[] Payload { get; set; } = null!;
 
     [MemoryPackIgnore] public int TryCount { get; set; } = 0;
     [MemoryPackIgnore] public int LastTryTime { get; set; } = 0;
