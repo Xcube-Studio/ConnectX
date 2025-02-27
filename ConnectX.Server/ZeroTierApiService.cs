@@ -7,10 +7,8 @@ namespace ConnectX.Server;
 
 public class ZeroTierApiService(
     HttpClient httpClient,
-    ILogger<ZeroTierApiService> logger) : IZeroTierApiService, IDisposable
+    ILogger<ZeroTierApiService> logger) : IZeroTierApiService
 {
-    public void Dispose() => httpClient?.Dispose();
-
     public async Task<NodeStatusModel?> GetNodeStatusAsync(CancellationToken cancellationToken)
     {
         using var req = new HttpRequestMessage(HttpMethod.Get, "/status");
