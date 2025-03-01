@@ -48,7 +48,7 @@ public class ConsoleService(
     ILogger<ConsoleService> logger)
     : BackgroundService
 {
-    static string[] ParseArguments(string commandLine)
+    private static string[] ParseArguments(string commandLine)
     {
         var paraChars = commandLine.ToCharArray();
         var inQuote = false;
