@@ -94,7 +94,7 @@ public class PartnerManager
         if (!Partners.TryRemove(partnerId, out var partner)) return false;
 
         partner.Disconnect();
-        // _peerManager.RemoveLink(partnerId);
+        _logger.LogDisconnectedWithPartnerId(partnerId);
 
         return true;
     }
@@ -110,9 +110,12 @@ public class PartnerManager
 
 internal static partial class PartnerManagerLoggers
 {
-    [LoggerMessage(LogLevel.Information, "Room state changed for user [{userId}] with state [{groupState:G}]")]
+    [LoggerMessage(LogLevel.Warning, "[PARTNER_MANAGER] Partner connected with user ID [{partnerId}]")]
+    public static partial void LogDisconnectedWithPartnerId(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Room state changed for user [{userId}] with state [{groupState:G}]")]
     public static partial void LogRoomStateChanged(this ILogger logger, GroupUserStates groupState, Guid userId);
 
-    [LoggerMessage(LogLevel.Information, "Partner added with user ID [{userId}]")]
+    [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Partner added with user ID [{userId}]")]
     public static partial void LogPartnerAdded(this ILogger logger, Guid userId);
 }

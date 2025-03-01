@@ -77,7 +77,7 @@ public class Server : BackgroundService
                 _logger.LogSessionLoginTimeout(session.Id);
                 _logger.LogCurrentOnline(Interlocked.Read(ref _currentSessionCount));
 
-                await _dispatcher.SendAsync(session, new ShutdownMessage());
+                await _dispatcher.SendAsync(session, new ShutdownMessage(), stoppingToken);
                 _tempSessionMapping.TryRemove(id, out _);
             }
 

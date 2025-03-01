@@ -217,6 +217,7 @@ public class Router : BackgroundService
     public void Send(RouteLayerPacket packet)
     {
         var interfaceId = RouteTable.GetForwardInterface(packet.To);
+
         if (_peerManager.HasLink(interfaceId))
         {
             var peer = _peerManager[interfaceId];
