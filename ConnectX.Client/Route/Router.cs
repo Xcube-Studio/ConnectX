@@ -136,35 +136,39 @@ public class Router : BackgroundService
 
     private void OnP2PPacketReceived(MessageContext<P2PPacket> ctx)
     {
-        _logger.LogP2PPacketReceived(ctx.FromSession.RemoteEndPoint);
-
         var packet = ctx.Message;
 
         if (packet.To == _serverLinkHolder.UserId)
         {
+            _logger.LogP2PPacketReceived(ctx.FromSession.RemoteEndPoint);
             OnDelivery?.Invoke(packet);
+            return;
         }
-        else
+
+        packet.Ttl--;
+
+        if (packet.Ttl == 0)
         {
-            packet.Ttl--;
-            if (packet.Ttl == 0)
+            _logger.LogP2PPacketDiscarded(ctx.FromSession.RemoteEndPoint, packet.To);
+
+            var error = new P2PTransmitErrorPacket
             {
-                var error = new P2PTransmitErrorPacket
-                {
-                    Error = P2PTransmitError.TransmitExpired,
-                    From = _serverLinkHolder.UserId,
-                    To = packet.From,
-                    OriginalTo = packet.To,
-                    Payload = packet.Payload,
-                    Ttl = 32
-                };
-                Send(error);
+                Error = P2PTransmitError.TransmitExpired,
+                From = _serverLinkHolder.UserId,
+                To = packet.From,
+                OriginalTo = packet.To,
+                Payload = packet.Payload,
+                Ttl = 32
+            };
 
-                return;
-            }
+            Send(error);
 
-            Send(packet);
+            return;
         }
+
+        _logger.LogForwardP2PPacketReceived(ctx.FromSession.RemoteEndPoint, packet.To);
+
+        Send(packet);
     }
 
     private void OnLinkStatePacketReceived(MessageContext<LinkStatePacket> ctx)
@@ -177,6 +181,7 @@ public class Router : BackgroundService
         _logger.LogLinkStateReceived(ctx.FromSession.RemoteEndPoint);
 
         linkState.Ttl--;
+
         if (linkState.Ttl == 0)
         {
             var error = new P2PTransmitErrorPacket
@@ -220,25 +225,29 @@ public class Router : BackgroundService
 
         if (_peerManager.HasLink(interfaceId))
         {
-            var peer = _peerManager[interfaceId];
+            var link = _peerManager[interfaceId];
 
-            if (peer.IsConnected)
-                peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, packet).Forget();
-            else
+            if (!link.IsConnected)
+            {
                 _logger.LogLinkIsNotConnected(interfaceId);
+                return;
+            }
+
+            link.DirectLink.Dispatcher.SendAsync(link.DirectLink.Session, packet).Forget();
+            _logger.LogSendToLink(link.RemoteIpe, packet.To);
+
+            return;
         }
-        else
+
+        if (!_peerManager.HasLink(packet.To))
         {
-            if (_peerManager.HasLink(packet.To))
-            {
-                var peer = _peerManager[packet.To];
-                peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, packet).Forget();
-            }
-            else
-            {
-                _logger.LogLinkIsNotReachable(interfaceId);
-            }
+            _logger.LogLinkIsNotReachable(interfaceId);
+            return;
         }
+
+        var peer = _peerManager[packet.To];
+        peer.DirectLink.Dispatcher.SendAsync(peer.DirectLink.Session, packet).Forget();
+        _logger.LogSendToPeer(peer.RemoteIpe, packet.To);
     }
 
     private async Task CheckLinkStateAsync()
@@ -320,6 +329,12 @@ public class Router : BackgroundService
 
 internal static partial class RouterLoggers
 {
+    [LoggerMessage(LogLevel.Critical, "[ROUTER] Sending packet using direct link to [{RemoteEndPoint}]({To})")]
+    public static partial void LogSendToLink(this ILogger logger, IPEndPoint? remoteEndPoint, Guid to);
+
+    [LoggerMessage(LogLevel.Critical, "[ROUTER] Sending packet using peer mapping to [{RemoteEndPoint}]({To})")]
+    public static partial void LogSendToPeer(this ILogger logger, IPEndPoint? remoteEndPoint, Guid to);
+
     [LoggerMessage(LogLevel.Information, "[ROUTER] Starting router...")]
     public static partial void LogStartingRouter(this ILogger logger);
 
@@ -343,6 +358,12 @@ internal static partial class RouterLoggers
         "[ROUTER] P2P transmit error: {Error}, from {From}, to {To}, original to {OriginalTo}")]
     public static partial void LogP2PTransmitError(this ILogger logger, P2PTransmitError error, Guid from, Guid to,
         Guid originalTo);
+
+    [LoggerMessage(LogLevel.Warning, "[ROUTER] P2P packet received from {RemoteEndPoint} to {To}, but TTL is 0 now, discard this packet.")]
+    public static partial void LogP2PPacketDiscarded(this ILogger logger, IPEndPoint? remoteEndPoint, Guid to);
+
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] P2P packet received from {RemoteEndPoint}, forwarding to {To}")]
+    public static partial void LogForwardP2PPacketReceived(this ILogger logger, IPEndPoint? remoteEndPoint, Guid to);
 
     [LoggerMessage(LogLevel.Trace, "[ROUTER] P2P packet received from {RemoteEndPoint}")]
     public static partial void LogP2PPacketReceived(this ILogger logger, IPEndPoint? remoteEndPoint);
