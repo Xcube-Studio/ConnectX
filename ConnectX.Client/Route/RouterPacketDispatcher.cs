@@ -32,9 +32,9 @@ public class RouterPacketDispatcher
 
     public void Send<T>(Guid target, T data)
     {
-        _logger.LogSend(typeof(T).Name, target);
-
         SendToRouter(target, data);
+
+        _logger.LogSent(typeof(T).Name, target);
     }
 
     private void SendToRouter<T>(Guid targetId, T datagram)
@@ -127,9 +127,9 @@ public class RouterPacketDispatcher
 
 internal static partial class RouterPacketDispatcherLoggers
 {
-    [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] Send {DataType} to {Target}")]
-    public static partial void LogSend(this ILogger logger, string dataType, Guid target);
+    [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] {DataType} sent to {Target}")]
+    public static partial void LogSent(this ILogger logger, string dataType, Guid target);
 
-    [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] Received {DataType} from {From}")]
+    [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] Received P2P datagram {DataType} from {From}")]
     public static partial void LogReceived(this ILogger logger, string dataType, Guid from);
 }
