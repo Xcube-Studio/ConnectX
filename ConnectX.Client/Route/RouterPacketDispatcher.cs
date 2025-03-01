@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Runtime.InteropServices;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route.Packet;
 using ConnectX.Shared.Helpers;
@@ -43,9 +44,10 @@ public class RouterPacketDispatcher
 
         stream.Seek(0, SeekOrigin.Begin);
 
-        var mem = stream.GetMemory();
+        var mem = stream.GetBuffer();
+        var segment = new ArraySegment<byte>(mem, 0, (int)stream.Length);
 
-        _router.Send(targetId, mem[..mem.Length]);
+        _router.Send(targetId, segment);
     }
 
     /// <summary>
