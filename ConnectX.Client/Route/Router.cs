@@ -219,7 +219,7 @@ public class Router : BackgroundService
         _logger.LogP2PPacketSent(_peerManager[id].RemoteIpe);
     }
 
-    public void Send(RouteLayerPacket packet)
+    public void Send<T>(T packet) where T : RouteLayerPacket
     {
         var interfaceId = RouteTable.GetForwardInterface(packet.To);
 
