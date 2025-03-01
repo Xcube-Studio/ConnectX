@@ -70,14 +70,14 @@ public class FakeServerMultiCaster : BackgroundService
 
         foreach (var (id, _) in _partnerManager.Partners)
         {
-            _logger.LogSendLanServerToPartner(serverName, port, id);
-
             // 对每一个用户组播
             _packetDispatcher.Send(id, new McMulticastMessage
             {
                 Port = port,
                 Name = $"[{Prefix}]{serverName}"
             });
+
+            _logger.LogSendLanServerToPartner(serverName, port, id);
         }
     }
 

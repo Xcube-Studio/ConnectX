@@ -74,13 +74,7 @@ public sealed class ZtTcpSession : AbstractSession
 
             var receiveLen = await ReceiveOnce(segment, token);
 
-            if (receiveLen == 0) break;
-            if (receiveLen == -1)
-            {
-                // Payload is not ready yet, wait for a while and try again
-                await Task.Delay(10, token);
-                continue;
-            }
+            if (receiveLen is 0 or -1) break;
 
             Logger.LogDataReceived(RemoteEndPoint!, receiveLen);
 
