@@ -44,7 +44,6 @@ internal static class Commands
 public class ConsoleService(
     Client.Client client,
     IServerLinkHolder serverLinkHolder,
-    IZeroTierNodeLinkHolder zeroTierNodeLinkHolder,
     ILogger<ConsoleService> logger)
     : BackgroundService
 {
