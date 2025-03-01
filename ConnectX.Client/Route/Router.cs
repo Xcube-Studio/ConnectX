@@ -212,7 +212,7 @@ public class Router : BackgroundService
         {
             From = _serverLinkHolder.UserId,
             To = id,
-            Payload = payload,
+            Payload = payload.ToArray(),
             Ttl = 32
         });
 
@@ -329,10 +329,10 @@ public class Router : BackgroundService
 
 internal static partial class RouterLoggers
 {
-    [LoggerMessage(LogLevel.Critical, "[ROUTER] Sending packet using direct link to [{RemoteEndPoint}]({To})")]
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] Sending packet using direct link to [{RemoteEndPoint}]({To})")]
     public static partial void LogSendToLink(this ILogger logger, IPEndPoint? remoteEndPoint, Guid to);
 
-    [LoggerMessage(LogLevel.Critical, "[ROUTER] Sending packet using peer mapping to [{RemoteEndPoint}]({To})")]
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] Sending packet using peer mapping to [{RemoteEndPoint}]({To})")]
     public static partial void LogSendToPeer(this ILogger logger, IPEndPoint? remoteEndPoint, Guid to);
 
     [LoggerMessage(LogLevel.Information, "[ROUTER] Starting router...")]

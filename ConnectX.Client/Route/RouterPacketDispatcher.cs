@@ -43,7 +43,9 @@ public class RouterPacketDispatcher
 
         stream.Seek(0, SeekOrigin.Begin);
 
-        _router.Send(targetId, stream.GetMemory());
+        var mem = stream.GetMemory();
+
+        _router.Send(targetId, mem[..mem.Length]);
     }
 
     /// <summary>
