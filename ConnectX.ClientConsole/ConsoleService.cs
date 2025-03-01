@@ -155,6 +155,12 @@ public class ConsoleService(
     {
         var rootCommand = BuildCommand();
 
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            Task.Delay(2000, CancellationToken.None).ContinueWith(_ => Environment.Exit(0), CancellationToken.None);
+        };
+
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Yield();

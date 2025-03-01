@@ -41,6 +41,8 @@ public class PartnerManager
     {
         var message = ctx.Message;
 
+        _logger.LogRoomStateChanged(message.State, message.UserInfo?.UserId ?? Guid.Empty);
+
         switch (message.State)
         {
             case GroupUserStates.Dismissed:
@@ -82,6 +84,8 @@ public class PartnerManager
         _peerManager.AddLink(partnerId);
         OnPartnerAdded?.Invoke(partner);
 
+        _logger.LogPartnerAdded(partnerId);
+
         return true;
     }
 
@@ -102,4 +106,13 @@ public class PartnerManager
 
         Partners.Clear();
     }
+}
+
+internal static partial class PartnerManagerLoggers
+{
+    [LoggerMessage(LogLevel.Information, "Room state changed for user [{userId}] with state [{groupState:G}]")]
+    public static partial void LogRoomStateChanged(this ILogger logger, GroupUserStates groupState, Guid userId);
+
+    [LoggerMessage(LogLevel.Information, "Partner added with user ID [{userId}]")]
+    public static partial void LogPartnerAdded(this ILogger logger, Guid userId);
 }

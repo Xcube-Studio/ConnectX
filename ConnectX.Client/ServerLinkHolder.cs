@@ -132,7 +132,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         while (!stoppingToken.IsCancellationRequested && IsConnected && ServerSession != null)
         {
-            await _dispatcher.SendAsync(ServerSession, new HeartBeat());
+            await _dispatcher.SendAsync(ServerSession, new HeartBeat(), stoppingToken);
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
 

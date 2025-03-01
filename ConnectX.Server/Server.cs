@@ -89,7 +89,7 @@ public class Server : BackgroundService
     {
         await _acceptor.SetupAsync(_serverSettingProvider.ListenIpEndPoint, cancellationToken);
 
-        _acceptor.StartAcceptLoop(cancellationToken);
+        _acceptor.StartAcceptLoop(cancellationToken).Forget();
         _acceptor.OnSessionCreated += AcceptorOnOnSessionCreated;
 
         _logger.LogServerStarted(_serverSettingProvider.ListenIpEndPoint);

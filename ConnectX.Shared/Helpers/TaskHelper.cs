@@ -1,4 +1,6 @@
-﻿namespace ConnectX.Shared.Helpers;
+﻿using System.Diagnostics;
+
+namespace ConnectX.Shared.Helpers;
 
 public static class TaskHelper
 {
@@ -27,7 +29,7 @@ public static class TaskHelper
             }
             catch (TaskCanceledException e)
             {
-                Console.WriteLine(e);
+                Debug.WriteLine(e);
                 break;
             }
     }

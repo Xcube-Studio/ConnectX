@@ -64,15 +64,10 @@ public class Router : BackgroundService
         _logger.LogRouterStarted();
 
         while (!stoppingToken.IsCancellationRequested)
-            try
-            {
-                await CheckLinkStateAsync();
-                await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
-            }
-            catch (TaskCanceledException)
-            {
-                break;
-            }
+        {
+            await CheckLinkStateAsync();
+            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
+        }
 
         _logger.LogRouterStopped();
     }

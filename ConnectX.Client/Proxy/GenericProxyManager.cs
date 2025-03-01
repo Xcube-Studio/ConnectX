@@ -257,10 +257,7 @@ public abstract class GenericProxyManager : BackgroundService
             : CreateAcceptor(partnerId, localMapPortGetter(), remoteRealServerPort, sender);
     }
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        return Task.CompletedTask;
-    }
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
 }
 
 internal static partial class GenericProxyManagerLoggers
