@@ -78,7 +78,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         {
             JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
             DisplayName = session.RemoteEndPoint?.ToString() ?? Guid.NewGuid().ToString("N")
-        });
+        }, cancellationToken);
 
         await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
 
@@ -94,7 +94,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         _logger.LogDisconnectingFromServer();
 
-        await _dispatcher.SendAsync(ServerSession, new ShutdownMessage());
+        await _dispatcher.SendAsync(ServerSession, new ShutdownMessage(), CancellationToken.None);
         ServerSession.Close();
 
         _logger.LogDisconnectedFromServer();

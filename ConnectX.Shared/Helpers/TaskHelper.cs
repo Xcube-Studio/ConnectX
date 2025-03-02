@@ -39,14 +39,15 @@ public static class TaskHelper
     public static async ValueTask WaitUntilAsync(Func<bool> predicate, CancellationToken cancellationToken = default)
     {
         while (!predicate())
+        {
             try
             {
                 await Task.Delay(100, cancellationToken);
             }
             catch (TaskCanceledException e)
             {
-                Debug.WriteLine(e);
                 break;
             }
+        }
     }
 }
