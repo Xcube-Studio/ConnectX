@@ -195,8 +195,8 @@ public class P2PConnection : ISender, ISession
     }
 
     public SessionId Id => throw new NotImplementedException();
-    public IPEndPoint LocalEndPoint => throw new NotImplementedException();
-    public IPEndPoint RemoteEndPoint => throw new NotImplementedException();
+    public IPEndPoint LocalEndPoint => new (IPAddress.None, 0);
+    public IPEndPoint RemoteEndPoint => new(IPAddress.None, 0);
     public long LastHeartBeatTime => throw new NotImplementedException();
 
     public event SessionReceivedHandler? OnMessageReceived;
