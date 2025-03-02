@@ -6,11 +6,11 @@ namespace ConnectX.Client.Messages;
 
 [MessageDefine]
 [MemoryPackable]
-public partial struct TransDatagram
+public partial class TransDatagram
 {
-    public DatagramFlag Flag;
-    public int SynOrAck;
-    public ReadOnlyMemory<byte>? Payload;
+    public DatagramFlag Flag { get; init; }
+    public int SynOrAck { get; init; }
+    public ReadOnlyMemory<byte>? Payload { get; init; }
 
     public TransDatagram()
     {

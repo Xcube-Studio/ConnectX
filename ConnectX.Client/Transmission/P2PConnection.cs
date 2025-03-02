@@ -1,5 +1,4 @@
 ﻿using System.Collections;
-using System.IO;
 using System.Net;
 using ConnectX.Client.Messages;
 using ConnectX.Client.Models;
@@ -25,7 +24,6 @@ public class P2PConnection : ISender, ISession
     private readonly ILogger _logger;
     private readonly RouterPacketDispatcher _routerPacketDispatcher;
 
-    private readonly TransDatagram[] _sendBuffer = new TransDatagram[BufferLength];
     private readonly BitArray _sendBufferAckFlag = new(BufferLength);
 
     private readonly Guid _targetId;
@@ -187,7 +185,6 @@ public class P2PConnection : ISender, ISession
 
     private void SendDatagram(TransDatagram datagram)
     {
-        _sendBuffer[_sendPointer] = datagram;
         _sendBufferAckFlag[_sendPointer] = false;
         _sendPointer = (_sendPointer + 1) % BufferLength;
 
@@ -227,7 +224,7 @@ public class P2PConnection : ISender, ISession
 internal static partial class P2PConnectionLoggers
 {
     [LoggerMessage(LogLevel.Trace,
-        "[P2P_CONNECTION] Receive first shakehand packet, send second shakehand packet. (TargetId: {Id})")]
+        "[P2P_CONNECTION] Receive first handshake packet, send second handshake packet. (TargetId: {Id})")]
     public static partial void LogReceiveFirstShakeHandPacket(this ILogger logger, Guid id);
 
     [LoggerMessage(LogLevel.Error,
@@ -240,6 +237,6 @@ internal static partial class P2PConnectionLoggers
     [LoggerMessage(LogLevel.Information, "[P2P_CONNECTION] Connecting to {TargetId}")]
     public static partial void LogConnectingTo(this ILogger logger, Guid targetId);
 
-    [LoggerMessage(LogLevel.Error, "[P2P_CONNECTION] Connect failed, no SYNACK response. (TargetId: {Id})")]
+    [LoggerMessage(LogLevel.Error, "[P2P_CONNECTION] Connect failed, no SYN ACK response. (TargetId: {Id})")]
     public static partial void LogConnectFailed(this ILogger logger, Guid id);
 }

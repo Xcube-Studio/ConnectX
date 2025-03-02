@@ -44,7 +44,6 @@ public class Partner
 
     private async Task KeepConnectAsync()
     {
-        return;
         while (!_lifetime.ApplicationStopping.IsCancellationRequested)
         {
             if (!Connection.IsConnected)
