@@ -5,7 +5,6 @@ using System.Net.Sockets;
 using Hive.Network.Shared.Session;
 using Socket = ZeroTier.Sockets.Socket;
 using System.IO.Pipelines;
-using System.Runtime.InteropServices;
 
 namespace ConnectX.Client.Network.ZeroTier.Tcp;
 
@@ -13,6 +12,7 @@ public sealed class ZtTcpSession : AbstractSession
 {
     private bool _closed;
     private readonly bool _isAcceptedSocket;
+    private readonly byte[] _receiveBuffer = new byte[NetworkSettings.DefaultBufferSize];
 
     public ZtTcpSession(
         int sessionId,
@@ -64,15 +64,13 @@ public sealed class ZtTcpSession : AbstractSession
                 continue;
             }
 
-            var memory = writer.GetMemory(NetworkSettings.DefaultBufferSize);
-
-            if (!MemoryMarshal.TryGetArray<byte>(memory, out var segment))
-                throw new InvalidOperationException(
-                    "Failed to create ArraySegment<byte> from ReadOnlyMemory<byte>!");
-
-            var receiveLen = await ReceiveOnce(segment, token);
+            var receiveLen = await ReceiveOnce(ArraySegment<byte>.Empty, token);
 
             if (receiveLen is 0 or -1) break;
+
+            var memory = writer.GetMemory(NetworkSettings.DefaultBufferSize);
+
+            _receiveBuffer.CopyTo(memory.Span[..receiveLen]);
 
             Logger.LogDataReceived(RemoteEndPoint!, receiveLen);
 
@@ -88,7 +86,7 @@ public sealed class ZtTcpSession : AbstractSession
     {
         ArgumentNullException.ThrowIfNull(Socket);
 
-        var len = Socket.Receive(buffer.Array);
+        var len = Socket.Receive(_receiveBuffer);
 
         return ValueTask.FromResult(len);
     }
