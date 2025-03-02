@@ -210,8 +210,8 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerReceiveLoopAsync(CancellationToken cancellationToken)
     {
-        var bufferArray = ArrayPool<byte>.Shared.Rent(1024);
-        var buffer = new ArraySegment<byte>(bufferArray);
+        using var bufferOwner = MemoryPool<byte>.Shared.Rent(1024);
+        var buffer = bufferOwner.Memory;
 
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -248,8 +248,6 @@ public abstract class GenericProxyBase : IDisposable
 
             OutwardBuffersQueue.Enqueue(carrier);
         }
-
-        ArrayPool<byte>.Shared.Return(bufferArray);
     }
 
     protected void InvokeRealServerDisconnected()
