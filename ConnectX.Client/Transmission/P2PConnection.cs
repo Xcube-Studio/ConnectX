@@ -99,7 +99,7 @@ public class P2PConnection : ISender
                     return;
                 }
 
-                Dispatcher.Dispatch(SessionPlaceHolder.Shared, message);
+                Dispatcher.Dispatch(SessionPlaceHolder.Shared, message.GetType(), message);
             }
 
             _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateAck(datagram.SynOrAck));
