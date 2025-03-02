@@ -32,25 +32,25 @@ public partial struct TransDatagram
     }
 
     /// <summary>
-    ///     创建Connect请求包，建立连接的第一次握手
+    ///     创建 Connect 请求包，建立连接的第一次握手
     /// </summary>
-    public static TransDatagram CreateShakeHandFirst(int synOrAck)
+    public static TransDatagram CreateHandShakeFirst(int synOrAck)
     {
         return new TransDatagram(FirstHandShakeFlag, synOrAck, null);
     }
 
     /// <summary>
-    ///     创建ConnectSYNACK请求包，建立连接时的第二次握手
+    ///     创建 Connect SYN ACK 请求包，建立连接时的第二次握手
     /// </summary>
-    public static TransDatagram CreateShakeHandSecond(int synOrAck)
+    public static TransDatagram CreateHandShakeSecond(int synOrAck)
     {
         return new TransDatagram(SecondHandShakeFlag, synOrAck, null);
     }
 
     /// <summary>
-    ///     创建ConnectACK请求包，建立连接时的第三次握手
+    ///     创建 Connect ACK 请求包，建立连接时的第三次握手
     /// </summary>
-    public static TransDatagram CreateShakeHandThird(int synOrAck)
+    public static TransDatagram CreateHandShakeThird(int synOrAck)
     {
         return new TransDatagram(ThirdHandShakeFlag, synOrAck, null);
     }
