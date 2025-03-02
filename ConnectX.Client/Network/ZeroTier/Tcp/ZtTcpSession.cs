@@ -24,8 +24,6 @@ public sealed class ZtTcpSession : AbstractSession
         _isAcceptedSocket = isAcceptedSocket;
 
         Socket = socket;
-        socket.SendBufferSize = NetworkSettings.DefaultSocketBufferSize;
-        socket.ReceiveBufferSize = NetworkSettings.DefaultSocketBufferSize;
     }
 
     public Socket? Socket { get; private set; }
