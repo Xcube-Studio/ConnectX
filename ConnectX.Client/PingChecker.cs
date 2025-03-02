@@ -2,7 +2,7 @@
 using System.Net;
 using ConnectX.Client.Messages;
 using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Models;
+using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +13,7 @@ public class PingChecker
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<uint, Pong> _pongPackets = new();
     private readonly Guid _selfId;
-    private readonly DispatchableSession _session;
+    private readonly IDispatchableSession _session;
     private readonly Guid _targetId;
 
     private uint _lastPingId;
@@ -21,7 +21,7 @@ public class PingChecker
     public PingChecker(
         Guid selfId,
         Guid targetId,
-        DispatchableSession session,
+        IDispatchableSession session,
         ILogger<PingChecker> logger)
     {
         _selfId = selfId;

@@ -1,9 +1,10 @@
-﻿using Hive.Both.General.Dispatchers;
+﻿using ConnectX.Shared.Interfaces;
+using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
 
 namespace ConnectX.Shared.Models;
 
-public class InitializedDispatchableSession : IDisposable
+public class InitializedDispatchableSession : IDispatchableSession
 {
     public InitializedDispatchableSession(
         ISession session,
