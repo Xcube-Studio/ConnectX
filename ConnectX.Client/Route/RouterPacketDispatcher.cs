@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Buffers;
+using System.Reflection;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route.Packet;
 using ConnectX.Shared.Helpers;
@@ -84,7 +85,8 @@ public class RouterPacketDispatcher
 
     private void OnReceiveTransDatagram(P2PPacket packet)
     {
-        var message = _codec.Decode(packet.Payload);
+        var sequence = new ReadOnlySequence<byte>(packet.Payload);
+        var message = _codec.Decode(sequence);
         var messageType = message!.GetType();
 
         _logger.LogReceived(messageType.Name, packet.From);

@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System.Buffers;
+using System.Collections;
 using System.Net;
 using ConnectX.Client.Messages;
 using ConnectX.Client.Models;
@@ -91,7 +92,8 @@ public class P2PConnection : ISender, ISession
         {
             if (datagram.Payload != null)
             {
-                var message = _codec.Decode(datagram.Payload.Value);
+                var sequence = new ReadOnlySequence<byte>(datagram.Payload.Value);
+                var message = _codec.Decode(sequence);
 
                 if (message == null)
                 {
