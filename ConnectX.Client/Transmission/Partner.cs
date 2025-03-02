@@ -46,28 +46,28 @@ public class Partner
     {
         while (!_lifetime.ApplicationStopping.IsCancellationRequested)
         {
-            if (!Connection.IsConnected)
-            {
-                if (_isLastTimeConnected)
-                {
-                    _logger.LogDisconnectedWithPartnerId(_partnerId);
+            //if (!Connection.IsConnected)
+            //{
+            //    if (_isLastTimeConnected)
+            //    {
+            //        _logger.LogDisconnectedWithPartnerId(_partnerId);
 
-                    OnDisconnected?.Invoke(this);
+            //        OnDisconnected?.Invoke(this);
 
-                    _isLastTimeConnected = false;
-                    _pingChecker = null;
-                }
+            //        _isLastTimeConnected = false;
+            //        _pingChecker = null;
+            //    }
 
-                if (await Connection.ConnectAsync())
-                {
-                    _logger.LogConnectedWithPartnerId(_partnerId);
+            //    if (await Connection.ConnectAsync())
+            //    {
+            //        _logger.LogConnectedWithPartnerId(_partnerId);
 
-                    _isLastTimeConnected = true;
+            //        _isLastTimeConnected = true;
 
-                    OnConnected?.Invoke(this);
-                }
-            }
-            else
+            //        OnConnected?.Invoke(this);
+            //    }
+            //}
+            //else
             {
                 if (_isLastTimeConnected == false)
                 {
