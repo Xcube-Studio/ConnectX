@@ -129,8 +129,6 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerSendLoopAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(_innerSocket);
-
         try
         {
             while (!cancellationToken.IsCancellationRequested)
@@ -149,7 +147,7 @@ public abstract class GenericProxyBase : IDisposable
                         var buffer = packet.Payload;
 
                         while (sentLen < totalLen)
-                            sentLen += await _innerSocket.SendAsync(
+                            sentLen += await _innerSocket!.SendAsync(
                                 buffer.AsMemory()[sentLen..totalLen],
                                 SocketFlags.None,
                                 CancellationToken);

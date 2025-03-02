@@ -77,6 +77,7 @@ public class Partner
                     OnConnected?.Invoke(this);
                 }
 
+                // TODO: Connection 类型错误
                 _pingChecker ??= ActivatorUtilities.CreateInstance<PingChecker>(
                     _serviceProvider,
                     _selfId,
