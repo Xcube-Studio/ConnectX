@@ -43,10 +43,9 @@ public class RouterPacketDispatcher
 
         stream.Seek(0, SeekOrigin.Begin);
 
-        var mem = stream.GetBuffer();
-        var segment = new ArraySegment<byte>(mem, 0, (int)stream.Length);
+        var buffer = stream.GetBuffer();
 
-        _router.Send(targetId, segment);
+        _router.Send(targetId, buffer.AsMemory(0, (int)stream.Length));
     }
 
     /// <summary>

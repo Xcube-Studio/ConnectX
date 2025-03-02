@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.IO;
 using System.Net;
 using ConnectX.Client.Messages;
 using ConnectX.Client.Models;
@@ -69,10 +70,9 @@ public class P2PConnection : ISender, ISession
 
         stream.Seek(0, SeekOrigin.Begin);
 
-        var mem = stream.GetBuffer();
-        var segment = new ArraySegment<byte>(mem, 0, (int)stream.Length);
+        var buffer = stream.GetBuffer();
 
-        Send(segment);
+        Send(buffer.AsMemory(0, (int)stream.Length));
     }
 
     private void OnTransDatagramReceived(TransDatagram datagram, PacketContext context)
@@ -205,20 +205,18 @@ public class P2PConnection : ISender, ISession
 
     public ValueTask SendAsync(MemoryStream ms, CancellationToken token = default)
     {
-        var mem = ms.GetBuffer();
-        var segment = new ArraySegment<byte>(mem, 0, (int)ms.Length);
+        var buffer = ms.GetBuffer();
 
-        Send(segment);
+        Send(buffer.AsMemory(0, buffer.Length));
 
         return ValueTask.CompletedTask;
     }
 
     public ValueTask<bool> TrySendAsync(MemoryStream ms, CancellationToken token = default)
     {
-        var mem = ms.GetBuffer();
-        var segment = new ArraySegment<byte>(mem, 0, (int)ms.Length);
+        var buffer = ms.GetBuffer();
 
-        Send(segment);
+        Send(buffer.AsMemory(0, buffer.Length));
 
         return ValueTask.FromResult(true);
     }
