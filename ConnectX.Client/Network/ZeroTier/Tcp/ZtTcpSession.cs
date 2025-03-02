@@ -70,7 +70,7 @@ public sealed class ZtTcpSession : AbstractSession
 
             var memory = writer.GetMemory(NetworkSettings.DefaultBufferSize);
 
-            _receiveBuffer.CopyTo(memory.Span[..receiveLen]);
+            _receiveBuffer.AsSpan(0, receiveLen).CopyTo(memory.Span);
 
             Logger.LogDataReceived(RemoteEndPoint!, receiveLen);
 
