@@ -62,8 +62,9 @@ public abstract class GenericProxyBase : IDisposable
         Logger.LogStartingProxy(GetProxyInfoForLog());
 
         OuterSendLoopAsync(CancellationToken).Forget();
-        InnerSendLoopAsync(CancellationToken).Forget();
-        InnerReceiveLoopAsync(CancellationToken).Forget();
+
+        Task.Run(async () => await InnerSendLoopAsync(CancellationToken), CancellationToken).Forget();
+        Task.Run(async () => await InnerReceiveLoopAsync(CancellationToken), CancellationToken).Forget();
 
         Logger.LogProxyStarted(GetProxyInfoForLog());
     }
