@@ -207,7 +207,7 @@ public class P2PConnection : ISender, ISession
     {
         var buffer = ms.GetBuffer();
 
-        Send(buffer.AsMemory(0, buffer.Length));
+        Send(buffer.AsMemory(0, (int)ms.Length));
 
         return ValueTask.CompletedTask;
     }
@@ -216,7 +216,7 @@ public class P2PConnection : ISender, ISession
     {
         var buffer = ms.GetBuffer();
 
-        Send(buffer.AsMemory(0, buffer.Length));
+        Send(buffer.AsMemory(0, (int)ms.Length));
 
         return ValueTask.FromResult(true);
     }
