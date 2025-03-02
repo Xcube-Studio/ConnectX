@@ -80,7 +80,7 @@ public class P2PConnection : ISender, ISession
         if (datagram.Flag == TransDatagram.FirstHandShakeFlag)
         {
             // 握手的回复
-            _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateShakeHandSecond(1));
+            _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateHandShakeSecond(1));
 
             _logger.LogReceiveFirstShakeHandPacket(_targetId);
 
@@ -157,7 +157,7 @@ public class P2PConnection : ISender, ISession
         // SYN
         var succeed = await _routerPacketDispatcher.SendAndListenOnceAsync<TransDatagram, TransDatagram>(
             _targetId,
-            TransDatagram.CreateShakeHandFirst(0),
+            TransDatagram.CreateHandShakeFirst(0),
             IsSecondShakeHand,
             cts.Token);
 
@@ -169,7 +169,7 @@ public class P2PConnection : ISender, ISession
         }
 
         //ACK
-        _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateShakeHandThird(2));
+        _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateHandShakeThird(2));
         IsConnected = true;
 
         return true;
