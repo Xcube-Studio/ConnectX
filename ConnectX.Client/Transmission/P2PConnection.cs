@@ -66,7 +66,10 @@ public class P2PConnection : ISender
 
         stream.Seek(0, SeekOrigin.Begin);
 
-        Send(stream.GetMemory());
+        var mem = stream.GetBuffer();
+        var segment = new ArraySegment<byte>(mem, 0, (int)stream.Length);
+
+        Send(segment);
     }
 
     private void OnTransDatagramReceived(TransDatagram datagram, PacketContext context)

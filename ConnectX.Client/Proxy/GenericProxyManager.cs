@@ -196,12 +196,12 @@ public abstract class GenericProxyManager : BackgroundService
         ISender sender)
     {
         if (!NetworkHelper.PortIsAvailable(localMapPort))
-            throw new Exception($"Port {localMapPort} is not available");
+            throw new InvalidOperationException($"Port {localMapPort} is not available");
 
         var key = (partnerId, remoteRealServerPort);
 
         if (_acceptors.ContainsKey(key))
-            throw new Exception($"There has been a acceptor with same key: {partnerId}-{remoteRealServerPort}");
+            throw new InvalidOperationException($"There has been a acceptor with same key: {partnerId}-{remoteRealServerPort}");
 
         var acceptor = ActivatorUtilities.CreateInstance<GenericProxyAcceptor>(
             _serviceProvider,

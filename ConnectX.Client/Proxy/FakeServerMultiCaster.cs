@@ -81,33 +81,6 @@ public class FakeServerMultiCaster : BackgroundService
         }
     }
 
-    private static async Task<CancellationTokenSource> CreateFakeServerAsync(string name, int port)
-    {
-        var cancellationTokenSource = new CancellationTokenSource();
-        var token = cancellationTokenSource.Token;
-        await Task.Run(() =>
-        {
-            var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
-            var multicastAddress = IPAddress.Parse("224.0.2.60");
-            var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
-            multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
-
-            var mess = $"[MOTD]{name}[/MOTD][AD]{port}[/AD]";
-            var buf = Encoding.Default.GetBytes(mess);
-
-            while (!token.IsCancellationRequested)
-            {
-                var endPoint = new IPEndPoint(multicastAddress, 4445);
-
-                multicastSocket.SendTo(buf, endPoint);
-                Thread.Sleep(1500);
-            }
-        }, token);
-
-        return cancellationTokenSource;
-    }
-
     public override Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogStoppingFakeMcServerMultiCaster();
