@@ -90,7 +90,7 @@ public class PartnerManager
         if (partnerId == _serverLinkHolder.UserId) return false;
 
         var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
-        var p2PConnection = ActivatorUtilities.CreateInstance<P2PConnection>(
+        var p2pConnection = ActivatorUtilities.CreateInstance<P2PConnection>(
             _serviceProvider,
             partnerId,
             dispatcher);
@@ -101,7 +101,7 @@ public class PartnerManager
             _serviceProvider,
             _serverLinkHolder.UserId,
             partnerId,
-            p2PConnection);
+            p2pConnection);
 
         if (!Partners.TryAdd(partnerId, partner)) return false;
 

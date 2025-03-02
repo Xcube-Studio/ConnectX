@@ -215,8 +215,6 @@ public class Router : BackgroundService
             Payload = payload.ToArray(),
             Ttl = 32
         });
-
-        _logger.LogP2PPacketSent(_peerManager[id].RemoteIpe);
     }
 
     public void Send<T>(T packet) where T : RouteLayerPacket
@@ -373,9 +371,6 @@ internal static partial class RouterLoggers
 
     [LoggerMessage(LogLevel.Debug, "[ROUTER] Link state forwarded to {RemoteEndPoint}")]
     public static partial void LogLinkStateForwarded(this ILogger logger, IPEndPoint? remoteEndPoint);
-
-    [LoggerMessage(LogLevel.Trace, "[ROUTER] P2P packet sent to {RemoteEndPoint}")]
-    public static partial void LogP2PPacketSent(this ILogger logger, IPEndPoint? remoteEndPoint);
 
     [LoggerMessage(LogLevel.Debug, "[ROUTER] {LinkId} is not connected")]
     public static partial void LogLinkIsNotConnected(this ILogger logger, Guid linkId);
