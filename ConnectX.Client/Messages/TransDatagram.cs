@@ -8,8 +8,8 @@ namespace ConnectX.Client.Messages;
 [MemoryPackable]
 public partial struct TransDatagram
 {
-    public DatagramFlag Flag;
-    public int SynOrAck;
+    public readonly DatagramFlag Flag;
+    public readonly int SynOrAck;
     public ReadOnlyMemory<byte>? Payload;
 
     public TransDatagram()

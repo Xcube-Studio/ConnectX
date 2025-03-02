@@ -149,7 +149,7 @@ public abstract class GenericProxyBase : IDisposable
 
                         while (sentLen < totalLen)
                             sentLen += await _innerSocket!.SendAsync(
-                                buffer.AsMemory()[sentLen..totalLen],
+                                buffer[sentLen..totalLen],
                                 SocketFlags.None,
                                 CancellationToken);
 

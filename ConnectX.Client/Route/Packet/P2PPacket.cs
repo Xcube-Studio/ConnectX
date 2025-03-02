@@ -7,6 +7,5 @@ namespace ConnectX.Client.Route.Packet;
 [MemoryPackable]
 public sealed partial class P2PPacket : RouteLayerPacket
 {
-    [BrotliFormatter]
-    public required byte[] Payload { get; init; }
+    public required ReadOnlyMemory<byte> Payload { get; init; }
 }
