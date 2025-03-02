@@ -16,21 +16,45 @@ public class PartnerManager
     private readonly PeerManager _peerManager;
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IRoomInfoManager _roomInfoManager;
 
     public PartnerManager(
         PeerManager peerManager,
         IDispatcher dispatcher,
+        IRoomInfoManager roomInfoManager,
         IServerLinkHolder serverLinkHolder,
         IServiceProvider serviceProvider,
         ILogger<PartnerManager> logger)
     {
         _peerManager = peerManager;
         _dispatcher = dispatcher;
+        _roomInfoManager = roomInfoManager;
         _serverLinkHolder = serverLinkHolder;
         _serviceProvider = serviceProvider;
         _logger = logger;
 
+        _roomInfoManager.OnMemberAddressInfoUpdated += UpdatePartnerInfo;
+
         _dispatcher.AddHandler<GroupUserStateChanged>(OnGroupUserStateChanged);
+    }
+
+    private void UpdatePartnerInfo(UserInfo[] userInfos)
+    {
+        if (_roomInfoManager.CurrentGroupInfo == null)
+        {
+            _logger.LogRoomInfoEmpty();
+            return;
+        }
+
+        foreach (var userInfo in userInfos)
+        {
+            var userId = userInfo.UserId;
+
+            if (userId == _serverLinkHolder.UserId)
+                continue;
+
+            AddPartner(userId);
+        }
     }
 
     public ConcurrentDictionary<Guid, Partner> Partners { get; } = new();
