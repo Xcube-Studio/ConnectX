@@ -1,4 +1,5 @@
 ﻿using System.Collections;
+using System.Net;
 using ConnectX.Client.Messages;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route;
@@ -6,13 +7,15 @@ using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
+using Hive.Network.Abstractions;
+using Hive.Network.Abstractions.Session;
 using Hive.Network.Shared;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Client.Transmission;
 
-public class P2PConnection : ISender
+public class P2PConnection : ISender, ISession
 {
     public const int Timeout = 5000;
     public const int BufferLength = 256;
@@ -190,6 +193,37 @@ public class P2PConnection : ISender
 
         _routerPacketDispatcher.Send(_targetId, datagram);
     }
+
+    public SessionId Id => throw new NotImplementedException();
+    public IPEndPoint LocalEndPoint => throw new NotImplementedException();
+    public IPEndPoint RemoteEndPoint => throw new NotImplementedException();
+    public long LastHeartBeatTime => throw new NotImplementedException();
+
+    public event SessionReceivedHandler? OnMessageReceived;
+
+    public Task StartAsync(CancellationToken token) => throw new NotImplementedException();
+
+    public ValueTask SendAsync(MemoryStream ms, CancellationToken token = default)
+    {
+        var mem = ms.GetBuffer();
+        var segment = new ArraySegment<byte>(mem, 0, (int)ms.Length);
+
+        Send(segment);
+
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask<bool> TrySendAsync(MemoryStream ms, CancellationToken token = default)
+    {
+        var mem = ms.GetBuffer();
+        var segment = new ArraySegment<byte>(mem, 0, (int)ms.Length);
+
+        Send(segment);
+
+        return ValueTask.FromResult(true);
+    }
+
+    public void Close() => throw new NotImplementedException();
 }
 
 internal static partial class P2PConnectionLoggers

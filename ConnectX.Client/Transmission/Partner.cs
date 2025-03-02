@@ -1,4 +1,5 @@
 ﻿using ConnectX.Shared.Helpers;
+using ConnectX.Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -77,12 +78,13 @@ public class Partner
                     OnConnected?.Invoke(this);
                 }
 
-                // TODO: Connection 类型错误
+                var dispatchableSession = new InitializedDispatchableSession(Connection, Connection.Dispatcher);
+
                 _pingChecker ??= ActivatorUtilities.CreateInstance<PingChecker>(
                     _serviceProvider,
                     _selfId,
                     _partnerId,
-                    Connection);
+                    dispatchableSession);
                 Latency = await _pingChecker.CheckPingAsync();
             }
 
