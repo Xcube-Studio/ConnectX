@@ -208,6 +208,38 @@ public class Client
 
         return (result.Status == GroupCreationStatus.Succeeded, result.ErrorMessage);
     }
+
+    /// <summary>
+    ///     获取和目标用户的连接情况
+    /// </summary>
+    /// <param name="partnerId">目标用户的ID</param>
+    /// <returns>(是否可以连通，是否直连，ping)</returns>
+    public (bool, bool, int) GetPartnerConState(Guid partnerId)
+    {
+        var forwardInterface = _router.RouteTable.GetForwardInterface(partnerId);
+
+        if (forwardInterface == Guid.Empty) return (false, false, int.MaxValue);
+
+        var linkState = _router.RouteTable.GetSelfLinkState();
+        var ping = -1;
+
+        if (linkState == null)
+            return (true, forwardInterface == partnerId, ping);
+
+        var guidList = linkState.Interfaces;
+        for (var index = 0; index < guidList.Length; index++)
+        {
+            var guid = guidList[index];
+
+            if (guid != partnerId) continue;
+
+            ping = linkState.Costs[index];
+
+            break;
+        }
+
+        return (true, forwardInterface == partnerId, ping);
+    }
 }
 
 internal static partial class ClientLoggers
