@@ -12,14 +12,13 @@ namespace ConnectX.Client.Proxy;
 
 public abstract class GenericProxyManager : BackgroundService
 {
-    private readonly Dictionary<TunnelIdentifier, Socket> _acceptedSockets = [];
-    private readonly Dictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = [];
-    private readonly IHostApplicationLifetime _lifetime;
-
     //使用一个二元组确定一个连接
     private readonly Dictionary<TunnelIdentifier, GenericProxyPair> _proxies = [];
-    private readonly IServiceProvider _serviceProvider;
+    private readonly Dictionary<TunnelIdentifier, Socket> _acceptedSockets = [];
+    private readonly Dictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = [];
 
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly IServiceProvider _serviceProvider;
     protected readonly ILogger Logger;
 
     protected GenericProxyManager(
@@ -178,10 +177,10 @@ public abstract class GenericProxyManager : BackgroundService
 
     private void OnProxyDisconnected(TunnelIdentifier id, GenericProxyBase obj)
     {
-        Logger.LogProxyDisconnected(id);
-
         obj.Dispose();
         _proxies.Remove(id);
+
+        Logger.LogProxyDisconnected(id);
     }
 
     public bool HasAcceptor(Guid id, ushort port)
@@ -258,10 +257,57 @@ public abstract class GenericProxyManager : BackgroundService
     }
 
     protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+
+    public virtual void RemoveAllProxies()
+    {
+        foreach (var (_, value) in _acceptors)
+        {
+            try
+            {
+                value.Dispose();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+        _acceptors.Clear();
+
+        foreach (var proxyPair in _proxies)
+        {
+            try
+            {
+                proxyPair.Value.Dispose();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+        _proxies.Clear();
+
+        foreach (var acceptedSocket in _acceptedSockets)
+        {
+            try
+            {
+                acceptedSocket.Value.Close();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+        _acceptedSockets.Clear();
+
+        Logger.LogGenProxiesCleared();
+    }
 }
 
 internal static partial class GenericProxyManagerLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Proxies cleared.")]
+    public static partial void LogGenProxiesCleared(this ILogger logger);
+
     [LoggerMessage(LogLevel.Debug, "[GEN_PROXY_MANAGER] Client received connect response {Packet}")]
     public static partial void LogClientReceivedConnectResponse(this ILogger logger, ProxyConnectReq packet);
 

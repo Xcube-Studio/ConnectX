@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
 using ConnectX.Client.Models;
 using ConnectX.Client.Proxy.Message;
@@ -13,21 +14,25 @@ namespace ConnectX.Client.Proxy;
 public class FakeServerMultiCaster : BackgroundService
 {
     private const string Prefix = "ConnectX";
-    private readonly ILogger _logger;
+    
     private readonly RouterPacketDispatcher _packetDispatcher;
-
     private readonly PartnerManager _partnerManager;
     private readonly ProxyManager _proxyManager;
+
+    private readonly IRoomInfoManager _roomInfoManager;
+    private readonly ILogger _logger;
 
     public FakeServerMultiCaster(
         PartnerManager partnerManager,
         ProxyManager channelManager,
         RouterPacketDispatcher packetDispatcher,
+        IRoomInfoManager roomInfoManager,
         ILogger<FakeServerMultiCaster> logger)
     {
         _partnerManager = partnerManager;
         _proxyManager = channelManager;
         _packetDispatcher = packetDispatcher;
+        _roomInfoManager = roomInfoManager;
         _logger = logger;
 
         _packetDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
@@ -92,8 +97,17 @@ public class FakeServerMultiCaster : BackgroundService
     {
         _logger.LogStartListeningLanMulticast();
 
+        var buffer = new byte[256];
+
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (_roomInfoManager.CurrentGroupInfo == null)
+            {
+                // We are not in a room, so we don't need to listen to multicast
+                await Task.Delay(3000, stoppingToken);
+                continue;
+            }
+
             var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
             
@@ -111,11 +125,10 @@ public class FakeServerMultiCaster : BackgroundService
             var multicastIpe = new IPEndPoint(multicastAddress, 4445);
 
             multicastSocket.Bind(new IPEndPoint(IPAddress.Any, 4445));
-
-            var buffer = new byte[256];
+            
             EndPoint remoteEp = multicastIpe;
-            var len = multicastSocket.ReceiveFrom(buffer, ref remoteEp);
 
+            var len = multicastSocket.ReceiveFrom(buffer, ref remoteEp);
             var message = Encoding.UTF8.GetString(buffer, 0, len);
             var serverName = message[6..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
             var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;

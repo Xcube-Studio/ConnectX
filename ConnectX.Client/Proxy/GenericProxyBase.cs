@@ -17,12 +17,13 @@ public abstract class GenericProxyBase : IDisposable
 
     protected readonly CancellationToken CancellationToken;
     protected readonly ConcurrentQueue<ForwardPacketCarrier> InwardBuffersQueue = [];
-    protected readonly ILogger Logger;
     protected readonly ConcurrentQueue<ForwardPacketCarrier> OutwardBuffersQueue = [];
 
     public readonly List<Func<ForwardPacketCarrier, bool>> OutwardSenders = [];
     public readonly TunnelIdentifier TunnelIdentifier;
     private Socket? _innerSocket;
+
+    protected readonly ILogger Logger;
 
     protected GenericProxyBase(
         TunnelIdentifier tunnelIdentifier,
@@ -46,8 +47,13 @@ public abstract class GenericProxyBase : IDisposable
         _combinedTokenSource.Dispose();
         _internalTokenSource.Dispose();
 
+        InwardBuffersQueue.Clear();
+        OutwardBuffersQueue.Clear();
+        OutwardSenders.Clear();
+
         _innerSocket?.Shutdown(SocketShutdown.Both);
         _innerSocket?.Close();
+        _innerSocket?.Dispose();
 
         Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
 

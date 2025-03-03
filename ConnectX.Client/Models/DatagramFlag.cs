@@ -1,4 +1,5 @@
-﻿namespace ConnectX.Client.Models;
+﻿// ReSharper disable InconsistentNaming
+namespace ConnectX.Client.Models;
 
 [Flags]
 public enum DatagramFlag

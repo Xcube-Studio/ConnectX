@@ -83,10 +83,28 @@ public sealed class ProxyManager : GenericProxyManager
             remoteRealMcServerPort,
             con);
     }
+
+    public override void RemoveAllProxies()
+    {
+        while (_registeredHandlers.TryTake(out var item))
+        {
+            var (dispatcher, id) = item;
+
+            dispatcher.RemoveHandler(id);
+        }
+        _registeredHandlers.Clear();
+
+        base.RemoveAllProxies();
+
+        Logger.LogProxiesCleared();
+    }
 }
 
 internal static partial class ProxyManagerLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[PROXY_MANAGER] Proxies cleared.")]
+    public static partial void LogProxiesCleared(this ILogger logger);
+
     [LoggerMessage(LogLevel.Error, "[PROXY_MANAGER] Partner {PartnerId} not found")]
     public static partial void LogPartnerNotFound(this ILogger logger, Guid partnerId);
 }

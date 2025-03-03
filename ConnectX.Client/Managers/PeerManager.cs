@@ -357,10 +357,61 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             _allPeers.TryUpdate(key, true, false);
         }
     }
+
+    public void RemoveAllPeer()
+    {
+        _allPeers.Clear();
+        _bargainsDic.Clear();
+
+        foreach (var (_, ztSocket) in _ztServerSockets)
+        {
+            try
+            {
+                ztSocket.Shutdown(SocketShutdown.Both);
+                ztSocket.Close();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+        _ztServerSockets.Clear();
+
+        foreach (var (_, peer) in _connectedPeers)
+        {
+            try
+            {
+                peer.StopHeartBeat();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+        _connectedPeers.Clear();
+
+        foreach (var (_, conInitiator) in _initiator)
+        {
+            try
+            {
+                conInitiator.Dispose();
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+        _initiator.Clear();
+
+        _logger.LogPeerCleared();
+    }
 }
 
 internal static partial class PeerManagerLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[Peer] Add peer cleared.")]
+    public static partial void LogPeerCleared(this ILogger logger);
+
     [LoggerMessage(LogLevel.Information, "[Peer] Successfully actively connected to partner [{partnerId}].")]
     public static partial void LogActivelyConnectedToPartner(this ILogger logger, Guid partnerId);
 

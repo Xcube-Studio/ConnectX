@@ -1,22 +1,21 @@
 ﻿using System.Buffers;
 using System.Collections;
-using System.Net;
+using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route;
+using ConnectX.Client.Route.Packet;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
-using Hive.Network.Abstractions;
-using Hive.Network.Abstractions.Session;
 using Hive.Network.Shared;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Client.Transmission;
 
-public class P2PConnection : ISender, ISession
+public class P2PConnection : ISender, ICanPing<Guid>
 {
     public const int Timeout = 5000;
     public const int BufferLength = 256;
@@ -26,8 +25,6 @@ public class P2PConnection : ISender, ISession
     private readonly RouterPacketDispatcher _routerPacketDispatcher;
 
     private readonly BitArray _sendBufferAckFlag = new(BufferLength);
-
-    private readonly Guid _targetId;
 
     private int _ackPointer;
     private int _lastAckTime;
@@ -43,7 +40,7 @@ public class P2PConnection : ISender, ISession
     {
         Dispatcher = dispatcher;
 
-        _targetId = targetId;
+        To = targetId;
         _routerPacketDispatcher = routerPacketDispatcher;
         _codec = codec;
         _lifetime = lifetime;
@@ -54,6 +51,7 @@ public class P2PConnection : ISender, ISession
         _routerPacketDispatcher.OnReceive<TransDatagram>(OnTransDatagramReceived);
     }
 
+    public Guid To { get; }
     public bool IsConnected { get; private set; }
     public IDispatcher Dispatcher { get; }
 
@@ -79,9 +77,9 @@ public class P2PConnection : ISender, ISession
         if (datagram.Flag == TransDatagram.FirstHandShakeFlag)
         {
             // 握手的回复
-            _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateHandShakeSecond(1));
+            _routerPacketDispatcher.Send(To, TransDatagram.CreateHandShakeSecond(1));
 
-            _logger.LogReceiveFirstShakeHandPacket(_targetId);
+            _logger.LogReceiveFirstShakeHandPacket(To);
 
             IsConnected = true;
             return;
@@ -97,7 +95,7 @@ public class P2PConnection : ISender, ISession
 
                 if (message == null)
                 {
-                    _logger.LogDecodeMessageFailed(datagram.Payload.Value.Length, _targetId);
+                    _logger.LogDecodeMessageFailed(datagram.Payload.Value.Length, To);
 
                     return;
                 }
@@ -105,7 +103,7 @@ public class P2PConnection : ISender, ISession
                 Dispatcher.Dispatch(SessionPlaceHolder.Shared, message.GetType(), message);
             }
 
-            _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateAck(datagram.SynOrAck));
+            _routerPacketDispatcher.Send(To, TransDatagram.CreateAck(datagram.SynOrAck));
         }
         else if ((datagram.Flag & DatagramFlag.ACK) != 0)
         {
@@ -131,7 +129,7 @@ public class P2PConnection : ISender, ISession
         {
             await TaskHelper.WaitUntilAsync(NeedResend, _lifetime.ApplicationStopping);
 
-            if (!_lifetime.ApplicationStopping.IsCancellationRequested) _logger.LogResendCoroutineStarted(_targetId);
+            if (!_lifetime.ApplicationStopping.IsCancellationRequested) _logger.LogResendCoroutineStarted(To);
         }
 
         return;
@@ -147,7 +145,7 @@ public class P2PConnection : ISender, ISession
 
     public async Task<bool> ConnectAsync()
     {
-        _logger.LogConnectingTo(_targetId);
+        _logger.LogConnectingTo(To);
 
         if (IsConnected) return true;
 
@@ -156,20 +154,20 @@ public class P2PConnection : ISender, ISession
 
         // SYN
         var succeed = await _routerPacketDispatcher.SendAndListenOnceAsync<TransDatagram, TransDatagram>(
-            _targetId,
+            To,
             TransDatagram.CreateHandShakeFirst(0),
             IsSecondShakeHand,
             cts.Token);
 
         if (!succeed)
         {
-            _logger.LogConnectFailed(_targetId);
+            _logger.LogConnectFailed(To);
 
             return false;
         }
 
         //ACK
-        _routerPacketDispatcher.Send(_targetId, TransDatagram.CreateHandShakeThird(2));
+        _routerPacketDispatcher.Send(To, TransDatagram.CreateHandShakeThird(2));
         IsConnected = true;
 
         return true;
@@ -190,37 +188,13 @@ public class P2PConnection : ISender, ISession
         _sendBufferAckFlag[_sendPointer] = false;
         _sendPointer = (_sendPointer + 1) % BufferLength;
 
-        _routerPacketDispatcher.Send(_targetId, datagram);
+        _routerPacketDispatcher.Send(To, datagram);
     }
 
-    public SessionId Id => throw new NotImplementedException();
-    public IPEndPoint LocalEndPoint => new (IPAddress.None, 0);
-    public IPEndPoint RemoteEndPoint => new(IPAddress.None, 0);
-    public long LastHeartBeatTime => throw new NotImplementedException();
-
-    public event SessionReceivedHandler? OnMessageReceived;
-
-    public Task StartAsync(CancellationToken token) => throw new NotImplementedException();
-
-    public ValueTask SendAsync(MemoryStream ms, CancellationToken token = default)
+    public void SendPingPacket<T>(T packet) where T : RouteLayerPacket
     {
-        var buffer = ms.GetBuffer();
-
-        Send(buffer.AsMemory(0, (int)ms.Length));
-
-        return ValueTask.CompletedTask;
+        SendData(packet);
     }
-
-    public ValueTask<bool> TrySendAsync(MemoryStream ms, CancellationToken token = default)
-    {
-        var buffer = ms.GetBuffer();
-
-        Send(buffer.AsMemory(0, (int)ms.Length));
-
-        return ValueTask.FromResult(true);
-    }
-
-    public void Close() => throw new NotImplementedException();
 }
 
 internal static partial class P2PConnectionLoggers

@@ -125,6 +125,8 @@ public class PartnerManager
 
     public void RemoveAllPartners()
     {
+        _peerManager.RemoveAllPeer();
+
         foreach (var (_, partner) in Partners)
             partner.Disconnect();
 

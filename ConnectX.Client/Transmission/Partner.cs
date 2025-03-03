@@ -1,5 +1,4 @@
 ﻿using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,7 +14,7 @@ public class Partner
     private readonly Guid _selfId;
     private readonly IServiceProvider _serviceProvider;
     private bool _isLastTimeConnected;
-    private PingChecker? _pingChecker;
+    private PingChecker<Guid>? _pingChecker;
 
     public Partner(
         Guid selfId,
@@ -69,8 +68,6 @@ public class Partner
             }
             else
             {
-                // FIX: 会导致传输问题
-
                 if (_isLastTimeConnected == false)
                 {
                     _logger.LogConnectedWithPartnerId(_partnerId);
@@ -80,13 +77,12 @@ public class Partner
                     OnConnected?.Invoke(this);
                 }
 
-                var dispatchableSession = new InitializedDispatchableSession(Connection, Connection.Dispatcher);
-
-                _pingChecker ??= ActivatorUtilities.CreateInstance<PingChecker>(
+                _pingChecker ??= ActivatorUtilities.CreateInstance<PingChecker<Guid>>(
                     _serviceProvider,
                     _selfId,
                     _partnerId,
-                    dispatchableSession);
+                    Connection);
+
                 Latency = await _pingChecker.CheckPingAsync();
             }
 

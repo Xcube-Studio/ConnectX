@@ -21,7 +21,7 @@ public class Router : BackgroundService
     private readonly ILogger _logger;
     private readonly PeerManager _peerManager;
 
-    private readonly ConcurrentDictionary<Guid, PingChecker> _pingCheckers = new();
+    private readonly ConcurrentDictionary<Guid, PingChecker<IPEndPoint>> _pingCheckers = new();
 
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IServiceProvider _serviceProvider;
@@ -80,11 +80,12 @@ public class Router : BackgroundService
         peer.DirectLink.Dispatcher.AddHandler<LinkStatePacket>(OnLinkStatePacketReceived);
         peer.DirectLink.Dispatcher.AddHandler<P2PTransmitErrorPacket>(OnP2PTransmitErrorPacketReceived);
 
-        var pingChecker = ActivatorUtilities.CreateInstance<PingChecker>(
+        var pingWrapper = new SessionPingWrapper(peer.DirectLink);
+        var pingChecker = ActivatorUtilities.CreateInstance<PingChecker<IPEndPoint>>(
             _serviceProvider,
             _serverLinkHolder.UserId,
             peer.Id,
-            peer.DirectLink);
+            pingWrapper);
 
         _pingCheckers.AddOrUpdate(peer.Id, pingChecker, (_, _) => pingChecker);
 
@@ -323,10 +324,22 @@ public class Router : BackgroundService
             _logger.LogLinkStateTablePrinted();
         }
     }
+
+    public void RemoveAllPeers()
+    {
+        _pingCheckers.Clear();
+        _currentPeerCount = 0;
+        RouteTable.RemoveAllEntries();
+
+        _logger.LogPeerCleared();
+    }
 }
 
 internal static partial class RouterLoggers
 {
+    [LoggerMessage(LogLevel.Trace, "[ROUTER] Peer info cleared.")]
+    public static partial void LogPeerCleared(this ILogger logger);
+
     [LoggerMessage(LogLevel.Trace, "[ROUTER] Sending packet using direct link to [{RemoteEndPoint}]({To})")]
     public static partial void LogSendToLink(this ILogger logger, IPEndPoint? remoteEndPoint, Guid to);
 

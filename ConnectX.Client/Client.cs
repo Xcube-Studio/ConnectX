@@ -1,5 +1,6 @@
 ﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
+using ConnectX.Client.Proxy;
 using ConnectX.Client.Route;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
@@ -18,6 +19,8 @@ public class Client
     private readonly ILogger _logger;
 
     private readonly Router _router;
+    private readonly PartnerManager _partnerManager;
+    private readonly ProxyManager _proxyManager;
     private readonly IRoomInfoManager _roomInfoManager;
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IZeroTierNodeLinkHolder _zeroTierNodeLinkHolder;
@@ -25,7 +28,8 @@ public class Client
 
     public Client(
         Router router,
-        PartnerManager _,
+        PartnerManager partnerManager,
+        ProxyManager proxyManager,
         IRoomInfoManager roomInfoManager,
         IDispatcher dispatcher,
         IServerLinkHolder serverLinkHolder,
@@ -33,6 +37,8 @@ public class Client
         ILogger<Client> logger)
     {
         _router = router;
+        _partnerManager = partnerManager;
+        _proxyManager = proxyManager;
         _roomInfoManager = roomInfoManager;
         _dispatcher = dispatcher;
         _serverLinkHolder = serverLinkHolder;
@@ -55,21 +61,6 @@ public class Client
         _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo.RoomId).Forget();
     }
 
-    private void OnGroupUserStateChanged(MessageContext<GroupUserStateChanged> ctx)
-    {
-        if (!_serverLinkHolder.IsConnected) return;
-        if (!_serverLinkHolder.IsSignedIn) return;
-        if (!_isInGroup) return;
-
-        var state = ctx.Message.State;
-        var userInfo = ctx.Message.UserInfo;
-
-        if (state == GroupUserStates.Dismissed)
-            _isInGroup = false;
-
-        OnGroupStateChanged?.Invoke(state, userInfo);
-    }
-
     private async Task<GroupOpResult?> PerformGroupOpAsync<T>(T message) where T : IRequireAssignedUserId
     {
         var result =
@@ -84,9 +75,42 @@ public class Client
         return result;
     }
 
+    private async Task ResetRoomState(CancellationToken ct = default)
+    {
+        _isInGroup = false;
+
+        // Clear and reset all manager
+        await _zeroTierNodeLinkHolder.LeaveNetworkAsync(ct);
+        _router.RemoveAllPeers();
+        _roomInfoManager.ClearRoomInfo();
+        _partnerManager.RemoveAllPartners();
+        _proxyManager.RemoveAllProxies();
+    }
+
+    private void OnGroupUserStateChanged(MessageContext<GroupUserStateChanged> ctx)
+    {
+        if (!_serverLinkHolder.IsConnected) return;
+        if (!_serverLinkHolder.IsSignedIn) return;
+        if (!_isInGroup) return;
+
+        var state = ctx.Message.State;
+        var userInfo = ctx.Message.UserInfo;
+
+        if (state == GroupUserStates.Dismissed)
+        {
+            ResetRoomState().Forget();
+        }
+
+        OnGroupStateChanged?.Invoke(state, userInfo);
+    }
+
     private async Task<(GroupInfo?, GroupCreationStatus, string?)> PerformOpAndGetRoomInfoAsync<T>(T message, CancellationToken ct)
         where T : IRequireAssignedUserId
     {
+        // No matter what, clear and reset all manager when the message is LeaveGroup
+        if (message is LeaveGroup)
+            await ResetRoomState(ct);
+
         var createResult = await PerformGroupOpAsync(message);
 
         if (createResult == null)
@@ -134,13 +158,6 @@ public class Client
                 return (null, result?.Status ?? GroupCreationStatus.Other, "Failed to update room member network info");
 
             _isInGroup = true;
-        }
-
-        if (message is LeaveGroup)
-        {
-            _isInGroup = false;
-            await _zeroTierNodeLinkHolder.LeaveNetworkAsync(ct);
-            _roomInfoManager.ClearRoomInfo();
         }
 
         return (groupInfo, GroupCreationStatus.Succeeded, null);

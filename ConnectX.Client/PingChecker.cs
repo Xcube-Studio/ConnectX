@@ -1,19 +1,19 @@
 ﻿using System.Collections.Concurrent;
 using System.Net;
+using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages;
 using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
 using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Client;
 
-public class PingChecker
+public class PingChecker<TId>
 {
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<uint, Pong> _pongPackets = new();
     private readonly Guid _selfId;
-    private readonly IDispatchableSession _session;
+    private readonly ICanPing<TId> _pingTarget;
     private readonly Guid _targetId;
 
     private uint _lastPingId;
@@ -21,16 +21,16 @@ public class PingChecker
     public PingChecker(
         Guid selfId,
         Guid targetId,
-        IDispatchableSession session,
-        ILogger<PingChecker> logger)
+        ICanPing<TId> pingTarget,
+        ILogger<PingChecker<TId>> logger)
     {
         _selfId = selfId;
         _targetId = targetId;
-        _session = session;
+        _pingTarget = pingTarget;
         _logger = logger;
 
-        session.Dispatcher.AddHandler<Ping>(OnPingReceived);
-        session.Dispatcher.AddHandler<Pong>(OnPongReceived);
+        pingTarget.Dispatcher.AddHandler<Ping>(OnPingReceived);
+        pingTarget.Dispatcher.AddHandler<Pong>(OnPongReceived);
     }
 
     private void OnPingReceived(MessageContext<Ping> ctx)
@@ -48,7 +48,7 @@ public class PingChecker
 
         _logger.LogSendPong(ctx.FromSession.RemoteEndPoint);
 
-        _session.Dispatcher.SendAsync(_session.Session, pong).Forget();
+        _pingTarget.SendPingPacket(pong);
     }
 
     private void OnPongReceived(MessageContext<Pong> ctx)
@@ -66,7 +66,7 @@ public class PingChecker
 
     public async Task<int> CheckPingAsync()
     {
-        _logger.LogCheckPing(_session.Session.RemoteEndPoint);
+        _logger.LogCheckPing(GetPingTargetToString());
 
         var pingId = Interlocked.Increment(ref _lastPingId) - 1;
         var ping = new Ping
@@ -78,9 +78,9 @@ public class PingChecker
             Ttl = 32
         };
 
-        await _session.Dispatcher.SendAsync(_session.Session, ping);
+        _pingTarget.SendPingPacket(ping);
 
-        _logger.LogSendPing(_session.Session.RemoteEndPoint);
+        _logger.LogSendPing(GetPingTargetToString());
 
         await TaskHelper.WaitUntilAsync(() => _pongPackets.ContainsKey(pingId));
 
@@ -88,9 +88,14 @@ public class PingChecker
         if (_pongPackets.TryRemove(pingId, out var receivedPong))
             result = TimeSpan.FromTicks(receivedPong.SelfReceiveTime - ping.SendTime).Milliseconds;
 
-        _logger.LogPingResult(_session.Session.RemoteEndPoint, result);
+        _logger.LogPingResult(GetPingTargetToString(), result);
 
         return result;
+    }
+
+    private string GetPingTargetToString()
+    {
+        return _pingTarget.To?.ToString() ?? "UNKNOWN";
     }
 }
 
@@ -106,11 +111,11 @@ internal static partial class PingCheckerLoggers
     public static partial void LogPongReceived(this ILogger logger, IPEndPoint? from);
 
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Check ping to {To}")]
-    public static partial void LogCheckPing(this ILogger logger, IPEndPoint? to);
+    public static partial void LogCheckPing(this ILogger logger, string to);
 
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Send Ping to {To}")]
-    public static partial void LogSendPing(this ILogger logger, IPEndPoint? to);
+    public static partial void LogSendPing(this ILogger logger, string to);
 
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Ping to {To} result: {Result}")]
-    public static partial void LogPingResult(this ILogger logger, IPEndPoint? to, int result);
+    public static partial void LogPingResult(this ILogger logger, string to, int result);
 }

@@ -127,10 +127,20 @@ public class RouteTable
     {
         return _linkStates.GetValueOrDefault(_serverLinkHolder.UserId);
     }
+
+    public void RemoveAllEntries()
+    {
+        _routeTableInternal.Clear();
+        _linkStates.Clear();
+        _logger.LogRouteTableCleared();
+    }
 }
 
 internal static partial class RouteTableLoggers
 {
+    [LoggerMessage(LogLevel.Information, "[ROUTE_TABLE] Route table cleared")]
+    public static partial void LogRouteTableCleared(this ILogger logger);
+
     [LoggerMessage(LogLevel.Information, "[ROUTE_TABLE] Update route table from {@Source} at {@Timestamp}")]
     public static partial void LogUpdateRouteTable(this ILogger logger, Guid source, long timestamp);
 
