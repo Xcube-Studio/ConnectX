@@ -13,7 +13,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ConnectX.Shared\ConnectX.Shared.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Both.General\Hive.Both.General.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Codec.MemoryPack\Hive.Codec.MemoryPack.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Codec.Shared\Hive.Codec.Shared.csproj" />
