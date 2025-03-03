@@ -112,7 +112,7 @@ public class RoomJoinRecordService : BackgroundService
                 _logger.LogPeerAddressNotReady(update.NetworkNodeId);
                 _roomInfoUpdateQueue.Enqueue(update);
 
-                await Task.Delay(10, stoppingToken);
+                await Task.Delay(5000, stoppingToken);
                 continue;
             }
 
@@ -136,15 +136,15 @@ public class RoomJoinRecordService : BackgroundService
 
 internal static partial class RoomOperationRecordServiceLoggers
 {
-    [LoggerMessage(LogLevel.Error, "[RoomOpsService] Failed to get group with ID [{groupId}]")]
+    [LoggerMessage(LogLevel.Error, "[ROOM_JOIN_RECORD_SRV] Failed to get group with ID [{groupId}]")]
     public static partial void LogFailedToGetGroup(this ILogger logger, Guid groupId);
 
-    [LoggerMessage(LogLevel.Warning, "[RoomOpsService] Peer info not found for address [{address}], retrying...")]
+    [LoggerMessage(LogLevel.Warning, "[ROOM_JOIN_RECORD_SRV] Peer info not found for address [{address}], retrying...")]
     public static partial void LogPeerInfoNotFound(this ILogger logger, string address);
 
-    [LoggerMessage(LogLevel.Warning, "[RoomOpsService] Peer address not ready for address [{address}], retrying...")]
+    [LoggerMessage(LogLevel.Warning, "[ROOM_JOIN_RECORD_SRV] Peer address not ready for address [{address}], retrying...")]
     public static partial void LogPeerAddressNotReady(this ILogger logger, string address);
 
-    [LoggerMessage(LogLevel.Information, "[RoomOpsService] Room join record added, User [{userId}] Group [{groupId}] Node [{nodeId}] Address [{address}]")]
+    [LoggerMessage(LogLevel.Information, "[ROOM_JOIN_RECORD_SRV] Room join record added, User [{userId}] Group [{groupId}] Node [{nodeId}] Address [{address}]")]
     public static partial void LogRoomJoinRecordAdded(this ILogger logger, Guid userId, Guid groupId, string nodeId, string address);
 }

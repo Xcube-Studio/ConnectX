@@ -79,6 +79,6 @@ public class RoomCreationRecordService : BackgroundService
 
 internal static partial class RoomCreationRecordServiceLoggers
 {
-    [LoggerMessage(LogLevel.Information, "Room creation history created. CreatedBy: {CreatedBy}, RoomName: {RoomName}, UserDisplayName: {UserDisplayName}")]
+    [LoggerMessage(LogLevel.Information, "[ROOM_CREATION_RECORD_SRV] Room creation history created. CreatedBy: {CreatedBy}, RoomName: {RoomName}, UserDisplayName: {UserDisplayName}")]
     public static partial void LogRoomCreationHistoryCreated(this ILogger logger, Guid createdBy, string roomName, string userDisplayName);
 }
