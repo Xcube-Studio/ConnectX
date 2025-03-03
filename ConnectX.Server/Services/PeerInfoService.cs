@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Collections.Immutable;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ConnectX.Server.Models.ZeroTier;
@@ -27,7 +28,7 @@ public class PeerInfoService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            if ((DateTime.Now - _lastRefreshTime).TotalSeconds > 5)
+            if ((DateTime.Now - _lastRefreshTime).TotalSeconds < 5)
             {
                 await Task.Delay(100, stoppingToken);
                 continue;
@@ -35,12 +36,12 @@ public class PeerInfoService : BackgroundService
 
             await using var scope = IZeroTierNodeInfoService.CreateZtApi(_serviceScopeFactory, out var zeroTierApiService);
 
-            IReadOnlyList<NetworkPeerModel>? peers;
+            ImmutableList<NetworkPeerModel>? peers;
 
             try
             {
                 var status = await zeroTierApiService.GetNetworkPeersAsync(stoppingToken);
-                peers = status?.AsReadOnly();
+                peers = status?.ToImmutableList();
             }
             catch (HttpRequestException e)
             {
@@ -50,7 +51,15 @@ public class PeerInfoService : BackgroundService
                 continue;
             }
 
-            NetworkPeers = peers ?? [];
+            if (peers == null || peers.Count == 0)
+            {
+                _logger.LogPeerInfoNotReady();
+
+                await Task.Delay(1000, stoppingToken);
+                continue;
+            }
+
+            NetworkPeers = peers;
             _lastRefreshTime = DateTime.Now;
         }
     }
@@ -60,4 +69,7 @@ internal static partial class PeerInfoServiceLoggers
 {
     [LoggerMessage(LogLevel.Error, "Failed to get network peers")]
     public static partial void LogFailedToGetNetworkPeers(this ILogger logger, Exception ex);
+
+    [LoggerMessage(LogLevel.Warning, "Peer info not ready")]
+    public static partial void LogPeerInfoNotReady(this ILogger logger);
 }
