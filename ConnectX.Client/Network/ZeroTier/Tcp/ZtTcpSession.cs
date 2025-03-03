@@ -40,11 +40,11 @@ public sealed class ZtTcpSession : AbstractSession
 
     public event EventHandler<SocketError>? OnSocketError;
 
-    public override ValueTask<int> SendOnce(ArraySegment<byte> data, CancellationToken token)
+    public override ValueTask<int> SendOnce(ReadOnlyMemory<byte> data, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(Socket);
 
-        var len = Socket.Send([.. data]);
+        var len = Socket.Send(data.ToArray());
 
         if (len == 0)
             OnSocketError?.Invoke(this, SocketError.ConnectionReset);
