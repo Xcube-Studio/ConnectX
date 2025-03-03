@@ -190,24 +190,28 @@ public class GroupManager
     {
         if (!_sessionIdMapping.TryRemove(sessionId, out var userId)) return;
         if (!_userMapping.TryRemove(userId, out var user)) return;
-        if (!_groupMappings.TryRemove(userId, out var group))
+
+        var group = _groupMappings.Values.FirstOrDefault(g => g.Users.Any(u => u.UserId == user.UserId));
+
+        if (group == null)
         {
-            foreach (var tGroup in _groupMappings.Values)
-            {
-                if (tGroup.Users.All(u => u.UserId != user.UserId)) continue;
-                RemoveUser(tGroup.RoomId, user.UserId, null, null, GroupUserStates.Disconnected);
-
-                _logger.LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(user.UserId, tGroup.RoomId);
-                break;
-            }
-
+            _logger.LogGroupNotFound(userId);
             return;
         }
 
-        _logger.LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(user.UserId, group.RoomId);
+        var isGroupOwner = group.RoomOwner.UserId == user.UserId;
+
+        if (!isGroupOwner)
+        {
+            RemoveUser(group.RoomId, user.UserId, null, null, GroupUserStates.Disconnected);
+            _logger.LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(user.UserId, group.RoomId);
+            return;
+        }
 
         DeleteGroupNetworkAsync(group).Forget();
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, group.RoomOwner)).Forget();
+
+        _logger.LogGroupHasBeenDismissedBy(group.RoomId, sessionId);
     }
 
     private void OnUpdateRoomMemberNetworkInfoReceived(MessageContext<UpdateRoomMemberNetworkInfo> ctx)
@@ -543,6 +547,9 @@ public class GroupManager
 
 internal static partial class GroupManagerLoggers
 {
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Can not find any group related {userId}!")]
+    public static partial void LogGroupNotFound(this ILogger logger, Guid userId);
+
     [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{id}] updated its member info: {@info}")]
     public static partial void LogMemberInfoUpdated(this ILogger logger, Guid id, UpdateRoomMemberNetworkInfo info);
 

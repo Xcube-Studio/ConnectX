@@ -94,7 +94,7 @@ public class ClientManager : BackgroundService
                 _logger.LogSessionTimeout(id);
 
                 OnSessionDisconnected?.Invoke(id);
-                _dispatcher.SendAsync(watchDog.Session, new ShutdownMessage()).Forget();
+                _dispatcher.SendAsync(watchDog.Session, new ShutdownMessage(), CancellationToken.None).Forget();
                 watchDog.Session.Close();
 
                 _watchDogMapping.TryRemove(id, out _);
