@@ -51,7 +51,7 @@ public class RoomJoinRecordService : BackgroundService
 
         foreach (var (userId, time) in _lastRefreshTimes)
         {
-            if ((now - time).TotalSeconds < 5) continue;
+            if ((now - time).TotalMinutes < 5) continue;
             toRemove.Add(userId);
         }
 
