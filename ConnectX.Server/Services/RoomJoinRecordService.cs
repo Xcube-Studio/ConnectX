@@ -96,7 +96,7 @@ public class RoomJoinRecordService : BackgroundService
                 _logger.LogPeerInfoNotFound(update.NetworkNodeId);
                 _roomInfoUpdateQueue.Enqueue(update);
 
-                await Task.Delay(10, stoppingToken);
+                await Task.Delay(5000, stoppingToken);
                 continue;
             }
 
