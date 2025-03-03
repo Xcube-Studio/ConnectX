@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Net;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages;
 using ConnectX.Shared.Helpers;
@@ -35,7 +34,7 @@ public class PingChecker<TId>
 
     private void OnPingReceived(MessageContext<Ping> ctx)
     {
-        _logger.LogPingReceived(ctx.FromSession.RemoteEndPoint, DateTime.Now.Ticks);
+        _logger.LogPingReceived(GetPingSourceString(ctx), DateTime.Now.Ticks);
 
         var ping = ctx.Message;
         var pong = new Pong
@@ -46,14 +45,14 @@ public class PingChecker<TId>
             Ttl = 32
         };
 
-        _logger.LogSendPong(ctx.FromSession.RemoteEndPoint);
+        _logger.LogSendPong(GetPingSourceString(ctx));
 
         _pingTarget.SendPingPacket(pong);
     }
 
     private void OnPongReceived(MessageContext<Pong> ctx)
     {
-        _logger.LogPongReceived(ctx.FromSession.RemoteEndPoint);
+        _logger.LogPongReceived(GetPingSourceString(ctx));
 
         var pong = ctx.Message;
         pong.SelfReceiveTime = DateTime.Now.Ticks;
@@ -93,6 +92,13 @@ public class PingChecker<TId>
         return result;
     }
 
+    private string GetPingSourceString<T>(MessageContext<T> ctx)
+    {
+        return _pingTarget.ShouldUseDispatcherSenderInfo
+            ? ctx.FromSession.RemoteEndPoint?.ToString() ?? "UNKNOWN"
+            : _pingTarget.To?.ToString() ?? "UNKNOWN";
+    }
+
     private string GetPingTargetToString()
     {
         return _pingTarget.To?.ToString() ?? "UNKNOWN";
@@ -102,13 +108,13 @@ public class PingChecker<TId>
 internal static partial class PingCheckerLoggers
 {
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Ping received from {From}, receive time: {ReceiveTime}")]
-    public static partial void LogPingReceived(this ILogger logger, IPEndPoint? from, long receiveTime);
+    public static partial void LogPingReceived(this ILogger logger, string from, long receiveTime);
 
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Send Pong to {To}")]
-    public static partial void LogSendPong(this ILogger logger, IPEndPoint? to);
+    public static partial void LogSendPong(this ILogger logger, string to);
 
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Pong received from {From}")]
-    public static partial void LogPongReceived(this ILogger logger, IPEndPoint? from);
+    public static partial void LogPongReceived(this ILogger logger, string from);
 
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Check ping to {To}")]
     public static partial void LogCheckPing(this ILogger logger, string to);

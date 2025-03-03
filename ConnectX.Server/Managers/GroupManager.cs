@@ -161,21 +161,16 @@ public class GroupManager
         ISession? session,
         [NotNullWhen(true)] out Group? group)
     {
-        if (!_groupMappings.TryGetValue(groupId, out group))
-        {
-            if (dispatcher != null &&
-                session != null)
-            {
-                var err = new GroupOpResult(GroupCreationStatus.GroupNotExists, "Group does not exist.");
-                dispatcher.SendAsync(session, err).Forget();
+        if (_groupMappings.TryGetValue(groupId, out group)) return true;
+        if (dispatcher == null || session == null) return false;
 
-                _logger.LogGroupDoesNotExist(session.Id);
-            }
+        var err = new GroupOpResult(GroupCreationStatus.GroupNotExists, "Group does not exist.");
+        dispatcher.SendAsync(session, err).Forget();
 
-            return false;
-        }
+        _logger.LogGroupDoesNotExist(session.Id);
 
-        return true;
+        return false;
+
     }
 
     private async Task NotifyGroupMembersAsync<T>(

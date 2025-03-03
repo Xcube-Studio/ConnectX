@@ -21,6 +21,7 @@ public class SessionPingWrapper : ICanPing<IPEndPoint>
 
     public IPEndPoint To { get; }
     public IDispatcher Dispatcher { get; }
+    public bool ShouldUseDispatcherSenderInfo => true;
 
     public void SendPingPacket<T>(T packet) where T : RouteLayerPacket
     {

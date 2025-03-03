@@ -54,6 +54,7 @@ public class P2PConnection : ISender, ICanPing<Guid>
     public Guid To { get; }
     public bool IsConnected { get; private set; }
     public IDispatcher Dispatcher { get; }
+    public bool ShouldUseDispatcherSenderInfo => false;
 
     public void Send(ReadOnlyMemory<byte> payload)
     {
