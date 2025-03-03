@@ -5,14 +5,17 @@ using ConnectX.Client.Managers;
 using ConnectX.Client.Models;
 using ConnectX.Client.P2P;
 using ConnectX.Client.Route.Packet;
-using ConnectX.Shared.Helpers;
-using ConsoleTables;
 using Hive.Both.General.Dispatchers;
 using Hive.Common.Shared.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ConnectX.Shared.Helpers;
 using TaskHelper = ConnectX.Shared.Helpers.TaskHelper;
+
+#if DEBUG
+using ConsoleTables;
+#endif
 
 namespace ConnectX.Client.Route;
 
@@ -315,12 +318,15 @@ public class Router : BackgroundService
         if (linkState.Interfaces.Length > 0 ||
             linkState.Costs.Length > 0)
         {
+#if DEBUG
             var table = new ConsoleTable("Interfaces", "Costs");
 
             for (var i = 0; i < linkState.Interfaces.Length; i++)
                 table.AddRow(linkState.Interfaces[i], $"{linkState.Costs[i]}ms");
 
             table.Write();
+#endif
+
             _logger.LogLinkStateTablePrinted();
         }
     }
