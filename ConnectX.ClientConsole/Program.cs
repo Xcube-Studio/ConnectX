@@ -1,5 +1,4 @@
-﻿using System.CommandLine;
-using System.Net;
+﻿using System.Net;
 using ConnectX.Client;
 using ConnectX.Client.Helpers;
 using ConnectX.Client.Interfaces;
