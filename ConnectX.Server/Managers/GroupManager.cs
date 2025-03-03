@@ -4,6 +4,7 @@ using System.Net;
 using ConnectX.Server.Interfaces;
 using ConnectX.Server.Models;
 using ConnectX.Server.Models.ZeroTier;
+using ConnectX.Server.Services;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Messages.Identity;
@@ -11,34 +12,38 @@ using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Server.Managers;
 
 public class GroupManager
 {
-    private readonly IZeroTierApiService _zeroTierApiService;
     private readonly IZeroTierNodeInfoService _zeroTierNodeInfoService;
     private readonly ClientManager _clientManager;
+    private readonly RoomCreationRecordService _roomCreationRecordService;
     private readonly IDispatcher _dispatcher;
-    private readonly ConcurrentDictionary<Guid, Group> _groupMappings = new();
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger _logger;
 
+    private readonly ConcurrentDictionary<Guid, Group> _groupMappings = new();
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionIdMapping = new();
     private readonly ConcurrentDictionary<string, Guid> _shortIdGroupMappings = new();
     private readonly ConcurrentDictionary<Guid, BasicUserInfo> _userMapping = new();
 
     public GroupManager(
-        IZeroTierApiService zeroTierApiService,
         IZeroTierNodeInfoService zeroTierNodeInfoService,
         IDispatcher dispatcher,
         ClientManager clientManager,
+        RoomCreationRecordService roomCreationRecordService,
+        IServiceScopeFactory serviceScopeFactory,
         ILogger<GroupManager> logger)
     {
-        _zeroTierApiService = zeroTierApiService;
         _zeroTierNodeInfoService = zeroTierNodeInfoService;
         _dispatcher = dispatcher;
         _clientManager = clientManager;
+        _roomCreationRecordService = roomCreationRecordService;
+        _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
@@ -215,7 +220,7 @@ public class GroupManager
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
 
-        var groupId = ctx.Message.GroupId;
+        var groupId = ctx.Message.RoomId;
 
         if (!TryGetGroup(groupId, ctx.Dispatcher, ctx.FromSession, out var group)) return;
 
@@ -299,7 +304,9 @@ public class GroupManager
         try
         {
             using var ct = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            networkDetail = await _zeroTierApiService.CreateOrUpdateNetwork(networkId, networkCreationReq, ct.Token);
+            await using var scope = IZeroTierNodeInfoService.CreateZtApi(_serviceScopeFactory, out var zeroTierApiService);
+
+            networkDetail = await zeroTierApiService.CreateOrUpdateNetwork(networkId, networkCreationReq, ct.Token);
 
             ArgumentNullException.ThrowIfNull(networkDetail);
 
@@ -345,10 +352,22 @@ public class GroupManager
             return;
         }
 
-        var success = new GroupOpResult(GroupCreationStatus.Succeeded) { GroupId = group.RoomId };
+        var success = new GroupOpResult(GroupCreationStatus.Succeeded) { RoomId = group.RoomId };
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 
         _logger.LogGroupCreated(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
+
+        var creationRecord = new RoomRecord(
+            ownerSession.UserId,
+            group.RoomId,
+            DateTime.UtcNow,
+            message.RoomName,
+            ownerSession.DisplayName,
+            message.RoomDescription,
+            message.RoomPassword,
+            message.MaxUserCount);
+
+        _roomCreationRecordService.CreateRecord(creationRecord);
     }
 
     private void OnJoinGroupReceived(MessageContext<JoinGroup> ctx)
@@ -394,7 +413,7 @@ public class GroupManager
         group.Users.Add(info);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, info)).Forget();
 
-        var success = new GroupOpResult(GroupCreationStatus.Succeeded) { GroupId = group.RoomId };
+        var success = new GroupOpResult(GroupCreationStatus.Succeeded) { RoomId = group.RoomId };
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 
         _logger.LogUserJoinedGroup(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
@@ -424,8 +443,11 @@ public class GroupManager
         try
         {
             var networkId = group.NetworkId.ToString("X").ToLowerInvariant();
+
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            await _zeroTierApiService.DeleteNetworkAsync(networkId, cts.Token);
+            await using var scope = IZeroTierNodeInfoService.CreateZtApi(_serviceScopeFactory, out var zeroTierApiService);
+
+            await zeroTierApiService.DeleteNetworkAsync(networkId, cts.Token);
 
             _logger.LogNetworkDeleted(networkId);
         }
@@ -445,8 +467,11 @@ public class GroupManager
         try
         {
             var networkId = group.NetworkId.ToString("X").ToLowerInvariant();
+
             using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            await _zeroTierApiService.DeleteNetworkMemberAsync(networkId, user.NetworkNodeId, cts.Token);
+            await using var scope = IZeroTierNodeInfoService.CreateZtApi(_serviceScopeFactory, out var zeroTierApiService);
+
+            await zeroTierApiService.DeleteNetworkMemberAsync(networkId, user.NetworkNodeId, cts.Token);
 
             _logger.LogNetworkMemberDeleted(networkId);
         }
@@ -537,6 +562,11 @@ public class GroupManager
 
         var groupWithEmptyUserInfo = (GroupInfo)group with { Users = [] };
         ctx.Dispatcher.SendAsync(session, groupWithEmptyUserInfo).Forget();
+    }
+
+    public bool TryGetGroup(Guid groupId, [NotNullWhen(true)] out Group? group)
+    {
+        return _groupMappings.TryGetValue(groupId, out group);
     }
 }
 

@@ -1,13 +1,10 @@
 ﻿using System.Net.Http.Json;
 using ConnectX.Server.Interfaces;
 using ConnectX.Server.Models.ZeroTier;
-using Microsoft.Extensions.Logging;
 
-namespace ConnectX.Server;
+namespace ConnectX.Server.Services;
 
-public class ZeroTierApiService(
-    HttpClient httpClient,
-    ILogger<ZeroTierApiService> logger) : IZeroTierApiService
+public class ZeroTierApiService(HttpClient httpClient) : IZeroTierApiService
 {
     public async Task<NodeStatusModel?> GetNodeStatusAsync(CancellationToken cancellationToken)
     {
@@ -83,9 +80,16 @@ public class ZeroTierApiService(
 
         return result;
     }
-}
 
-static partial class ZeroTierApiServiceLoggers
-{
+    public async Task<NetworkPeerModel[]?> GetNetworkPeersAsync(CancellationToken cancellationToken)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, "/peer");
+        using var res = await httpClient.SendAsync(req, cancellationToken);
 
+        res.EnsureSuccessStatusCode();
+
+        var result = await res.Content.ReadFromJsonAsync(ZeroTierModelContext.Default.NetworkPeerModelArray, cancellationToken);
+
+        return result;
+    }
 }

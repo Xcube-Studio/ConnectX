@@ -10,7 +10,7 @@ public partial class UpdateRoomMemberNetworkInfo
 {
     public required Guid UserId { get; init; }
 
-    public required Guid GroupId { get; init; }
+    public required Guid RoomId { get; init; }
 
     public required string NetworkNodeId { get; init; }
 

@@ -8,6 +8,6 @@ namespace ConnectX.Shared.Messages.Group;
 public partial class GroupOpResult(GroupCreationStatus status, string? errorMessage = null)
 {
     public string? ErrorMessage { get; init; } = errorMessage;
-    public Guid GroupId { get; init; }
+    public Guid RoomId { get; init; }
     public GroupCreationStatus Status { get; init; } = status;
 }

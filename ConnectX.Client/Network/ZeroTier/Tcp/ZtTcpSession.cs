@@ -44,7 +44,7 @@ public sealed class ZtTcpSession : AbstractSession
     {
         ArgumentNullException.ThrowIfNull(Socket);
 
-        var len = Socket.Send(data.ToArray());
+        var len = Socket.Send([.. data]);
 
         if (len == 0)
             OnSocketError?.Invoke(this, SocketError.ConnectionReset);

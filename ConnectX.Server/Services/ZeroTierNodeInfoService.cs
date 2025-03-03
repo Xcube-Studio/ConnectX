@@ -1,12 +1,13 @@
 ﻿using ConnectX.Server.Interfaces;
 using ConnectX.Server.Models.ZeroTier;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace ConnectX.Server;
+namespace ConnectX.Server.Services;
 
 public class ZeroTierNodeInfoService(
-    IZeroTierApiService zeroTierApiService,
+    IServiceScopeFactory serviceScopeFactory,
     ILogger<ZeroTierNodeInfoService> logger) : BackgroundService, IZeroTierNodeInfoService
 {
     public NodeStatusModel? NodeStatus { get; private set; }
@@ -15,7 +16,10 @@ public class ZeroTierNodeInfoService(
     {
         logger.LogFetchingZtServerNodeStatus();
 
-        var status = await zeroTierApiService.GetNodeStatusAsync(stoppingToken);
+        await using var scope = serviceScopeFactory.CreateAsyncScope();
+        var zeroTierApi = scope.ServiceProvider.GetRequiredService<IZeroTierApiService>();
+
+        var status = await zeroTierApi.GetNodeStatusAsync(stoppingToken);
 
         ArgumentNullException.ThrowIfNull(status);
 

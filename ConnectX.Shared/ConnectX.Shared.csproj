@@ -14,8 +14,4 @@
     <ProjectReference Include="..\Hive.Framework\Hive.Network.Udp\Hive.Network.Udp.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="DnsClient" Version="1.8.0" />
-  </ItemGroup>
-
 </Project>

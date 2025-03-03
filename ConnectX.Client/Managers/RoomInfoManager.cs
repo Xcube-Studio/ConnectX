@@ -77,7 +77,7 @@ public class RoomInfoManager(
 
                 var updateInfo = new UpdateRoomMemberNetworkInfo
                 {
-                    GroupId = CurrentGroupInfo.RoomId,
+                    RoomId = CurrentGroupInfo.RoomId,
                     UserId = serverLinkHolder.UserId,
                     NetworkNodeId = zeroTierNodeLinkHolder.Node!.IdString,
                     NetworkIpAddresses = zeroTierNodeLinkHolder.GetIpAddresses()

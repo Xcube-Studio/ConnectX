@@ -116,7 +116,7 @@ public class Client
         if (createResult == null)
             return (null, GroupCreationStatus.Other, null);
 
-        var groupInfo = await _roomInfoManager.AcquireGroupInfoAsync(createResult.GroupId);
+        var groupInfo = await _roomInfoManager.AcquireGroupInfoAsync(createResult.RoomId);
 
         if (groupInfo == null)
             return (null, GroupCreationStatus.Other, "Failed to acquire group info");
@@ -144,7 +144,7 @@ public class Client
             var nodeId = _zeroTierNodeLinkHolder.Node!.IdString;
             var updateInfo = new UpdateRoomMemberNetworkInfo
             {
-                GroupId = createResult.GroupId,
+                RoomId = createResult.RoomId,
                 UserId = userId,
                 NetworkNodeId = nodeId,
                 NetworkIpAddresses = _zeroTierNodeLinkHolder.GetIpAddresses()

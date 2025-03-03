@@ -15,4 +15,6 @@ public interface IZeroTierApiService
     Task<NetworkDetailsModel?> DeleteNetworkAsync(string networkId, CancellationToken cancellationToken);
 
     Task<NetworkDetailsModel?> DeleteNetworkMemberAsync(string networkId, string nodeId, CancellationToken cancellationToken);
+
+    Task<NetworkPeerModel[]?> GetNetworkPeersAsync(CancellationToken cancellationToken);
 }
