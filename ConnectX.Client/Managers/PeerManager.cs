@@ -409,7 +409,7 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
 internal static partial class PeerManagerLoggers
 {
-    [LoggerMessage(LogLevel.Information, "[Peer] Add peer cleared.")]
+    [LoggerMessage(LogLevel.Information, "[Peer] All peer cleared.")]
     public static partial void LogPeerCleared(this ILogger logger);
 
     [LoggerMessage(LogLevel.Information, "[Peer] Successfully actively connected to partner [{partnerId}].")]
