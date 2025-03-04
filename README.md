@@ -2,6 +2,8 @@
 
 A cross-platform Minecraft P2P online multi-player library in C#, developed using high-performance sockets for excellent forwarding performance, with P2P powered by the Zerotier SDK.
 
+Proudly powered by another of our open-source projects: [Hive.Framework](https://github.com/Corona-Studio/Hive.Framework)
+
 ## Architecture
 
 ![ConnectX drawio](https://github.com/user-attachments/assets/fe47401c-6543-48a1-9c22-3617dfa9ce42#gh-light-mode-only)
