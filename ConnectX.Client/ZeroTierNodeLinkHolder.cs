@@ -58,14 +58,24 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
                (Node?.IsNetworkTransportReady(_networkId.Value) ?? false);
     }
 
-    public async Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken)
+    public override Task StartAsync(CancellationToken cancellationToken)
     {
         logger.LogStartingZeroTierNodeLinkHolder();
 
-        ResetNode();
+        Node = new Node();
 
-        Node!.Start();
+        Node.InitAllowNetworkCaching(false);
+        Node.InitAllowPeerCaching(true);
+        Node.InitSetRandomPortRange(IZeroTierNodeLinkHolder.RandomPortLower, IZeroTierNodeLinkHolder.RandomPortUpper);
+        Node.InitSetEventHandler(OnReceivedZeroTierEvent);
 
+        Node.Start();
+
+        return base.StartAsync(cancellationToken);
+    }
+
+    public async Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken)
+    {
         await TaskHelper.WaitUtil(() => Node!.Online, cancellationToken);
 
         Node!.Join(networkId);
@@ -102,26 +112,13 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
     public Task LeaveNetworkAsync(CancellationToken cancellationToken)
     {
-        Node?.Free();
-        Node?.Stop();
+        if (Node == null) return Task.CompletedTask;
+        if (!_networkId.HasValue) return Task.CompletedTask;
 
-        Node = null;
+        Node.Leave(_networkId.Value);
         _networkId = null;
 
         return Task.CompletedTask;
-    }
-
-    private void ResetNode()
-    {
-        Node?.Free();
-        Node?.Stop();
-
-        Node = new Node();
-
-        Node.InitAllowNetworkCaching(false);
-        Node.InitAllowPeerCaching(true);
-        Node.InitSetRandomPortRange(IZeroTierNodeLinkHolder.RandomPortLower, IZeroTierNodeLinkHolder.RandomPortUpper);
-        Node.InitSetEventHandler(OnReceivedZeroTierEvent);
     }
 
     private void OnReceivedZeroTierEvent(Event nodeEvent)
@@ -156,6 +153,8 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
     {
         Node?.Free();
         Node?.Stop();
+        Node = null;
+        _networkId = null;
 
         logger.LogZeroTierNodeLinkHolderStopped();
 

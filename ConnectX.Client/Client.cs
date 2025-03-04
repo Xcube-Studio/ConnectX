@@ -108,10 +108,6 @@ public class Client
     private async Task<(GroupInfo?, GroupCreationStatus, string?)> PerformOpAndGetRoomInfoAsync<T>(T message, CancellationToken ct)
         where T : IRequireAssignedUserId
     {
-        // No matter what, clear and reset all manager when the message is LeaveGroup
-        if (message is LeaveGroup)
-            await ResetRoomState(ct);
-
         var createResult = await PerformGroupOpAsync(message);
 
         if (createResult == null)
@@ -189,6 +185,9 @@ public class Client
         if (!_serverLinkHolder.IsConnected) return (false, "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn) return (false, "Not signed in");
         if (!_isInGroup) return (false, "Not in a group");
+
+        // Reset the room state
+        await ResetRoomState(CancellationToken.None);
 
         var result = await PerformGroupOpAsync(leaveGroup);
 
