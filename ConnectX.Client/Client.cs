@@ -116,6 +116,8 @@ public class Client
 
         if (createResult == null)
             return (null, GroupCreationStatus.Other, null);
+        if (createResult.Status != GroupCreationStatus.Succeeded)
+            return (null, createResult.Status, createResult.ErrorMessage);
 
         var groupInfo = await _roomInfoManager.AcquireGroupInfoAsync(createResult.RoomId);
 
