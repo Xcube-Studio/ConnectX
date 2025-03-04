@@ -385,14 +385,7 @@ public class GroupManager
                 ? id
                 : Guid.Empty;
 
-        if (!TryGetGroup(groupId, ctx.Dispatcher, ctx.FromSession, out var group))
-        {
-            var err = new GroupOpResult(GroupCreationStatus.GroupNotExists, "Group not exists.");
-            ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
-
-            return;
-        }
-
+        if (!TryGetGroup(groupId, ctx.Dispatcher, ctx.FromSession, out var group)) return;
         if (group.MaxUserCount != 0 &&
             group.MaxUserCount == group.Users.Count)
         {
