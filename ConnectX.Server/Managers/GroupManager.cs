@@ -54,6 +54,7 @@ public class GroupManager
         _dispatcher.AddHandler<KickUser>(OnKickUserReceived);
         _dispatcher.AddHandler<AcquireGroupInfo>(OnAcquireGroupInfoReceived);
         _dispatcher.AddHandler<UpdateRoomMemberNetworkInfo>(OnUpdateRoomMemberNetworkInfoReceived);
+        _dispatcher.AddHandler<UpdateDisplayNameMessage>(UpdateDisplayNameReceived);
     }
 
     /// <summary>
@@ -564,6 +565,50 @@ public class GroupManager
         ctx.Dispatcher.SendAsync(session, groupWithEmptyUserInfo).Forget();
     }
 
+    private void UpdateDisplayNameReceived(MessageContext<UpdateDisplayNameMessage> ctx)
+    {
+        var session = ctx.FromSession;
+
+        if (!_clientManager.IsSessionAttached(session.Id) ||
+            !_sessionIdMapping.TryGetValue(session.Id, out var userId) ||
+            !_userMapping.TryGetValue(userId, out var basicUserInfo))
+        {
+            _logger.LogFailedToModifyDisplayNameBecauseUserNotFound(session.Id);
+            return;
+        }
+
+        if (string.IsNullOrEmpty(ctx.Message.DisplayName))
+        {
+            _logger.LogFailedToModifyDisplayNameBecauseNewNameIsEmpty();
+            return;
+        }
+
+        var group = _groupMappings.Values.FirstOrDefault(g => g.Users.Any(u => u.UserId == basicUserInfo.UserId));
+
+        if (group != null)
+        {
+            var user = group.Users.FirstOrDefault(u => u.UserId == basicUserInfo.UserId)!;
+            var updatedUser = new UserSessionInfo(new BasicUserInfo
+            {
+                DisplayName = ctx.Message.DisplayName,
+                JoinP2PNetwork = user.JoinP2PNetwork,
+                UserId = user.UserId,
+                Session = user.Session
+            });
+
+            group.Users.Remove(user);
+            group.Users.Add(updatedUser);
+
+            NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.InfoUpdated, updatedUser)).Forget();
+        }
+
+        var oldName = basicUserInfo.DisplayName;
+
+        basicUserInfo.DisplayName = ctx.Message.DisplayName;
+
+        _logger.LogUserDisplayNameUpdated(userId, oldName, ctx.Message.DisplayName);
+    }
+
     public bool TryGetGroup(Guid groupId, [NotNullWhen(true)] out Group? group)
     {
         return _groupMappings.TryGetValue(groupId, out group);
@@ -664,4 +709,13 @@ internal static partial class GroupManagerLoggers
         "[GROUP_MANAGER] User [{SessionId}] has been kicked from group [{groupName}]({shortId})")]
     public static partial void LogUserHasBeenKickedFromGroup(this ILogger logger, SessionId sessionId, string groupName,
         string shortId);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Session [{id}] Failed to modify display name because user not found.")]
+    public static partial void LogFailedToModifyDisplayNameBecauseUserNotFound(this ILogger logger, SessionId id);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Failed to modify display name because new name is empty.")]
+    public static partial void LogFailedToModifyDisplayNameBecauseNewNameIsEmpty(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{userId}] display name updated from [{oldName}] to [{newName}].")]
+    public static partial void LogUserDisplayNameUpdated(this ILogger logger, Guid userId, string oldName, string newName);
 }

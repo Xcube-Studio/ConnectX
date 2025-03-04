@@ -80,8 +80,10 @@ public class PartnerManager
             case GroupUserStates.Joined:
                 AddPartner(message.UserInfo!.UserId);
                 return;
+            case GroupUserStates.InfoUpdated:
+                return;
             default:
-                throw new ArgumentOutOfRangeException();
+                throw new ArgumentOutOfRangeException(nameof(message.State));
         }
     }
 

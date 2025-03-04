@@ -6,5 +6,6 @@ public enum GroupUserStates
     Left,
     Kicked,
     Disconnected,
-    Dismissed
+    Dismissed,
+    InfoUpdated
 }

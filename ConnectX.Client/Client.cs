@@ -5,6 +5,7 @@ using ConnectX.Client.Route;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using ConnectX.Shared.Messages.Group;
+using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Microsoft.Extensions.Logging;
@@ -207,6 +208,16 @@ public class Client
             return (false, "Failed to kick user");
 
         return (result.Status == GroupCreationStatus.Succeeded, result.ErrorMessage);
+    }
+
+    public async Task UpdateDisplayNameAsync(string newName, CancellationToken ct)
+    {
+        if (!_serverLinkHolder.IsConnected) return;
+        if (!_serverLinkHolder.IsSignedIn) return;
+
+        var msg = new UpdateDisplayNameMessage { DisplayName = newName };
+
+        await _dispatcher.SendAsync(_serverLinkHolder.ServerSession!, msg, ct);
     }
 
     /// <summary>
