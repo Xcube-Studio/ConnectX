@@ -60,6 +60,10 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
     public override Task StartAsync(CancellationToken cancellationToken)
     {
+        // TODO: Add support for other platform
+        if (!OperatingSystem.IsWindows())
+            return base.StartAsync(cancellationToken);
+
         logger.LogStartingZeroTierNodeLinkHolder();
 
         Node = new Node();
