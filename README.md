@@ -62,7 +62,7 @@ MIT. This means that you can modify or use our code for any purpose, however, co
 
 ## Stats
 
-
+![Alt](https://repobeats.axiom.co/api/embed/6087c9625a31a996d4aa921483f8b10ea00853d5.svg "Repobeats analytics image")
 
 ## Disclaimer
 
