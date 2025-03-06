@@ -1,4 +1,4 @@
-# ConnectX [![CodeQL Advanced](https://github.com/Corona-Studio/ConnectX/actions/workflows/codeql.yml/badge.svg)](https://github.com/Corona-Studio/ConnectX/actions/workflows/codeql.yml)
+# ConnectX
 
 ![CodeFactor Grade](https://img.shields.io/codefactor/grade/github/corona-studio/connectx?logo=codefactor&style=for-the-badge)
 ![GitHub](https://img.shields.io/github/license/corona-studio/connectx?logo=github&style=for-the-badge)
@@ -8,6 +8,7 @@
 ![GitHub repo size](https://img.shields.io/github/repo-size/corona-studio/connectx?logo=github&style=for-the-badge)
 ![GitHub stars](https://img.shields.io/github/stars/corona-studio/connectx?logo=github&style=for-the-badge)
 ![DotNet Version](https://img.shields.io/badge/.NET-9-blue?style=for-the-badge)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Corona-Studio/ConnectX/codeql.yml?style=for-the-badge&logo=github&label=CodeQL%20Advanced)
 
 A cross-platform Minecraft P2P online multi-player library in C#, developed using high-performance sockets for excellent forwarding performance, with P2P powered by the Zerotier SDK.
 
