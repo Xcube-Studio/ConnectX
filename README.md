@@ -6,7 +6,6 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/Corona-Studio/connectx?style=for-the-badge)
 ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed/corona-studio/connectx?logo=github&style=for-the-badge)
 ![GitHub repo size](https://img.shields.io/github/repo-size/corona-studio/connectx?logo=github&style=for-the-badge)
-![GitHub stars](https://img.shields.io/github/stars/corona-studio/connectx?logo=github&style=for-the-badge)
 ![DotNet Version](https://img.shields.io/badge/.NET-9-blue?style=for-the-badge)
 ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/Corona-Studio/ConnectX/codeql.yml?style=for-the-badge&logo=github&label=CodeQL%20Advanced)
 
