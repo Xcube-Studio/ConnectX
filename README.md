@@ -1,5 +1,7 @@
 # ConnectX
 
+[中文 README](https://github.com/Corona-Studio/ConnectX/blob/main/README_CN.md)
+
 ![CodeFactor Grade](https://img.shields.io/codefactor/grade/github/corona-studio/connectx?logo=codefactor&style=for-the-badge)
 ![GitHub](https://img.shields.io/github/license/corona-studio/connectx?logo=github&style=for-the-badge)
 ![Maintenance](https://img.shields.io/maintenance/yes/2025?logo=diaspora&style=for-the-badge)
