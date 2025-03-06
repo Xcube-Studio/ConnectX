@@ -67,6 +67,49 @@ private static void ConfigureServices(IServiceCollection services)
 }
 ```
 
+## How to use?
+
+Inject `IServerLinkHolder` and `Client` into the VM where you want to manage the room instances.
+
+### Connect to the server
+
+```c#
+await _serverLinkHolder.ConnectAsync(CancellationToken.None);
+```
+
+### Perform room actions
+
+> [!IMPORTANT]  
+> Please make sure that before you perform any room operations, you need to make sure you already connected to the ConnectX server!
+>
+> ```c#
+> await TaskHelper.WaitUntilAsync(() => _serverLinkHolder is { IsConnected: true, IsSignedIn: true });
+> ```
+
+```c#
+var message = new CreateGroup
+{
+    UserId = _serverLinkHolder.UserId,
+    RoomName = createRoomRecord.RoomName,
+    RoomDescription = createRoomRecord.RoomDescription,
+    RoomPassword = createRoomRecord.RoomPassword,
+    IsPrivate = createRoomRecord.IsPrivateRoom,
+    MaxUserCount = 3
+};
+
+var (groupInfo, status, err) = await _multiPlayerClient.CreateGroupAsync(message, CancellationToken.None);
+
+if (groupInfo == null || status != GroupCreationStatus.Succeeded || !string.IsNullOrEmpty(err))
+{
+    // Error process
+    return;
+}
+
+_multiPlayerClient.OnGroupStateChanged += MultiPlayerClientOnGroupStateChanged;
+
+// Other actions
+```
+
 ## License
 
 MIT. This means that you can modify or use our code for any purpose, however, copyright notice and permission notice shall be included in all copies or substantial portions of your software.
