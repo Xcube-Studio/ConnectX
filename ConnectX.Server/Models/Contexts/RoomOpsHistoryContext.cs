@@ -3,8 +3,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ConnectX.Server.Models.Contexts;
 
-public sealed class RoomOpsHistoryContext(DbContextOptions<RoomOpsHistoryContext> option) : DbContext(option)
+public sealed class RoomOpsHistoryContext : DbContext
 {
+    public RoomOpsHistoryContext(DbContextOptions<RoomOpsHistoryContext> option) : base(option)
+    {
+        Database.EnsureCreated();
+    }
+
     public DbSet<RoomCreateHistory> RoomCreateHistories { get; set; }
 
     public DbSet<RoomJoinHistory> RoomJoinHistories { get; set; }
