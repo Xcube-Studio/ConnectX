@@ -18,6 +18,7 @@ namespace ConnectX.Client.Transmission.Connections;
 public sealed class RelayConnection : ConnectionBase
 {
     private ISession? _relayServerLink;
+    private CancellationTokenSource? _cts;
 
     private readonly IPEndPoint _relayEndPoint;
     private readonly IConnector<TcpSession> _tcpConnector;
@@ -43,14 +44,13 @@ public sealed class RelayConnection : ConnectionBase
         _serverLinkHolder = serverLinkHolder;
 
         dispatcher.AddHandler<TransDatagram>(OnTransDatagramReceived);
-        dispatcher.AddHandler<HeartBeat>(OnHeartbeatReceived);
     }
 
-    private void OnHeartbeatReceived(MessageContext<HeartBeat> ctx)
+    private void ResetCts()
     {
-        if (_relayServerLink == null) return;
-
-        Dispatcher.SendAsync(_relayServerLink, new HeartBeat()).Forget();
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
     }
 
     private void OnTransDatagramReceived(MessageContext<TransDatagram> ctx)
@@ -167,9 +167,21 @@ public sealed class RelayConnection : ConnectionBase
 
         _relayServerLink = session;
 
+        ResetCts();
+        SendHeartBeatAsync().Forget();
+
         IsConnected = true;
 
         return true;
+    }
+
+    private async Task SendHeartBeatAsync()
+    {
+        while (_cts is { IsCancellationRequested: false } && _relayServerLink != null)
+        {
+            await Dispatcher.SendAsync(_relayServerLink, new HeartBeat());
+            await Task.Delay(500);
+        }
     }
 
     public override void Disconnect()

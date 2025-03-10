@@ -118,12 +118,12 @@ public class RelayManager
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
-        if (!_userIdToRoomMapping.TryRemove(userId, out _)) return;
+        if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
         if (!_userIdSessionMapping.TryRemove(userId, out var session)) return;
 
         session.Close();
 
-        _logger.LogRelayDestroyed(_userIdToRoomMapping[userId], userId, GroupUserStates.Disconnected);
+        _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
     }
 }
 

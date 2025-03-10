@@ -122,16 +122,12 @@ public class RelayServerManager
 
         _dispatcher.SendAsync(session, new RelayServerRegisteredMessage(_serverSettingProvider.ServerId)).Forget();
 
-        _logger.LogRelayServerAttached(ctx.FromSession.Id, ctx.Message.ServerId);
         _logger.LogRelayServerRegistered(ctx.FromSession.Id, ctx.Message.ServerId);
     }
 }
 
 internal static partial class RelayServerManagerLoggers
 {
-    [LoggerMessage(LogLevel.Information, "[RELAY_SERVER_MANAGER] Relay server attached {SessionId} with user {UserId}")]
-    public static partial void LogRelayServerAttached(this ILogger logger, SessionId sessionId, Guid userId);
-
     [LoggerMessage(LogLevel.Error, "[RELAY_SERVER_MANAGER] Failed to attach session {SessionId} to relay server manager.")]
     public static partial void LogRelayServerManagerFailedToAddSessionToSessionMapping(this ILogger logger, SessionId sessionId);
 
