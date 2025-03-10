@@ -4,6 +4,7 @@ using Hive.Network.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using ConnectX.Relay.Interfaces;
 using ConnectX.Shared.Helpers;
 using Hive.Both.General.Dispatchers;
 
@@ -13,14 +14,17 @@ public delegate void SessionDisconnectedHandler(SessionId sessionId);
 
 public class ClientManager : BackgroundService
 {
+    private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IDispatcher _dispatcher;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<SessionId, WatchDog> _watchDogMapping = new();
 
     public ClientManager(
+        IServerLinkHolder serverLinkHolder,
         IDispatcher dispatcher,
         ILogger<ClientManager> logger)
     {
+        _serverLinkHolder = serverLinkHolder;
         _dispatcher = dispatcher;
         _logger = logger;
 
@@ -68,6 +72,13 @@ public class ClientManager : BackgroundService
 
     private void OnReceivedHeartBeat(MessageContext<HeartBeat> ctx)
     {
+        if (ctx.FromSession.Id == _serverLinkHolder.ServerSession?.Id)
+        {
+            // This is the heart beat from the server
+            ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
+            return;
+        }
+
         if (!_watchDogMapping.TryGetValue(ctx.FromSession.Id, out var watchDog))
         {
             _logger.LogReceivedHeartBeatFromUnattachedSession(ctx.FromSession.Id);
