@@ -78,8 +78,6 @@ public class RelayServerManager
             return;
         }
 
-        _sessionIdMapping.TryAdd(id, sessionUserId);
-
         if (!_sessionMapping.TryAdd(sessionUserId, session) ||
             !_sessionIdMapping.TryAdd(id, sessionUserId))
         {

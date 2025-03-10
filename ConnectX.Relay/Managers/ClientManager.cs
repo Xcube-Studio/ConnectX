@@ -72,8 +72,6 @@ public class ClientManager : BackgroundService
 
     private void OnReceivedHeartBeat(MessageContext<HeartBeat> ctx)
     {
-        _logger.LogCritical("{0} | {1}", ctx.FromSession.Id, _serverLinkHolder.ServerSession?.Id);
-
         if (ctx.FromSession.Id == _serverLinkHolder.ServerSession?.Id)
         {
             // This is the heart beat from the server
