@@ -84,8 +84,6 @@ public class RelayServerManager
             _logger.LogRelayServerManagerFailedToAddSessionToSessionMapping(id);
             return;
         }
-
-        _logger.LogRelayServerAttached(id, sessionUserId);
     }
 
     private void ClientManagerOnOnSessionDisconnected(SessionId sessionId)
@@ -124,6 +122,7 @@ public class RelayServerManager
 
         _dispatcher.SendAsync(session, new RelayServerRegisteredMessage(_serverSettingProvider.ServerId)).Forget();
 
+        _logger.LogRelayServerAttached(ctx.FromSession.Id, ctx.Message.ServerId);
         _logger.LogRelayServerRegistered(ctx.FromSession.Id, ctx.Message.ServerId);
     }
 }

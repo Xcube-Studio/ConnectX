@@ -43,6 +43,14 @@ public sealed class RelayConnection : ConnectionBase
         _serverLinkHolder = serverLinkHolder;
 
         dispatcher.AddHandler<TransDatagram>(OnTransDatagramReceived);
+        dispatcher.AddHandler<HeartBeat>(OnHeartbeatReceived);
+    }
+
+    private void OnHeartbeatReceived(MessageContext<HeartBeat> ctx)
+    {
+        if (_relayServerLink == null) return;
+
+        Dispatcher.SendAsync(_relayServerLink, new HeartBeat()).Forget();
     }
 
     private void OnTransDatagramReceived(MessageContext<TransDatagram> ctx)
