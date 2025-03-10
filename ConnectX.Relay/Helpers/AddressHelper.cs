@@ -1,6 +1,5 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using ConnectX.Shared.Helpers;
 
 namespace ConnectX.Relay.Helpers;
 
@@ -13,8 +12,7 @@ public static class AddressHelper
 
         foreach (var address in addresses)
         {
-            if (address.AddressFamily == AddressFamily.InterNetwork &&
-                !NetworkHelper.IsPrivateIpAddress(address))
+            if (address.AddressFamily == AddressFamily.InterNetwork)
             {
                 yield return address;
             }
