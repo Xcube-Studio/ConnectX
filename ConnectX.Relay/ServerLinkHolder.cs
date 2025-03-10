@@ -84,9 +84,9 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         _logger.LogConnectedAndSignedToServer(endPoint);
 
-        var serverAddress = _settingProvider.ServerAddress.Equals(IPAddress.Any)
+        var serverAddress = _settingProvider.RelayServerAddress.Equals(IPAddress.Any)
             ? AddressHelper.GetServerPublicAddress().FirstOrDefault()
-            : _settingProvider.ServerAddress;
+            : _settingProvider.RelayServerAddress;
 
         if (serverAddress == null)
         {
@@ -94,7 +94,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
             return;
         }
 
-        var serverEndPoint = new IPEndPoint(serverAddress, _settingProvider.ServerPort);
+        var serverEndPoint = new IPEndPoint(serverAddress, _settingProvider.RelayServerPort);
 
         _logger.LogServerPublicAddressAcquired(serverEndPoint);
 

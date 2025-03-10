@@ -7,7 +7,13 @@ public class DefaultServerSettingProvider : IServerSettingProvider
 {
     public required IPAddress ServerAddress { get; init; }
     public ushort ServerPort { get; init; }
+
+    public required IPAddress RelayServerAddress { get; init; }
+    public ushort RelayServerPort { get; init; }
+
     public bool JoinP2PNetwork { get; init; }
     public Guid ServerId { get; init; }
-    public IPEndPoint EndPoint { get; init; }
+
+    public required IPEndPoint EndPoint { get; init; }
+    public required IPEndPoint RelayEndPoint { get; init; }
 }

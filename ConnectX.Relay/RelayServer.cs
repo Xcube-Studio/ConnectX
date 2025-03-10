@@ -87,12 +87,12 @@ public class RelayServer : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        await _acceptor.SetupAsync(_serverSettingProvider.EndPoint, cancellationToken);
+        await _acceptor.SetupAsync(_serverSettingProvider.RelayEndPoint, cancellationToken);
 
         _acceptor.StartAcceptLoop(cancellationToken).Forget();
         _acceptor.OnSessionCreated += AcceptorOnOnSessionCreated;
 
-        _logger.LogServerStarted(_serverSettingProvider.EndPoint);
+        _logger.LogServerStarted(_serverSettingProvider.RelayEndPoint);
 
         await base.StartAsync(cancellationToken);
     }

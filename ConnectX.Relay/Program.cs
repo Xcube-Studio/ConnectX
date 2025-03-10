@@ -17,17 +17,25 @@ namespace ConnectX.Relay
             var port = configuration.GetValue<ushort>("Server:ListenPort");
             var serverId = configuration.GetValue<Guid>("Server:ServerId");
 
+            var relayListenAddressStr = configuration.GetValue<string>("RelayServer:ListenAddress");
+            var relayServerPort = configuration.GetValue<ushort>("RelayServer:ListenPort");
+
             ArgumentException.ThrowIfNullOrEmpty(listenAddressStr);
+            ArgumentException.ThrowIfNullOrEmpty(relayListenAddressStr);
 
             var serverAddress = IPAddress.Parse(listenAddressStr);
+            var relayServerAddress = IPAddress.Parse(relayListenAddressStr);
 
             return new DefaultServerSettingProvider
             {
                 ServerAddress = serverAddress,
                 ServerPort = port,
+                RelayServerAddress = relayServerAddress,
+                RelayServerPort = relayServerPort,
                 JoinP2PNetwork = true,
                 ServerId = serverId,
-                EndPoint = new IPEndPoint(serverAddress, port)
+                EndPoint = new IPEndPoint(serverAddress, port),
+                RelayEndPoint = new IPEndPoint(relayServerAddress, relayServerPort)
             };
         }
 
