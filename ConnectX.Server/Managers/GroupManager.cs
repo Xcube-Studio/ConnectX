@@ -192,13 +192,14 @@ public class GroupManager
             await _dispatcher.SendAsync(member.Session, stateChange);
 
             if (member.RelayServerAddress != null &&
-                _relayServerManager.TryRelayServerSession(member.RelayServerAddress, out var relaySession))
+                _relayServerManager.TryRelayServerSession(member.RelayServerAddress, out var relaySession) &&
+                stateChange is GroupUserStateChanged stateChangedMessage)
             {
                 var relayUpdate = new UpdateRelayUserRoomMappingMessage
                 {
                     RoomId = group.RoomId,
                     UserId = member.UserId,
-                    State = GroupUserStates.Dismissed
+                    State = stateChangedMessage.State
                 };
 
                 _dispatcher.SendAsync(relaySession, relayUpdate).Forget();

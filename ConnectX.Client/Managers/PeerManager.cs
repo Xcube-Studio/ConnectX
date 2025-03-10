@@ -87,6 +87,8 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
 
             if (userId == _serverLinkHolder.UserId)
                 continue;
+            if (userInfo.RelayServerAddress != null)
+                continue;
 
             AddLink(userId);
         }

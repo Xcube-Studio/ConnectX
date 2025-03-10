@@ -116,7 +116,6 @@ public class PartnerManager
 
         if (!Partners.TryAdd(partnerId, partner)) return false;
 
-        _peerManager.AddLink(partnerId);
         OnPartnerAdded?.Invoke(partner);
 
         _logger.LogRelayPartnerAdded(relayServerAddress, partnerId);
