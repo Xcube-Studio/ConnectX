@@ -77,7 +77,8 @@ public class ConsoleService(
             Commands.Room.Create.MaxUserOption,
             Commands.Room.Create.DescriptionOption,
             Commands.Room.PasswordOption,
-            Commands.Room.Create.IsPrivateOption
+            Commands.Room.Create.IsPrivateOption,
+            Commands.Room.UseRelayServerOption
         };
 
         createCommand.SetHandler(HandleRoomCreateAsync);
@@ -86,7 +87,8 @@ public class ConsoleService(
         {
             Commands.Room.Join.RoomIdOption,
             Commands.Room.Join.RoomShortIdOption,
-            Commands.Room.PasswordOption
+            Commands.Room.PasswordOption,
+            Commands.Room.UseRelayServerOption
         };
 
         joinCommand.SetHandler(HandleRoomJoinAsync);
