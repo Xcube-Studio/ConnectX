@@ -15,6 +15,10 @@ internal static class Commands
         public static readonly Option PasswordOption =
             new Option<string?>(["--password", "-pw"], "The password of the room");
 
+        public static readonly Option UseRelayServerOption = new Option<bool>(["--relay", "-r"], "Should use relay server for the connection")
+            .Required()
+            .WithDefault(false);
+
         public static class Create
         {
             public static readonly Option NameOption = new Option<string>(["--name", "-n"], "The name of the room")
@@ -98,6 +102,7 @@ public class ConsoleService(
         var roomId = (Guid?)obj.ParseResult.GetValueForOption(Commands.Room.Join.RoomIdOption);
         var roomShortId = (string?)obj.ParseResult.GetValueForOption(Commands.Room.Join.RoomShortIdOption);
         var password = (string?)obj.ParseResult.GetValueForOption(Commands.Room.PasswordOption);
+        var useRelayServer = (bool)obj.ParseResult.GetValueForOption(Commands.Room.UseRelayServerOption)!;
 
         if (!roomId.HasValue && string.IsNullOrEmpty(roomShortId))
         {
@@ -110,7 +115,8 @@ public class ConsoleService(
             GroupId = roomId ?? Guid.Empty,
             RoomShortId = roomShortId,
             RoomPassword = password,
-            UserId = serverLinkHolder.UserId
+            UserId = serverLinkHolder.UserId,
+            UseRelayServer = useRelayServer
         };
 
         var (groupInfo, status, error) = await client.JoinGroupAsync(message, CancellationToken.None);
@@ -125,6 +131,7 @@ public class ConsoleService(
         var description = (string?)obj.ParseResult.GetValueForOption(Commands.Room.Create.DescriptionOption);
         var password = (string?)obj.ParseResult.GetValueForOption(Commands.Room.PasswordOption);
         var isPrivate = (bool)obj.ParseResult.GetValueForOption(Commands.Room.Create.IsPrivateOption)!;
+        var useRelayServer = (bool)obj.ParseResult.GetValueForOption(Commands.Room.UseRelayServerOption)!;
 
         var message = new CreateGroup
         {
@@ -133,7 +140,8 @@ public class ConsoleService(
             RoomDescription = description,
             RoomPassword = password,
             MaxUserCount = maxUser,
-            UserId = serverLinkHolder.UserId
+            UserId = serverLinkHolder.UserId,
+            UseRelayServer = useRelayServer
         };
 
         var (groupInfo, status, error) = await client.CreateGroupAsync(message, CancellationToken.None);

@@ -14,4 +14,5 @@ public partial class CreateGroup : IRequireAssignedUserId
     public string? RoomPassword { get; init; }
     public required int MaxUserCount { get; init; }
     public required Guid UserId { get; init; }
+    public required bool UseRelayServer { get; init; }
 }

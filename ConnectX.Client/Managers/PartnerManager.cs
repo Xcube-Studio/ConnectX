@@ -1,6 +1,8 @@
 ﻿using System.Collections.Concurrent;
+using System.Net;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Transmission;
+using ConnectX.Client.Transmission.Connections;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
@@ -78,6 +80,12 @@ public class PartnerManager
                 RemovePartner(message.UserInfo!.UserId);
                 return;
             case GroupUserStates.Joined:
+                if (message.UserInfo!.RelayServerAddress != null)
+                {
+                    AddRelayPartner(message.UserInfo.UserId, message.UserInfo!.RelayServerAddress);
+                    return;
+                }
+
                 AddPartner(message.UserInfo!.UserId);
                 return;
             case GroupUserStates.InfoUpdated:
@@ -87,7 +95,36 @@ public class PartnerManager
         }
     }
 
-    public bool AddPartner(Guid partnerId)
+    private bool AddRelayPartner(Guid partnerId, IPEndPoint relayServerAddress)
+    {
+        if (partnerId == _serverLinkHolder.UserId) return false;
+
+        var dispatcher = ActivatorUtilities.CreateInstance<DefaultDispatcher>(_serviceProvider);
+        var p2pConnection = ActivatorUtilities.CreateInstance<RelayConnection>(
+            _serviceProvider,
+            partnerId,
+            relayServerAddress,
+            dispatcher);
+
+        if (Partners.ContainsKey(partnerId)) return false;
+
+        var partner = ActivatorUtilities.CreateInstance<Partner>(
+            _serviceProvider,
+            _serverLinkHolder.UserId,
+            partnerId,
+            p2pConnection);
+
+        if (!Partners.TryAdd(partnerId, partner)) return false;
+
+        _peerManager.AddLink(partnerId);
+        OnPartnerAdded?.Invoke(partner);
+
+        _logger.LogRelayPartnerAdded(relayServerAddress, partnerId);
+
+        return true;
+    }
+
+    private bool AddPartner(Guid partnerId)
     {
         if (partnerId == _serverLinkHolder.UserId) return false;
 
@@ -115,7 +152,7 @@ public class PartnerManager
         return true;
     }
 
-    public bool RemovePartner(Guid partnerId)
+    private bool RemovePartner(Guid partnerId)
     {
         if (!Partners.TryRemove(partnerId, out var partner)) return false;
 
@@ -146,4 +183,7 @@ internal static partial class PartnerManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Partner added with user ID [{userId}]")]
     public static partial void LogPartnerAdded(this ILogger logger, Guid userId);
+
+    [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Partner using relay server [{relayServerAddress}] added with user ID [{userId}]")]
+    public static partial void LogRelayPartnerAdded(this ILogger logger, IPEndPoint relayServerAddress, Guid userId);
 }

@@ -7,4 +7,5 @@ public interface IServerSettingProvider
     IPAddress ListenAddress { get; }
     ushort ListenPort { get; }
     IPEndPoint ListenIpEndPoint => new(ListenAddress, ListenPort);
+    Guid ServerId { get; }
 }

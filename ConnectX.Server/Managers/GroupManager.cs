@@ -8,6 +8,7 @@ using ConnectX.Server.Services;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Messages.Identity;
+using ConnectX.Shared.Messages.Relay;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
@@ -20,6 +21,7 @@ namespace ConnectX.Server.Managers;
 public class GroupManager
 {
     private readonly IZeroTierNodeInfoService _zeroTierNodeInfoService;
+    private readonly RelayServerManager _relayServerManager;
     private readonly ClientManager _clientManager;
     private readonly RoomCreationRecordService _roomCreationRecordService;
     private readonly IDispatcher _dispatcher;
@@ -34,6 +36,7 @@ public class GroupManager
     public GroupManager(
         IZeroTierNodeInfoService zeroTierNodeInfoService,
         IDispatcher dispatcher,
+        RelayServerManager relayServerManager,
         ClientManager clientManager,
         RoomCreationRecordService roomCreationRecordService,
         IServiceScopeFactory serviceScopeFactory,
@@ -41,6 +44,7 @@ public class GroupManager
     {
         _zeroTierNodeInfoService = zeroTierNodeInfoService;
         _dispatcher = dispatcher;
+        _relayServerManager = relayServerManager;
         _clientManager = clientManager;
         _roomCreationRecordService = roomCreationRecordService;
         _serviceScopeFactory = serviceScopeFactory;
@@ -184,7 +188,22 @@ public class GroupManager
         T stateChange)
     {
         foreach (var member in group.Users)
+        {
             await _dispatcher.SendAsync(member.Session, stateChange);
+
+            if (member.RelayServerAddress != null &&
+                _relayServerManager.TryRelayServerSession(member.RelayServerAddress, out var relaySession))
+            {
+                var relayUpdate = new UpdateRelayUserRoomMappingMessage
+                {
+                    RoomId = group.RoomId,
+                    UserId = member.UserId,
+                    State = GroupUserStates.Dismissed
+                };
+
+                _dispatcher.SendAsync(relaySession, relayUpdate).Forget();
+            }
+        }
     }
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
@@ -264,6 +283,23 @@ public class GroupManager
         CreateRoomAsync(userId, ctx).Forget();
     }
 
+    private IPEndPoint? TryAssignRelayServerAddress<T>(Guid userId, MessageContext<T> ctx)
+    {
+        var relayServerAddress = _relayServerManager.GetRandomRelayServerAddress();
+
+        if (relayServerAddress == null)
+        {
+            _logger.LogFailedToGetRelayServerAddress();
+            return null;
+        }
+
+        ctx.Dispatcher.SendAsync(ctx.FromSession, new RelayServerAddressAssignedMessage(userId, relayServerAddress)).Forget();
+
+        _logger.LogRelayServerAddressAssigned(userId, relayServerAddress);
+
+        return relayServerAddress;
+    }
+
     private async Task CreateRoomAsync(Guid userId, MessageContext<CreateGroup> ctx)
     {
         if (_zeroTierNodeInfoService.NodeStatus == null)
@@ -332,7 +368,8 @@ public class GroupManager
 
         var message = ctx.Message;
         var owner = _userMapping[userId];
-        var ownerSession = new UserSessionInfo(owner);
+        var assignedRelayServerAddress = ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(userId, ctx) : null;
+        var ownerSession = new UserSessionInfo(owner, assignedRelayServerAddress);
 
         var group = new Group(message.RoomName, message.RoomPassword, ownerSession, [ownerSession])
         {
@@ -341,6 +378,19 @@ public class GroupManager
             RoomDescription = message.RoomDescription,
             NetworkId = Convert.ToUInt64(networkDetail.Id, 16)
         };
+
+        if (assignedRelayServerAddress != null &&
+            _relayServerManager.TryRelayServerSession(assignedRelayServerAddress, out var relaySession))
+        {
+            var relayUpdate = new UpdateRelayUserRoomMappingMessage
+            {
+                RoomId = group.RoomId,
+                UserId = userId,
+                State = GroupUserStates.Joined
+            };
+
+            _dispatcher.SendAsync(relaySession, relayUpdate).Forget();
+        }
 
         if (!_groupMappings.TryAdd(group.RoomId, group) ||
             !_shortIdGroupMappings.TryAdd(group.RoomShortId, group.RoomId))
@@ -409,10 +459,25 @@ public class GroupManager
         }
 
         var user = _userMapping[message.UserId];
-        var info = new UserSessionInfo(user);
+        var assignedRelayServerAddress =
+            ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(message.UserId, ctx) : null;
+        var info = new UserSessionInfo(user, assignedRelayServerAddress);
 
         group.Users.Add(info);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, info)).Forget();
+
+        if (assignedRelayServerAddress != null &&
+            _relayServerManager.TryRelayServerSession(assignedRelayServerAddress, out var relaySession))
+        {
+            var relayUpdate = new UpdateRelayUserRoomMappingMessage
+            {
+                RoomId = group.RoomId,
+                UserId = user.UserId,
+                State = GroupUserStates.Joined
+            };
+
+            _dispatcher.SendAsync(relaySession, relayUpdate).Forget();
+        }
 
         var success = new GroupOpResult(GroupCreationStatus.Succeeded) { RoomId = group.RoomId };
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
@@ -594,7 +659,7 @@ public class GroupManager
                 JoinP2PNetwork = user.JoinP2PNetwork,
                 UserId = user.UserId,
                 Session = user.Session
-            });
+            }, user.RelayServerAddress);
 
             group.Users.Remove(user);
             group.Users.Add(updatedUser);
@@ -718,4 +783,10 @@ internal static partial class GroupManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{userId}] display name updated from [{oldName}] to [{newName}].")]
     public static partial void LogUserDisplayNameUpdated(this ILogger logger, Guid userId, string oldName, string newName);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] User required to use relay server, but there are no server available at this time.")]
+    public static partial void LogFailedToGetRelayServerAddress(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] Relay server address assigned to user [{userId}], address: {address}")]
+    public static partial void LogRelayServerAddressAssigned(this ILogger logger, Guid userId, IPEndPoint address);
 }

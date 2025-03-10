@@ -1,28 +1,26 @@
-﻿using System.Collections.Concurrent;
-using System.Net;
-using ConnectX.Server.Interfaces;
-using ConnectX.Server.Managers;
-using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Messages;
-using ConnectX.Shared.Messages.Identity;
-using Hive.Both.General.Dispatchers;
-using Hive.Network.Abstractions;
+﻿using ConnectX.Shared.Messages;
 using Hive.Network.Abstractions.Session;
+using Hive.Network.Abstractions;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Collections.Concurrent;
+using System.Net;
+using ConnectX.Relay.Interfaces;
+using ConnectX.Relay.Managers;
+using ConnectX.Shared.Helpers;
+using Hive.Both.General.Dispatchers;
+using ConnectX.Shared.Messages.Relay;
 
-namespace ConnectX.Server;
+namespace ConnectX.Relay;
 
-public class Server : BackgroundService
+public class RelayServer : BackgroundService
 {
     private const int MaxSessionLoginTimeout = 600;
     private readonly IAcceptor<TcpSession> _acceptor;
 
-    private readonly GroupManager _groupManager;
     private readonly ClientManager _clientManager;
-    private readonly P2PManager _p2pManager;
-    private readonly RelayServerManager _relayServerManager;
+    private readonly RelayManager _relayManager;
 
     private readonly IDispatcher _dispatcher;
     private readonly IHostApplicationLifetime _lifetime;
@@ -34,26 +32,21 @@ public class Server : BackgroundService
 
     private long _currentSessionCount;
 
-    public Server(
+    public RelayServer(
         IDispatcher dispatcher,
         IAcceptor<TcpSession> acceptor,
         IServerSettingProvider serverSettingProvider,
-        GroupManager groupManager,
         ClientManager clientManager,
-        // ReSharper disable once InconsistentNaming
-        P2PManager p2pManager,
-        RelayServerManager relayServerManager,
+        RelayManager relayManager,
         IHostApplicationLifetime lifetime,
-        ILogger<Server> logger)
+        ILogger<RelayServer> logger)
     {
         _dispatcher = dispatcher;
         _acceptor = acceptor;
         _serverSettingProvider = serverSettingProvider;
 
-        _groupManager = groupManager;
         _clientManager = clientManager;
-        _p2pManager = p2pManager;
-        _relayServerManager = relayServerManager;
+        _relayManager = relayManager;
 
         _lifetime = lifetime;
         _logger = logger;
@@ -61,7 +54,7 @@ public class Server : BackgroundService
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
         _acceptor.BindTo(_dispatcher);
-        _dispatcher.AddHandler<SigninMessage>(OnSigninMessageReceived);
+        _dispatcher.AddHandler<CreateRelayLinkMessage>(OnCreateRelayLinkMessageReceived);
     }
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
@@ -94,12 +87,12 @@ public class Server : BackgroundService
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        await _acceptor.SetupAsync(_serverSettingProvider.ListenIpEndPoint, cancellationToken);
+        await _acceptor.SetupAsync(_serverSettingProvider.EndPoint, cancellationToken);
 
         _acceptor.StartAcceptLoop(cancellationToken).Forget();
         _acceptor.OnSessionCreated += AcceptorOnOnSessionCreated;
 
-        _logger.LogServerStarted(_serverSettingProvider.ListenIpEndPoint);
+        _logger.LogServerStarted(_serverSettingProvider.EndPoint);
 
         await base.StartAsync(cancellationToken);
     }
@@ -122,7 +115,7 @@ public class Server : BackgroundService
         _logger.LogNewSessionJoined(session.RemoteEndPoint!, id);
     }
 
-    private void OnSigninMessageReceived(MessageContext<SigninMessage> ctx)
+    private void OnCreateRelayLinkMessageReceived(MessageContext<CreateRelayLinkMessage> ctx)
     {
         var session = ctx.FromSession;
 
@@ -136,13 +129,9 @@ public class Server : BackgroundService
         _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
 
         _clientManager.AttachSession(session.Id, session);
+        _relayManager.AttachSession(session, ctx.Message.UserId, ctx.Message.RoomId);
 
-        var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
-
-        _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
-
-        _relayServerManager.AttachSession(session.Id, userId, session);
-        _p2pManager.AttachSession(session, userId, ctx.Message);
+        _dispatcher.SendAsync(session, new RelayLinkCreatedMessage()).Forget();
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)

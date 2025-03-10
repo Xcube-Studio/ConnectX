@@ -22,6 +22,7 @@ public class ConfigSettingProvider : IServerSettingProvider
             throw new Exception("Can not parse the Server:ListenAddress to IPAddress");
         }
 
+        ServerId = configuration.GetValue<Guid>("Server:ServerId");
         ListenPort = configuration.GetValue<ushort>("Server:ListenPort");
         EndPoint = new IPEndPoint(ListenAddress, ListenPort);
 
@@ -31,6 +32,7 @@ public class ConfigSettingProvider : IServerSettingProvider
     public IPEndPoint EndPoint { get; }
     public IPAddress ListenAddress { get; }
     public ushort ListenPort { get; }
+    public Guid ServerId { get; }
 }
 
 internal static partial class ConfigSettingProviderLoggers

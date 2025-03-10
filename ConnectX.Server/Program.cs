@@ -11,7 +11,7 @@ using Serilog;
 
 namespace ConnectX.Server;
 
-public class Program
+internal static class Program
 {
     private static void Main(string[] args)
     {
@@ -40,6 +40,7 @@ public class Program
             services.AddSingleton<ClientManager>();
             services.AddSingleton<GroupManager>();
             services.AddSingleton<P2PManager>();
+            services.AddSingleton<RelayServerManager>();
 
             services.AddSingleton<IZeroTierNodeInfoService, ZeroTierNodeInfoService>();
             services.AddHostedService(sc => sc.GetRequiredService<IZeroTierNodeInfoService>());

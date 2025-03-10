@@ -1,26 +1,28 @@
-﻿using System.Net;
-using ConnectX.Client.Interfaces;
-using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Messages;
+﻿using ConnectX.Relay.Interfaces;
 using ConnectX.Shared.Messages.Identity;
+using ConnectX.Shared.Messages;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ConnectX.Shared.Helpers;
+using System.Net;
+using ConnectX.Relay.Helpers;
+using ConnectX.Shared.Messages.Relay;
 
-namespace ConnectX.Client;
+namespace ConnectX.Relay;
 
 public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 {
     private readonly IDispatcher _dispatcher;
     private readonly ILogger _logger;
-    private readonly IClientSettingProvider _settingProvider;
+    private readonly IServerSettingProvider _settingProvider;
     private readonly IConnector<TcpSession> _tcpConnector;
 
     public ServerLinkHolder(
         IDispatcher dispatcher,
-        IClientSettingProvider settingProvider,
+        IServerSettingProvider settingProvider,
         IConnector<TcpSession> tcpConnector,
         ILogger<ServerLinkHolder> logger)
     {
@@ -37,7 +39,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public ISession? ServerSession { get; private set; }
     public bool IsConnected { get; private set; }
     public bool IsSignedIn { get; private set; }
-    public Guid UserId { get; private set; }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -83,6 +84,35 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         _logger.LogConnectedAndSignedToServer(endPoint);
 
+        var serverAddress = _settingProvider.ServerAddress.Equals(IPAddress.Any)
+            ? AddressHelper.GetServerPublicAddress().FirstOrDefault()
+            : _settingProvider.ServerAddress;
+
+        if (serverAddress == null)
+        {
+            _logger.FailedToAcquirePublicAddress();
+            return;
+        }
+
+        var serverEndPoint = new IPEndPoint(serverAddress, _settingProvider.ServerPort);
+
+        _logger.LogServerPublicAddressAcquired(serverEndPoint);
+
+        var res = await _dispatcher.SendAndListenOnce<RegisterRelayServerMessage, RelayServerRegisteredMessage>(
+            session,
+            new RegisterRelayServerMessage(
+                _settingProvider.ServerId,
+                serverEndPoint),
+            cancellationToken);
+
+        if (res == null)
+        {
+            _logger.LogFailedToRegisterRelayServer();
+            return;
+        }
+
+        _logger.LogSuccessfullyRegisteredRelayServer();
+
         ServerSession = session;
         IsConnected = true;
     }
@@ -105,9 +135,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     private void OnSigninSucceededReceived(MessageContext<SigninSucceeded> obj)
     {
         IsSignedIn = true;
-        UserId = obj.Message.UserId;
-
-        _logger.LogSuccessfullyLoggedIn(UserId);
 
         _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
     }
@@ -179,4 +206,16 @@ internal static partial class ServerLinkHolderLoggers
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] Stop sending heartbeat.")]
     public static partial void LogStopSendingHeartbeat(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Critical, "[CLIENT] Failed to register relay server.")]
+    public static partial void LogFailedToRegisterRelayServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Successfully registered relay server.")]
+    public static partial void LogSuccessfullyRegisteredRelayServer(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to acquire public address.")]
+    public static partial void FailedToAcquirePublicAddress(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Server public address acquired [{endPoint}]")]
+    public static partial void LogServerPublicAddressAcquired(this ILogger logger, IPEndPoint endPoint);
 }

@@ -1,4 +1,5 @@
-﻿using ConnectX.Shared.Helpers;
+﻿using ConnectX.Client.Transmission.Connections;
+using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public class Partner
     public Partner(
         Guid selfId,
         Guid partnerId,
-        P2PConnection connection,
+        ConnectionBase connection,
         IHostApplicationLifetime lifetime,
         IServiceProvider serviceProvider,
         ILogger<Partner> logger)
@@ -35,7 +36,7 @@ public class Partner
         KeepConnectAsync().Forget();
     }
 
-    public P2PConnection Connection { get; }
+    public ConnectionBase Connection { get; }
     public int Latency { get; private set; }
 
     public event Action<Partner>? OnDisconnected;

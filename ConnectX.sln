@@ -33,6 +33,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConnectX.ClientConsole", "C
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ExternalLibs", "ExternalLibs", "{7852BF23-CD48-4704-8F1B-4A507B05D86E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConnectX.Relay", "ConnectX.Relay\ConnectX.Relay.csproj", "{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -199,6 +201,18 @@ Global
 		{837F2AAB-8367-44B9-BE40-38DBDFB074DE}.Release|x64.Build.0 = Release|Any CPU
 		{837F2AAB-8367-44B9-BE40-38DBDFB074DE}.Release|x86.ActiveCfg = Release|Any CPU
 		{837F2AAB-8367-44B9-BE40-38DBDFB074DE}.Release|x86.Build.0 = Release|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Debug|x64.Build.0 = Debug|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Debug|x86.Build.0 = Debug|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Release|x64.ActiveCfg = Release|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Release|x64.Build.0 = Release|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Release|x86.ActiveCfg = Release|Any CPU
+		{BCE2B5E7-72EB-459A-9350-EF9E95421D9D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

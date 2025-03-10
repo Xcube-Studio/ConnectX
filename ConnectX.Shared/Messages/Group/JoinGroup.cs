@@ -12,4 +12,5 @@ public partial class JoinGroup : IRequireAssignedUserId
     public string? RoomShortId { get; init; }
     public string? RoomPassword { get; init; }
     public required Guid UserId { get; init; }
+    public required bool UseRelayServer { get; init; }
 }
