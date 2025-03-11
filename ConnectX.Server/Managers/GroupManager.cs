@@ -467,19 +467,6 @@ public class GroupManager
         group.Users.Add(info);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, info)).Forget();
 
-        if (assignedRelayServerAddress != null &&
-            _relayServerManager.TryRelayServerSession(assignedRelayServerAddress, out var relaySession))
-        {
-            var relayUpdate = new UpdateRelayUserRoomMappingMessage
-            {
-                RoomId = group.RoomId,
-                UserId = user.UserId,
-                State = GroupUserStates.Joined
-            };
-
-            _dispatcher.SendAsync(relaySession, relayUpdate).Forget();
-        }
-
         var success = new GroupOpResult(GroupCreationStatus.Succeeded) { RoomId = group.RoomId };
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 

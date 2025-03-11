@@ -56,11 +56,6 @@ public class ClientManager : BackgroundService
         return id;
     }
 
-    public bool IsSessionAttached(SessionId id)
-    {
-        return _watchDogMapping.ContainsKey(id);
-    }
-
     private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
     {
         if (!_watchDogMapping.TryRemove(ctx.FromSession.Id, out _)) return;
@@ -90,6 +85,8 @@ public class ClientManager : BackgroundService
 
         ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
         watchDog.Received();
+
+        _logger.LogCritical("{0} HB received", ctx.FromSession.Id);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

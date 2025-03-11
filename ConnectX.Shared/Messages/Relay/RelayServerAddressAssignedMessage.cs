@@ -8,7 +8,7 @@ namespace ConnectX.Shared.Messages.Relay;
 [MemoryPackable]
 public partial class RelayServerAddressAssignedMessage(Guid userId, IPEndPoint serverAddress)
 {
-    public Guid UserId { get; init; } = userId;
+    public Guid UserId { get; } = userId;
 
-    [MemoryPackAllowSerialize] public IPEndPoint ServerAddress { get; init; } = serverAddress;
+    [MemoryPackAllowSerialize] public IPEndPoint ServerAddress { get; } = serverAddress;
 }

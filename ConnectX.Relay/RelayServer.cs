@@ -126,7 +126,7 @@ public class RelayServer : BackgroundService
         var newVal = Interlocked.Increment(ref _currentSessionCount);
         _logger.LogCurrentOnline(newVal);
 
-        _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
+        _logger.LogRelayLinkCreateMessageReceived(session.RemoteEndPoint!, session.Id);
 
         _clientManager.AttachSession(session.Id, session);
         _relayManager.AttachSession(session, ctx.Message.UserId, ctx.Message.RoomId);
@@ -162,8 +162,8 @@ internal static partial class ServerLoggers
         "[CLIENT] New Session joined, EndPoint [{endPoint}] ID [{id}], wait for signin message.")]
     public static partial void LogNewSessionJoined(this ILogger logger, IPEndPoint endPoint, SessionId id);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT] SigninMessage received from [{endPoint}] ID [{id}]")]
-    public static partial void LogSigninMessageReceived(this ILogger logger, IPEndPoint endPoint, SessionId id);
+    [LoggerMessage(LogLevel.Information, "[CLIENT] RelayLinkCreate received from [{endPoint}] ID [{id}]")]
+    public static partial void LogRelayLinkCreateMessageReceived(this ILogger logger, IPEndPoint endPoint, SessionId id);
 
     [LoggerMessage(LogLevel.Information, "Server stopped.")]
     public static partial void LogServerStopped(this ILogger logger);

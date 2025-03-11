@@ -155,7 +155,7 @@ public sealed class RelayConnection : ConnectionBase
 
             await Task.Delay(1000, cts.Token);
 
-            Dispatcher.SendAsync(link, linkCreationReq, _cts!.Token).Forget();
+            Dispatcher.SendAsync(link, linkCreationReq, cts.Token).Forget();
 
             IsConnected = true;
             return true;
@@ -201,7 +201,7 @@ public sealed class RelayConnection : ConnectionBase
 
         while (_cts is { IsCancellationRequested: false } && _relayServerLink != null)
         {
-            await Dispatcher.SendAsync(_relayServerLink, new HeartBeat());
+            await Dispatcher.SendAsync(_relayServerLink, new HeartBeat(), _cts.Token);
             await Task.Delay(TimeSpan.FromSeconds(10), _cts.Token);
         }
 
