@@ -216,7 +216,7 @@ public class Router : BackgroundService
         {
             From = _serverLinkHolder.UserId,
             To = id,
-            Payload = payload.ToArray(),
+            Payload = payload,
             Ttl = 32
         });
     }

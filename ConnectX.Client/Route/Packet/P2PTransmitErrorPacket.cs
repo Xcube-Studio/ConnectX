@@ -10,5 +10,7 @@ public sealed partial class P2PTransmitErrorPacket : RouteLayerPacket
 {
     public required P2PTransmitError Error { get; init; }
     public Guid OriginalTo { get; init; }
+
+    [BrotliFormatter<ReadOnlyMemory<byte>>]
     public ReadOnlyMemory<byte> Payload { get; init; }
 }
