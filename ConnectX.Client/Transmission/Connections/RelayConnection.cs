@@ -134,6 +134,8 @@ public sealed class RelayConnection : ConnectionBase
         if (_roomInfoManager.CurrentGroupInfo == null)
             return false;
 
+        ResetCts();
+
         Logger.LogConnectingToRelayServer(_relayEndPoint);
 
         using var cts = new CancellationTokenSource();
@@ -153,7 +155,7 @@ public sealed class RelayConnection : ConnectionBase
 
             await Task.Delay(1000, cts.Token);
 
-            Dispatcher.SendAsync(link, linkCreationReq, cts.Token).Forget();
+            Dispatcher.SendAsync(link, linkCreationReq, _cts!.Token).Forget();
 
             IsConnected = true;
             return true;
@@ -170,7 +172,7 @@ public sealed class RelayConnection : ConnectionBase
         }
 
         session.BindTo(Dispatcher);
-        session.StartAsync(cts.Token).Forget();
+        session.StartAsync(_cts!.Token).Forget();
 
         await Task.Delay(1000, cts.Token);
 
@@ -186,7 +188,6 @@ public sealed class RelayConnection : ConnectionBase
 
         _relayServerLink = session;
 
-        ResetCts();
         SendHeartBeatAsync().Forget();
 
         IsConnected = true;
