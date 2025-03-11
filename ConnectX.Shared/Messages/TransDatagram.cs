@@ -11,7 +11,7 @@ public partial struct TransDatagram
     public readonly DatagramFlag Flag;
     public readonly int SynOrAck;
 
-    [BrotliFormatter<ReadOnlyMemory<byte>>]
+    [BrotliFormatter<ReadOnlyMemory<byte>?>]
     public ReadOnlyMemory<byte>? Payload;
 
     public Guid? RelayFrom;
