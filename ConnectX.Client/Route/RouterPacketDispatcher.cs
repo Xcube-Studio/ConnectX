@@ -1,46 +1,49 @@
-﻿using System.Buffers;
-using System.Reflection;
-using ConnectX.Client.Models;
+﻿using ConnectX.Client.Models;
 using ConnectX.Client.Route.Packet;
 using ConnectX.Shared.Helpers;
 using Hive.Codec.Abstractions;
 using Hive.Network.Shared;
 using Microsoft.Extensions.Logging;
+using System.Buffers;
 
 namespace ConnectX.Client.Route;
 
-public class RouterPacketDispatcher
+public sealed class RouterPacketDispatcher : PacketDispatcherBase<P2PPacket>
 {
-    private readonly CancellationTokenSource _cancelTokenSource;
-    private readonly IPacketCodec _codec;
-    private readonly ILogger<RouterPacketDispatcher> _logger;
-    private readonly Dictionary<Type, CallbackWarp> _receiveCallbackDic = [];
-
     private readonly Router _router;
 
     public RouterPacketDispatcher(
         Router router,
         IPacketCodec codec,
-        ILogger<RouterPacketDispatcher> logger)
+        ILogger<RouterPacketDispatcher> logger) : base(codec, logger)
     {
         _router = router;
-        _codec = codec;
-        _logger = logger;
-        _cancelTokenSource = new CancellationTokenSource();
+
         router.OnDelivery += OnReceiveTransDatagram;
+    }
+
+    protected override void OnReceiveTransDatagram(P2PPacket packet)
+    {
+        var sequence = new ReadOnlySequence<byte>(packet.Payload);
+        var message = Codec.Decode(sequence);
+        var messageType = message!.GetType();
+
+        Logger.LogReceived(messageType.Name, packet.From);
+
+        Dispatch(message, messageType, packet.From);
     }
 
     public void Send<T>(Guid target, T data)
     {
         SendToRouter(target, data);
 
-        _logger.LogSent(typeof(T).Name, target);
+        Logger.LogSent(typeof(T).Name, target);
     }
 
     private void SendToRouter<T>(Guid targetId, T datagram)
     {
         using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream();
-        _codec.Encode(datagram, stream);
+        Codec.Encode(datagram, stream);
 
         stream.Seek(0, SeekOrigin.Begin);
 
@@ -61,67 +64,14 @@ public class RouterPacketDispatcher
     {
         var received = false;
 
-        _receiveCallbackDic[typeof(T)].TempCallback[target] = (T t, PacketContext _) => { received = processor(t); };
+        ReceiveCallbackDic[typeof(T)].TempCallback[target] = (T t, PacketContext _) => { received = processor(t); };
         SendToRouter(target, data);
 
-        await TaskHelper.WaitUntilAsync(() => received, token == CancellationToken.None ? _cancelTokenSource.Token : token);
+        await TaskHelper.WaitUntilAsync(() => received, token == CancellationToken.None ? CancelTokenSource.Token : token);
 
-        _receiveCallbackDic[typeof(T)].TempCallback.Remove(target);
+        ReceiveCallbackDic[typeof(T)].TempCallback.Remove(target);
 
         return received;
-    }
-
-    public void OnReceive<T>(Action<T, PacketContext> callback)
-    {
-        if (!_receiveCallbackDic.ContainsKey(typeof(T))) _receiveCallbackDic.Add(typeof(T), new CallbackWarp());
-        _receiveCallbackDic[typeof(T)].UniformCallback.Add(callback);
-    }
-
-    public void OnReceive<T>(Guid receiver, Action<T, PacketContext> callback)
-    {
-        if (!_receiveCallbackDic.ContainsKey(typeof(T))) _receiveCallbackDic.Add(typeof(T), new CallbackWarp());
-        _receiveCallbackDic[typeof(T)].SpecificCallback.Add(receiver, callback);
-    }
-
-    private void OnReceiveTransDatagram(P2PPacket packet)
-    {
-        var sequence = new ReadOnlySequence<byte>(packet.Payload);
-        var message = _codec.Decode(sequence);
-        var messageType = message!.GetType();
-
-        _logger.LogReceived(messageType.Name, packet.From);
-
-        if (!_receiveCallbackDic.TryGetValue(messageType, out var callbackWarp)) return;
-
-        var genericActionType = typeof(Action<,>).MakeGenericType(messageType, typeof(PacketContext));
-        var actMethod = genericActionType.GetMethod("Invoke");
-
-        if (callbackWarp.TempCallback.Count > 0)
-            lock (callbackWarp.TempCallback)
-            {
-                if (callbackWarp.TempCallback.TryGetValue(packet.From, out var value))
-                    InvokeCallback(actMethod, value, message);
-            }
-
-        // 调用同步回调
-
-        if (callbackWarp.SpecificCallback.TryGetValue(packet.From, out var cbValue))
-            InvokeCallback(actMethod, cbValue, message);
-
-        foreach (var callback in callbackWarp.UniformCallback) InvokeCallback(actMethod, callback, message);
-        return;
-
-        void InvokeCallback(MethodBase? callback, object receiver, object message1)
-        {
-            callback?.Invoke(receiver, [message1, new PacketContext(packet.From, this)]);
-        }
-    }
-
-    private readonly struct CallbackWarp()
-    {
-        public readonly List<object> UniformCallback = [];
-        public readonly Dictionary<Guid, object> SpecificCallback = [];
-        public readonly Dictionary<Guid, object> TempCallback = [];
     }
 }
 
@@ -129,7 +79,4 @@ internal static partial class RouterPacketDispatcherLoggers
 {
     [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] {DataType} sent to {Target}")]
     public static partial void LogSent(this ILogger logger, string dataType, Guid target);
-
-    [LoggerMessage(LogLevel.Trace, "[ROUTER_DISPATCHER] Received P2P datagram {DataType} from {From}")]
-    public static partial void LogReceived(this ILogger logger, string dataType, Guid from);
 }

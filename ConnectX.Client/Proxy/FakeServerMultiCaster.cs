@@ -6,6 +6,7 @@ using ConnectX.Client.Managers;
 using ConnectX.Client.Models;
 using ConnectX.Client.Proxy.Message;
 using ConnectX.Client.Route;
+using ConnectX.Client.Transmission;
 using ConnectX.Client.Transmission.Connections;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,6 +28,7 @@ public class FakeServerMultiCaster : BackgroundService
         PartnerManager partnerManager,
         ProxyManager channelManager,
         RouterPacketDispatcher packetDispatcher,
+        RelayPacketDispatcher relayPacketDispatcher,
         IRoomInfoManager roomInfoManager,
         ILogger<FakeServerMultiCaster> logger)
     {
@@ -36,6 +38,7 @@ public class FakeServerMultiCaster : BackgroundService
         _roomInfoManager = roomInfoManager;
         _logger = logger;
 
+        relayPacketDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
         _packetDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
     }
 

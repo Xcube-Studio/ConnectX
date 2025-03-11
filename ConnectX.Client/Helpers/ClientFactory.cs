@@ -2,6 +2,7 @@
 using ConnectX.Client.Managers;
 using ConnectX.Client.Proxy;
 using ConnectX.Client.Route;
+using ConnectX.Client.Transmission;
 using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,8 @@ public static class ClientFactory
     {
         services.AddSingleton(_ => settingGetter());
         services.AddConnectXEssentials();
+
+        services.AddSingleton<RelayPacketDispatcher>();
 
         // Router
         services.AddSingleton<RouterPacketDispatcher>();

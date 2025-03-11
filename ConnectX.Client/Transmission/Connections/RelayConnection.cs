@@ -21,6 +21,7 @@ public sealed class RelayConnection : ConnectionBase
     private CancellationTokenSource? _cts;
 
     private readonly IPEndPoint _relayEndPoint;
+    private readonly RelayPacketDispatcher _relayPacketDispatcher;
     private readonly IConnector<TcpSession> _tcpConnector;
     private readonly IRoomInfoManager _roomInfoManager;
     private readonly IServerLinkHolder _serverLinkHolder;
@@ -31,6 +32,7 @@ public sealed class RelayConnection : ConnectionBase
         Guid targetId,
         IPEndPoint relayEndPoint,
         IDispatcher dispatcher,
+        RelayPacketDispatcher relayPacketDispatcher,
         IRoomInfoManager roomInfoManager,
         IServerLinkHolder serverLinkHolder,
         IConnector<TcpSession> tcpConnector,
@@ -39,6 +41,7 @@ public sealed class RelayConnection : ConnectionBase
         ILogger<P2PConnection> logger) : base("RELAY_CONN", targetId, dispatcher, codec, lifetime, logger)
     {
         _relayEndPoint = relayEndPoint;
+        _relayPacketDispatcher = relayPacketDispatcher;
         _tcpConnector = tcpConnector;
         _roomInfoManager = roomInfoManager;
         _serverLinkHolder = serverLinkHolder;
@@ -99,6 +102,7 @@ public sealed class RelayConnection : ConnectionBase
                     return;
                 }
 
+                _relayPacketDispatcher.DispatchPacket(datagram);
                 Dispatcher.Dispatch(_relayServerLink, message.GetType(), message);
             }
 
