@@ -67,7 +67,7 @@ public class ClientManager : BackgroundService
 
     private void OnReceivedHeartBeat(MessageContext<HeartBeat> ctx)
     {
-        if (ctx.FromSession.Id == _serverLinkHolder.ServerSession?.Id)
+        if (ctx.FromSession.RemoteEndPoint?.Address.Equals(_serverLinkHolder.ServerSession?.RemoteEndPoint?.Address) ?? false)
         {
             // This is the heart beat from the server
             ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
@@ -86,7 +86,7 @@ public class ClientManager : BackgroundService
         ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
         watchDog.Received();
 
-        _logger.LogCritical("{0} HB received", ctx.FromSession.Id);
+        _logger.RelayHeartBeatReceived(ctx.FromSession.Id);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -141,4 +141,7 @@ internal static partial class ClientManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Watchdog stopped.")]
     public static partial void LogWatchDogStopped(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Debug, "[CLIENT_MANAGER] Heartbeat received from session, session id: {sessionId}")]
+    public static partial void RelayHeartBeatReceived(this ILogger logger, SessionId sessionId);
 }
