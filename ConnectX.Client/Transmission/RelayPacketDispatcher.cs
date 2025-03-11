@@ -7,7 +7,7 @@ namespace ConnectX.Client.Transmission;
 
 public sealed class RelayPacketDispatcher(
     IPacketCodec codec,
-    ILogger logger) : PacketDispatcherBase<TransDatagram>(codec, logger)
+    ILogger<RelayPacketDispatcher> logger) : PacketDispatcherBase<TransDatagram>(codec, logger)
 {
     public void DispatchPacket(TransDatagram packet) => OnReceiveTransDatagram(packet);
 
