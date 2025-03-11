@@ -243,7 +243,8 @@ public class Router : BackgroundService
 
         if (!_peerManager.HasLink(packet.To))
         {
-            _logger.LogLinkIsNotReachable(interfaceId);
+            if (packet.To != Guid.Empty)
+                _logger.LogLinkIsNotReachable(interfaceId);
             return;
         }
 

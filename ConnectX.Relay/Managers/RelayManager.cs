@@ -108,7 +108,7 @@ public class RelayManager
             return;
         }
 
-        var repackedDatagram = new TransDatagram(message.Flag, message.SynOrAck, message.Payload, message.RelayTo);
+        var repackedDatagram = new TransDatagram(message.Flag, message.SynOrAck, message.Payload, message.RelayFrom, message.RelayTo);
 
         _dispatcher.SendAsync(session, repackedDatagram).Forget();
 

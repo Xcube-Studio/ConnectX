@@ -4,6 +4,7 @@ using ConnectX.Client.Interfaces;
 using ConnectX.Client.Transmission;
 using ConnectX.Client.Transmission.Connections;
 using ConnectX.Shared.Messages.Group;
+using ConnectX.Shared.Messages.Relay;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +20,8 @@ public class PartnerManager
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IServiceProvider _serviceProvider;
     private readonly IRoomInfoManager _roomInfoManager;
+
+    private IPEndPoint? _assignedRelayServerAddress;
 
     public PartnerManager(
         PeerManager peerManager,
@@ -38,6 +41,20 @@ public class PartnerManager
         _roomInfoManager.OnMemberAddressInfoUpdated += UpdatePartnerInfo;
 
         _dispatcher.AddHandler<GroupUserStateChanged>(OnGroupUserStateChanged);
+        _dispatcher.AddHandler<RelayServerAddressAssignedMessage>(OnRelayServerAddressAssignedMessageReceived);
+    }
+
+    private void OnRelayServerAddressAssignedMessageReceived(MessageContext<RelayServerAddressAssignedMessage> ctx)
+    {
+        if (ctx.Message.UserId != _serverLinkHolder.UserId)
+        {
+            _logger.LogWrongRelayServerAddressAssignedMessageReceived(ctx.Message.UserId);
+            return;
+        }
+
+        _assignedRelayServerAddress = ctx.Message.ServerAddress;
+
+        _logger.LogRelayServerAddressAssigned(ctx.Message.ServerAddress);
     }
 
     private void UpdatePartnerInfo(UserInfo[] userInfos)
@@ -54,6 +71,20 @@ public class PartnerManager
 
             if (userId == _serverLinkHolder.UserId)
                 continue;
+
+            if (userInfo.RelayServerAddress != null)
+            {
+                AddRelayPartner(userId, userInfo.RelayServerAddress);
+                continue;
+            }
+
+            if (_assignedRelayServerAddress != null &&
+                userInfo.RelayServerAddress == null)
+            {
+                // We do not create P2P connection if the user asked to use relay server
+                AddRelayPartner(userId, _assignedRelayServerAddress);
+                continue;
+            }
 
             AddPartner(userId);
         }
@@ -163,6 +194,7 @@ public class PartnerManager
 
     public void RemoveAllPartners()
     {
+        _assignedRelayServerAddress = null;
         _peerManager.RemoveAllPeer();
 
         foreach (var (_, partner) in Partners)
@@ -185,4 +217,10 @@ internal static partial class PartnerManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Partner using relay server [{relayServerAddress}] added with user ID [{userId}]")]
     public static partial void LogRelayPartnerAdded(this ILogger logger, IPEndPoint relayServerAddress, Guid userId);
+
+    [LoggerMessage(LogLevel.Warning, "[PARTNER_MANAGER] Wrong relay server address assigned message received with user ID [{userId}]")]
+    public static partial void LogWrongRelayServerAddressAssignedMessageReceived(this ILogger logger, Guid userId);
+
+    [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Relay server address assigned [{serverAddress}]")]
+    public static partial void LogRelayServerAddressAssigned(this ILogger logger, IPEndPoint serverAddress);
 }

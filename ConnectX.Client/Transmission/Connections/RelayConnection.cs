@@ -25,7 +25,7 @@ public sealed class RelayConnection : ConnectionBase
     private readonly IRoomInfoManager _roomInfoManager;
     private readonly IServerLinkHolder _serverLinkHolder;
 
-    public static ConcurrentDictionary<IPEndPoint, ISession> RelayServerLinkPool { get; } = new();
+    private static ConcurrentDictionary<IPEndPoint, ISession> RelayServerLinkPool { get; } = new();
 
     public RelayConnection(
         Guid targetId,
@@ -55,6 +55,13 @@ public sealed class RelayConnection : ConnectionBase
 
     private void OnTransDatagramReceived(MessageContext<TransDatagram> ctx)
     {
+        if (ctx.Message.RelayFrom.HasValue &&
+            ctx.Message.RelayFrom.Value != To)
+        {
+            // we want to make sure we are processing the right packet
+            return;
+        }
+
         ArgumentNullException.ThrowIfNull(_relayServerLink);
 
         var datagram = ctx.Message;
@@ -62,7 +69,8 @@ public sealed class RelayConnection : ConnectionBase
         if (datagram.Flag == TransDatagram.FirstHandShakeFlag)
         {
             // 握手的回复
-            Dispatcher.SendAsync(_relayServerLink, TransDatagram.CreateHandShakeSecond(1)).Forget();
+            var handshake = TransDatagram.CreateHandShakeSecond(1, _serverLinkHolder.UserId, To);
+            Dispatcher.SendAsync(_relayServerLink, handshake).Forget();
 
             Logger.LogReceiveFirstShakeHandPacket(Source, To);
 
@@ -88,7 +96,9 @@ public sealed class RelayConnection : ConnectionBase
                 Dispatcher.Dispatch(_relayServerLink, message.GetType(), message);
             }
 
-            Dispatcher.SendAsync(_relayServerLink, TransDatagram.CreateAck(datagram.SynOrAck)).Forget();
+            var ack = TransDatagram.CreateAck(datagram.SynOrAck, _serverLinkHolder.UserId, To);
+
+            Dispatcher.SendAsync(_relayServerLink, ack).Forget();
         }
         else if ((datagram.Flag & DatagramFlag.ACK) != 0)
         {
@@ -110,7 +120,7 @@ public sealed class RelayConnection : ConnectionBase
 
     public override void Send(ReadOnlyMemory<byte> payload)
     {
-        SendDatagram(TransDatagram.CreateNormal(SendPointer, payload, To));
+        SendDatagram(TransDatagram.CreateNormal(SendPointer, payload, _serverLinkHolder.UserId, To));
     }
 
     public override async Task<bool> ConnectAsync()
@@ -126,6 +136,9 @@ public sealed class RelayConnection : ConnectionBase
             UserId = _serverLinkHolder.UserId,
             RoomId = _roomInfoManager.CurrentGroupInfo.RoomId
         };
+
+        // Make a random delay to avoid duplicate creation
+        await Task.Delay(Random.Shared.Next(1000, 2000), cts.Token);
 
         // If we can find the link in the pool, we can reuse it.
         if (RelayServerLinkPool.TryGetValue(_relayEndPoint, out var link))
@@ -180,13 +193,15 @@ public sealed class RelayConnection : ConnectionBase
         while (_cts is { IsCancellationRequested: false } && _relayServerLink != null)
         {
             await Dispatcher.SendAsync(_relayServerLink, new HeartBeat());
-            await Task.Delay(500);
+            await Task.Delay(TimeSpan.FromSeconds(10), _cts.Token);
         }
     }
 
     public override void Disconnect()
     {
         base.Disconnect();
+
+        ResetCts();
 
         if (_relayServerLink == null) return;
 
