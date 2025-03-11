@@ -6,6 +6,7 @@ using ConnectX.Client.Managers;
 using ConnectX.Client.Models;
 using ConnectX.Client.Proxy.Message;
 using ConnectX.Client.Route;
+using ConnectX.Client.Transmission.Connections;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -73,14 +74,26 @@ public class FakeServerMultiCaster : BackgroundService
 
         OnListenedLanServer?.Invoke(serverName, port);
 
-        foreach (var (id, _) in _partnerManager.Partners)
+        foreach (var (id, partner) in _partnerManager.Partners)
         {
-            // 对每一个用户组播
-            _packetDispatcher.Send(id, new McMulticastMessage
+            var message = new McMulticastMessage
             {
                 Port = port,
                 Name = $"[{Prefix}]{serverName}"
-            });
+            };
+
+            if (partner.Connection is RelayConnection)
+            {
+                // Partner is connected through relay, send multicast using the relay connection
+                partner.Connection.SendData(message);
+
+                _logger.LogSendLanServerToPartner(serverName, port, id);
+
+                continue;
+            }
+
+            // 对每一个用户组播
+            _packetDispatcher.Send(id, message);
 
             _logger.LogSendLanServerToPartner(serverName, port, id);
         }

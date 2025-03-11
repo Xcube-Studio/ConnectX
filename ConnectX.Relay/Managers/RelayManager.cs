@@ -143,7 +143,7 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay destination not found from session [{sessionId}], possible bug or wrong sender!")]
     public static partial void LogRelayDestinationNotFound(this ILogger logger, SessionId sessionId);
 
-    [LoggerMessage(LogLevel.Critical, "[RELAY_MANAGER] Relay datagram sent from session [{fromSessionId}] to user [{toUserId}]")]
+    [LoggerMessage(LogLevel.Debug, "[RELAY_MANAGER] Relay datagram sent from session [{fromSessionId}] to user [{toUserId}]")]
     public static partial void LogRelayDatagramSent(this ILogger logger, SessionId fromSessionId, Guid toUserId);
 
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay link attached, session [{sessionId}] with user [{userId}]")]
