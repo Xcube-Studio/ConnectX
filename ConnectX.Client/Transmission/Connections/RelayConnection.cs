@@ -44,6 +44,12 @@ public sealed class RelayConnection : ConnectionBase
         _serverLinkHolder = serverLinkHolder;
 
         dispatcher.AddHandler<TransDatagram>(OnTransDatagramReceived);
+        dispatcher.AddHandler<HeartBeat>(OnHeartBeatReceived);
+    }
+
+    private void OnHeartBeatReceived(MessageContext<HeartBeat> obj)
+    {
+        Logger.LogHeartbeatReceivedFromServer();
     }
 
     private void ResetCts()
@@ -190,11 +196,15 @@ public sealed class RelayConnection : ConnectionBase
 
     private async Task SendHeartBeatAsync()
     {
+        Logger.LogHeartbeatStarted();
+
         while (_cts is { IsCancellationRequested: false } && _relayServerLink != null)
         {
             await Dispatcher.SendAsync(_relayServerLink, new HeartBeat());
             await Task.Delay(TimeSpan.FromSeconds(10), _cts.Token);
         }
+
+        Logger.LogHeartbeatStopped();
     }
 
     public override void Disconnect()
@@ -230,4 +240,10 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Failed to connect to relay server [{relayEndPoint}]")]
     public static partial void LogFailedToConnectToRelayServer(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Heartbeat started")]
+    public static partial void LogHeartbeatStarted(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Heartbeat stopped")]
+    public static partial void LogHeartbeatStopped(this ILogger logger);
 }
