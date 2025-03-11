@@ -5,7 +5,7 @@ using System.Reflection;
 
 namespace ConnectX.Client;
 
-public abstract class PacketDispatcherBase<T>
+public abstract class PacketDispatcherBase<TInPacket>
 {
     protected readonly CancellationTokenSource CancelTokenSource;
     protected readonly IPacketCodec Codec;
@@ -62,7 +62,7 @@ public abstract class PacketDispatcherBase<T>
         }
     }
 
-    protected abstract void OnReceiveTransDatagram(T packet);
+    protected abstract void OnReceiveTransDatagram(TInPacket packet);
 
     protected readonly struct CallbackWarp()
     {
