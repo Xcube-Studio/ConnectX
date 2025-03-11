@@ -313,7 +313,7 @@ public class GroupManager
         var networkId = $"{_zeroTierNodeInfoService.NodeStatus.Address}______";
         var networkCreationReq = new NetworkDetailsReqModel
         {
-            Name = GuidHelper.Hash($"GROUP: {ctx.Message.RoomName}").ToString("N"),
+            Name = GuidHelper.Hash($"GROUP: {ctx.Message.RoomName}{DateTime.Now.ToFileTimeUtc()}").ToString("N"),
             EnableBroadcast = true,
             IpAssignmentPools =
             [
