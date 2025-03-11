@@ -180,7 +180,7 @@ public sealed class RelayConnection : ConnectionBase
 
         RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
         {
-            oldSession.OnMessageReceived += Dispatcher.Dispatch;
+            oldSession.OnMessageReceived -= Dispatcher.Dispatch;
             oldSession.Close();
 
             return session;
@@ -189,6 +189,8 @@ public sealed class RelayConnection : ConnectionBase
         _relayServerLink = session;
 
         SendHeartBeatAsync().Forget();
+
+        Logger.LogConnectedToRelayServer(_relayEndPoint);
 
         IsConnected = true;
 
@@ -216,7 +218,7 @@ public sealed class RelayConnection : ConnectionBase
 
         if (_relayServerLink == null) return;
 
-        _relayServerLink.OnMessageReceived += Dispatcher.Dispatch;
+        _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
         _relayServerLink.Close();
         _relayServerLink = null;
 
@@ -247,4 +249,7 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Heartbeat stopped")]
     public static partial void LogHeartbeatStopped(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Connected to relay server [{relayEndPoint}]")]
+    public static partial void LogConnectedToRelayServer(this ILogger logger, IPEndPoint relayEndPoint);
 }
