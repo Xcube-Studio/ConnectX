@@ -22,6 +22,18 @@
 ![ConnectX cn drawio](https://github.com/user-attachments/assets/f8dc7829-5dd1-48c1-bbab-fa8df30fbbda#gh-light-mode-only)
 ![ConnectX cn dark drawio](https://github.com/user-attachments/assets/d584f885-d671-4d43-bab7-f49ec1d14868#gh-dark-mode-only)
 
+## 项目状态
+
+|功能                                             |状态   |
+|:------------------------------------------------|:-----|
+|`服务端`: 将房间相关操作记录到本地数据库（合规用途） |✅   |
+|`服务端`: 客户端/房间管理                          |✅   |
+|`服务端`: 中继服务器管理                           |✅   |
+|`中继`: 通过 Hive 实现的中继服务器                 |✅   |
+|`客户端`: 基于 ZT 的 P2P 联机实现                  |✅   |
+|`客户端`: 基于 ZT 的中继联机实现                   |✅   |
+|`客户端`: 基于 ConnectX 中继服务器的联机实现        |✅   |
+
 ## 快速开始！
 
 我们使用 MSDI（`Microsoft.Extensions.DependencyInjection`）作为 DI 容器。最佳做法是在程序中使用 `.NET Generic Host`。
