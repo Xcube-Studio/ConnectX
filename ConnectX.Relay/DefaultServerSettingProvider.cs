@@ -11,6 +11,9 @@ public class DefaultServerSettingProvider : IServerSettingProvider
     public required IPAddress RelayServerAddress { get; init; }
     public ushort RelayServerPort { get; init; }
 
+    public IPAddress? PublicListenAddress { get; init; }
+    public ushort PublicListenPort { get; init; }
+
     public bool JoinP2PNetwork { get; init; }
     public Guid ServerId { get; init; }
 

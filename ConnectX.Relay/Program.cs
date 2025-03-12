@@ -14,28 +14,35 @@ namespace ConnectX.Relay
         private static IServerSettingProvider GetSettings(IConfiguration configuration)
         {
             var listenAddressStr = configuration.GetValue<string>("Server:ListenAddress");
-            var port = configuration.GetValue<ushort>("Server:ListenPort");
+            var listenPort = configuration.GetValue<ushort>("Server:ListenPort");
             var serverId = configuration.GetValue<Guid>("Server:ServerId");
 
             var relayListenAddressStr = configuration.GetValue<string>("RelayServer:ListenAddress");
             var relayServerPort = configuration.GetValue<ushort>("RelayServer:ListenPort");
 
+            var publicListenAddressStr = configuration.GetValue<string>("RelayServer:PublicListenAddress");
+            var publicListenPort = configuration.GetValue<ushort>("RelayServer:PublicListenPort");
+
             ArgumentException.ThrowIfNullOrEmpty(listenAddressStr);
             ArgumentException.ThrowIfNullOrEmpty(relayListenAddressStr);
+            ArgumentException.ThrowIfNullOrEmpty(publicListenAddressStr);
 
             var serverAddress = IPAddress.Parse(listenAddressStr);
             var relayServerAddress = IPAddress.Parse(relayListenAddressStr);
+            var publicListenAddress = IPAddress.TryParse(publicListenAddressStr, out var outListenAddress) ? outListenAddress : null;
 
             return new DefaultServerSettingProvider
             {
                 ServerAddress = serverAddress,
-                ServerPort = port,
+                ServerPort = listenPort,
                 RelayServerAddress = relayServerAddress,
                 RelayServerPort = relayServerPort,
                 JoinP2PNetwork = true,
                 ServerId = serverId,
-                EndPoint = new IPEndPoint(serverAddress, port),
-                RelayEndPoint = new IPEndPoint(relayServerAddress, relayServerPort)
+                EndPoint = new IPEndPoint(serverAddress, listenPort),
+                RelayEndPoint = new IPEndPoint(relayServerAddress, relayServerPort),
+                PublicListenAddress = publicListenAddress,
+                PublicListenPort = publicListenPort
             };
         }
 

@@ -10,6 +10,9 @@ public interface IServerSettingProvider
     IPAddress RelayServerAddress { get; }
     ushort RelayServerPort { get; }
 
+    IPAddress? PublicListenAddress { get; }
+    ushort PublicListenPort { get; }
+
     bool JoinP2PNetwork { get; }
     Guid ServerId { get; }
 

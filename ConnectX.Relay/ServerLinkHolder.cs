@@ -16,9 +16,9 @@ namespace ConnectX.Relay;
 public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 {
     private readonly IDispatcher _dispatcher;
-    private readonly ILogger _logger;
     private readonly IServerSettingProvider _settingProvider;
     private readonly IConnector<TcpSession> _tcpConnector;
+    private readonly ILogger _logger;
 
     public ServerLinkHolder(
         IDispatcher dispatcher,
@@ -55,6 +55,22 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         return base.StopAsync(cancellationToken);
     }
 
+    private IPAddress? TryGetPublicListenAddress()
+    {
+        if (_settingProvider.PublicListenAddress != null)
+            return _settingProvider.PublicListenAddress;
+
+        var serverAddress = _settingProvider.RelayServerAddress.Equals(IPAddress.Any)
+            ? AddressHelper.GetServerPublicAddress().FirstOrDefault()
+            : _settingProvider.RelayServerAddress;
+
+        if (serverAddress != null) return serverAddress;
+
+        _logger.FailedToAcquirePublicAddress();
+
+        return null;
+    }
+
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
         _logger.LogConnectingToServer();
@@ -84,17 +100,14 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         _logger.LogConnectedAndSignedToServer(endPoint);
 
-        var serverAddress = _settingProvider.RelayServerAddress.Equals(IPAddress.Any)
-            ? AddressHelper.GetServerPublicAddress().FirstOrDefault()
-            : _settingProvider.RelayServerAddress;
+        var serverAddress = TryGetPublicListenAddress();
+        var serverPort = _settingProvider.RelayServerPort == 0
+            ? _settingProvider.PublicListenPort
+            : _settingProvider.RelayServerPort;
 
-        if (serverAddress == null)
-        {
-            _logger.FailedToAcquirePublicAddress();
-            return;
-        }
+        if (serverAddress == null) return;
 
-        var serverEndPoint = new IPEndPoint(serverAddress, _settingProvider.RelayServerPort);
+        var serverEndPoint = new IPEndPoint(serverAddress, serverPort);
 
         _logger.LogServerPublicAddressAcquired(serverEndPoint);
 
