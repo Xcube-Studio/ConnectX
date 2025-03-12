@@ -22,6 +22,18 @@ Proudly powered by another of our open-source projects: [Hive.Framework](https:/
 ![ConnectX drawio](https://github.com/user-attachments/assets/fe47401c-6543-48a1-9c22-3617dfa9ce42#gh-light-mode-only)
 ![ConnectX dark drawio](https://github.com/user-attachments/assets/4d77b985-4c63-4c2b-a3f6-5e3b98ef9ff0#gh-dark-mode-only)
 
+## Status
+
+|Function                                 |Status|
+|:----------------------------------------|:-----|
+|`Server`: Log Room Ops Info to local DB  |✅   |
+|`Server`: Client/Room management         |✅   |
+|`Server`: Relay Server management        |✅   |
+|`Relay`: Relay Server impl based on Hive |✅   |
+|`Client`: ZT based P2P connection        |✅   |
+|`Client`: ZT based Relay connection      |✅   |
+|`Client`: ConnectX based Relay connection|✅   |
+
 ## Quick Start!
 
 We are using the MSDI(Microsoft.Extensions.DependencyInjection) as our DI container. The best practice is to use `.NET Generic Host` for you program. 
