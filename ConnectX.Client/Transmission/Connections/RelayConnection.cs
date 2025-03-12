@@ -1,6 +1,7 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
@@ -135,70 +136,90 @@ public sealed class RelayConnection : ConnectionBase
 
     public override async Task<bool> ConnectAsync()
     {
+        ResetCts();
+
         if (_roomInfoManager.CurrentGroupInfo == null)
             return false;
 
-        ResetCts();
-
         Logger.LogConnectingToRelayServer(_relayEndPoint);
 
-        using var cts = new CancellationTokenSource();
         var linkCreationReq = new CreateRelayLinkMessage
         {
             UserId = _serverLinkHolder.UserId,
             RoomId = _roomInfoManager.CurrentGroupInfo.RoomId
         };
 
-        // Make a random delay to avoid duplicate creation
-        await Task.Delay(Random.Shared.Next(1000, 2000), cts.Token);
-
-        // If we can find the link in the pool, we can reuse it.
-        if (RelayServerLinkPool.TryGetValue(_relayEndPoint, out var link))
+        try
         {
-            link.BindTo(Dispatcher);
+            using var cts = new CancellationTokenSource();
+
+            // Make a random delay to avoid duplicate creation
+            await Task.Delay(Random.Shared.Next(1000, 2000), cts.Token);
+
+            // If we can find the link in the pool, we can reuse it.
+            if (RelayServerLinkPool.TryGetValue(_relayEndPoint, out var link))
+            {
+                link.BindTo(Dispatcher);
+
+                await Task.Delay(1000, cts.Token);
+
+                Dispatcher.SendAsync(link, linkCreationReq, cts.Token).Forget();
+
+                IsConnected = true;
+                return true;
+            }
+
+            var session = await _tcpConnector.ConnectAsync(_relayEndPoint, cts.Token);
+
+            if (session == null)
+            {
+                Logger.LogConnectFailed(Source, To);
+                Logger.LogFailedToConnectToRelayServer(_relayEndPoint);
+
+                return false;
+            }
+
+            session.BindTo(Dispatcher);
+            session.StartAsync(_cts!.Token).Forget();
 
             await Task.Delay(1000, cts.Token);
 
-            Dispatcher.SendAsync(link, linkCreationReq, cts.Token).Forget();
+            await Dispatcher.SendAndListenOnce<CreateRelayLinkMessage, RelayLinkCreatedMessage>(session,
+                linkCreationReq, cts.Token);
+
+            RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
+            {
+                oldSession.OnMessageReceived -= Dispatcher.Dispatch;
+                oldSession.Close();
+
+                return session;
+            });
+
+            _relayServerLink = session;
+
+            SendHeartBeatAsync().Forget();
+
+            Logger.LogConnectedToRelayServer(_relayEndPoint);
 
             IsConnected = true;
+
             return true;
         }
-        
-        var session = await _tcpConnector.ConnectAsync(_relayEndPoint, cts.Token);
-
-        if (session == null)
+        catch (TaskCanceledException)
         {
-            Logger.LogConnectFailed(Source, To);
-            Logger.LogFailedToConnectToRelayServer(_relayEndPoint);
+            ResetCts();
+            IsConnected = false;
 
             return false;
         }
-
-        session.BindTo(Dispatcher);
-        session.StartAsync(_cts!.Token).Forget();
-
-        await Task.Delay(1000, cts.Token);
-
-        await Dispatcher.SendAndListenOnce<CreateRelayLinkMessage, RelayLinkCreatedMessage>(session, linkCreationReq, cts.Token);
-
-        RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
+        catch (SocketException e)
         {
-            oldSession.OnMessageReceived -= Dispatcher.Dispatch;
-            oldSession.Close();
+            ResetCts();
+            IsConnected = false;
 
-            return session;
-        });
-
-        _relayServerLink = session;
-
-        SendHeartBeatAsync().Forget();
-
-        Logger.LogConnectedToRelayServer(_relayEndPoint);
-
-        IsConnected = true;
-
-        return true;
+            Logger.LogFailedToConnectToRelayServerWithException(e, _relayEndPoint);
+            return false;
+        }
     }
 
     private async Task SendHeartBeatAsync()
@@ -247,6 +268,9 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Failed to connect to relay server [{relayEndPoint}]")]
     public static partial void LogFailedToConnectToRelayServer(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Failed to connect to relay server [{relayEndPoint}]")]
+    public static partial void LogFailedToConnectToRelayServerWithException(this ILogger logger, Exception ex, IPEndPoint relayEndPoint);
 
     [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Heartbeat started")]
     public static partial void LogHeartbeatStarted(this ILogger logger);
