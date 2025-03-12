@@ -77,6 +77,8 @@ public class ClientManager : BackgroundService
             return;
         }
 
+        _logger.LogCritical("{0}", ctx.FromSession.Id);
+
         ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
         watchDog.Received();
     }

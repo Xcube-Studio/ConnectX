@@ -69,8 +69,7 @@ public class ClientManager : BackgroundService
     {
         if (ctx.FromSession.RemoteEndPoint?.Address.Equals(_serverLinkHolder.ServerSession?.RemoteEndPoint?.Address) ?? false)
         {
-            // This is the heart beat from the server
-            ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
+            // This is the heart beat from the server, ignore it.
             return;
         }
 
