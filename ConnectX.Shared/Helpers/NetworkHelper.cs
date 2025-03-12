@@ -17,14 +17,9 @@ public static class NetworkHelper
             [192, 168, 0, 0] // 192.168.0.0/16
         };
 
-        foreach (var section in privateIpSections)
-        {
-            var matches = !section.Where((t, i) => t != (ipAddressBytes[i] & t)).Any();
-
-            if (matches) return true; // It's a private IP address
-        }
-
-        return false; // It's not a private IP address
+        return privateIpSections
+            .Select(section => !section.Where((t, i) => t != (ipAddressBytes[i] & t)).Any())
+            .Any(matches => matches);
     }
 
     /// <summary>
