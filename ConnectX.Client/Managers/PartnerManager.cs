@@ -93,6 +93,7 @@ public class PartnerManager
     public ConcurrentDictionary<Guid, Partner> Partners { get; } = new();
 
     public event Action<Partner>? OnPartnerAdded;
+    public event Action<Partner>? OnPartnerRemoved;
 
     private void OnGroupUserStateChanged(MessageContext<GroupUserStateChanged> ctx)
     {
@@ -188,6 +189,8 @@ public class PartnerManager
 
         partner.Disconnect();
         _logger.LogDisconnectedWithPartnerId(partnerId);
+
+        OnPartnerRemoved?.Invoke(partner);
 
         return true;
     }
