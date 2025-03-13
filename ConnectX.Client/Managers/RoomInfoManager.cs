@@ -131,7 +131,7 @@ public class RoomInfoManager(
                     if (address.GetAddressBytes()[3] == 0)
                         continue;
 
-                    logger.LogPeerDiscovered(address);
+                    logger.LogPossiblePeerDiscovered(address);
 
                     hashset.Add(user.UserId);
                     possibleUsers.Add(user);
@@ -197,6 +197,6 @@ internal static partial class RoomInfoManagerLoggers
     [LoggerMessage(LogLevel.Information, "[ROOM_INFO_MANAGER] Self info outdated, updating...")]
     public static partial void LogUpdatingSelfInfo(this ILogger logger);
 
-    [LoggerMessage(LogLevel.Information, "[ROOM_INFO_MANAGER] New peer discovered, address: [{address}].")]
-    public static partial void LogPeerDiscovered(this ILogger logger, IPAddress address);
+    [LoggerMessage(LogLevel.Information, "[ROOM_INFO_MANAGER] Possible new peer discovered, address: [{address}].")]
+    public static partial void LogPossiblePeerDiscovered(this ILogger logger, IPAddress address);
 }

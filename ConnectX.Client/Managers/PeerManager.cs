@@ -353,8 +353,6 @@ public class PeerManager : BackgroundService, IEnumerable<KeyValuePair<Guid, Pee
             if (trying) continue;
             if (_connectedPeers.ContainsKey(key)) continue;
 
-            _logger.LogTryingToConnectToPartner(key);
-
             RequestConnectPartnerAsync(key, cancellationToken).Forget();
             _allPeers.TryUpdate(key, true, false);
         }

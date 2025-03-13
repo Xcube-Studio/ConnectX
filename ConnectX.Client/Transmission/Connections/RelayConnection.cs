@@ -27,7 +27,8 @@ public sealed class RelayConnection : ConnectionBase
     private readonly IRoomInfoManager _roomInfoManager;
     private readonly IServerLinkHolder _serverLinkHolder;
 
-    private static ConcurrentDictionary<IPEndPoint, ISession> RelayServerLinkPool { get; } = new();
+    private static readonly ConcurrentDictionary<IPEndPoint, ISession> RelayServerLinkPool = new();
+    private static readonly ConcurrentDictionary<IPEndPoint, SemaphoreSlim> ConnectionLocks = new();
 
     public RelayConnection(
         Guid targetId,
@@ -149,12 +150,24 @@ public sealed class RelayConnection : ConnectionBase
             RoomId = _roomInfoManager.CurrentGroupInfo.RoomId
         };
 
+        SemaphoreSlim? connectionLock = null;
+
         try
         {
             using var cts = new CancellationTokenSource();
 
             // Make a random delay to avoid duplicate creation
-            await Task.Delay(Random.Shared.Next(1000, 2000), cts.Token);
+            await Task.Delay(Random.Shared.Next(100, 1000), cts.Token);
+
+            if (!ConnectionLocks.TryGetValue(_relayEndPoint, out connectionLock))
+            {
+                connectionLock = new SemaphoreSlim(1, 1);
+                ConnectionLocks.TryAdd(_relayEndPoint, connectionLock);
+            }
+
+            // Wait for the connection lock
+            Logger.LogWaitingForConnectionLock(_relayEndPoint);
+            await connectionLock.WaitAsync(cts.Token);
 
             // If we can find the link in the pool, we can reuse it.
             if (RelayServerLinkPool.TryGetValue(_relayEndPoint, out var link))
@@ -164,8 +177,9 @@ public sealed class RelayConnection : ConnectionBase
                 await Task.Delay(1000, cts.Token);
 
                 Dispatcher.SendAsync(link, linkCreationReq, cts.Token).Forget();
-
                 IsConnected = true;
+
+                Logger.LogConnectedToRelayServerUsingPool(_relayEndPoint);
                 return true;
             }
 
@@ -219,6 +233,12 @@ public sealed class RelayConnection : ConnectionBase
 
             Logger.LogFailedToConnectToRelayServerWithException(e, _relayEndPoint);
             return false;
+        }
+        finally
+        {
+            ArgumentNullException.ThrowIfNull(connectionLock);
+
+            connectionLock.Release();
         }
     }
 
@@ -287,4 +307,10 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Send failed because link is not ready yet. (Source: {source}, Target: {target})")]
     public static partial void LogSendFailedBecauseLinkNotReadyYet(this ILogger logger, string source, Guid target);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Connected to relay server [{relayEndPoint}] using pool")]
+    public static partial void LogConnectedToRelayServerUsingPool(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Debug, "[RELAY_CONN] Waiting for connection lock [{relayEndPoint}]")]
+    public static partial void LogWaitingForConnectionLock(this ILogger logger, IPEndPoint relayEndPoint);
 }

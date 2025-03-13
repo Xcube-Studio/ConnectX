@@ -10,7 +10,7 @@ public class IpAddressFormatter : MemoryPackFormatter<IPAddress>
     {
         if (value == null)
         {
-            writer.WriteNullObjectHeader();
+            writer.WriteNullCollectionHeader();
             return;
         }
 
@@ -20,12 +20,6 @@ public class IpAddressFormatter : MemoryPackFormatter<IPAddress>
 
     public override void Deserialize(ref MemoryPackReader reader, scoped ref IPAddress? value)
     {
-        if (reader.PeekIsNull())
-        {
-            value = null;
-            return;
-        }
-
         var arr = reader.ReadArray<byte>();
 
         if (arr == null || arr.Length == 0)

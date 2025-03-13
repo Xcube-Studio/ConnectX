@@ -153,5 +153,5 @@ internal static partial class RelayManagerLoggers
     public static partial void LogRelayInfoUpdateUnauthorized(this ILogger logger, SessionId sessionId, IPAddress address);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Old session closed, remote end point [{remoteEndPoint}]")]
-    public static partial void LogOldSessionClosed(this ILogger logger, IPEndPoint remoteEndPoint);
+    public static partial void LogOldSessionClosed(this ILogger logger, IPEndPoint? remoteEndPoint);
 }

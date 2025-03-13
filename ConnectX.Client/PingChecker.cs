@@ -34,7 +34,10 @@ public class PingChecker<TId>
 
     private void OnPingReceived(MessageContext<Ping> ctx)
     {
-        _logger.LogPingReceived(GetPingSourceString(ctx), DateTime.Now.Ticks);
+        var tickNow = DateTime.Now.Ticks;
+        var delay = TimeSpan.FromTicks(tickNow - ctx.Message.SendTime).TotalMilliseconds;
+
+        _logger.LogPingReceived(GetPingSourceString(ctx), delay, ctx.Message.SendTime, tickNow);
 
         var ping = ctx.Message;
         var pong = new Pong
@@ -107,8 +110,8 @@ public class PingChecker<TId>
 
 internal static partial class PingCheckerLoggers
 {
-    [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Ping received from {From}, receive time: {ReceiveTime}")]
-    public static partial void LogPingReceived(this ILogger logger, string from, long receiveTime);
+    [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Ping received from {From}, delay: {DelayInMs:F} ms, send time: {SendTime}, receive time: {ReceiveTime}, ")]
+    public static partial void LogPingReceived(this ILogger logger, string from, double delayInMs, long sendTime, long receiveTime);
 
     [LoggerMessage(LogLevel.Debug, "[PING_CHECKER] Send Pong to {To}")]
     public static partial void LogSendPong(this ILogger logger, string to);

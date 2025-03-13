@@ -209,7 +209,7 @@ public class PartnerManager
 
 internal static partial class PartnerManagerLoggers
 {
-    [LoggerMessage(LogLevel.Warning, "[PARTNER_MANAGER] Partner connected with user ID [{partnerId}]")]
+    [LoggerMessage(LogLevel.Warning, "[PARTNER_MANAGER] Partner disconnected with user ID [{partnerId}]")]
     public static partial void LogDisconnectedWithPartnerId(this ILogger logger, Guid partnerId);
 
     [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Room state changed for user [{userId}] with state [{groupState:G}]")]
