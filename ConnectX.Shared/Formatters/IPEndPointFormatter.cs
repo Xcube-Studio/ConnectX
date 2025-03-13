@@ -20,6 +20,12 @@ public class IPEndPointFormatter : MemoryPackFormatter<IPEndPoint>
 
     public override void Deserialize(ref MemoryPackReader reader, scoped ref IPEndPoint? value)
     {
+        if (reader.PeekIsNull())
+        {
+            value = null;
+            return;
+        }
+
         var str = reader.ReadString();
 
         if (string.IsNullOrEmpty(str) || !IPEndPoint.TryParse(str, out var endPoint))

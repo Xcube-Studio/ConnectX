@@ -162,7 +162,7 @@ public class RoomInfoManager(
                 message);
 
         if (groupInfo == null ||
-        groupInfo == GroupInfo.Invalid ||
+            groupInfo == GroupInfo.Invalid ||
             groupInfo.Users.Length == 0)
         {
             logger.LogFailedToAcquireGroupInfo(groupId);
