@@ -39,43 +39,46 @@ public class GenericProxyAcceptor : IDisposable
 
     public event Action<GenericProxyAcceptor, Socket>? OnRealClientConnected;
 
-    public async Task StartAcceptAsync()
+    public Task StartAcceptAsync()
     {
-        if (_socketAcceptLoopIsRunning) return;
+        if (_socketAcceptLoopIsRunning) return Task.CompletedTask;
 
-        try
+        return Task.Run(async () =>
         {
-            _acceptSocket = new Socket(AddressFamily.InterNetwork,
-                SocketType.Stream, ProtocolType.Tcp);
-
-            var ipe = new IPEndPoint(IPAddress.Any, LocalMappingPort);
-
-            _acceptSocket.Bind(ipe);
-            _acceptSocket.Listen(1000);
-            _socketAcceptLoopIsRunning = true;
-
-            while (!_cancellationToken.IsCancellationRequested)
+            try
             {
-                var tmp = await _acceptSocket.AcceptAsync(_cancellationToken);
+                _acceptSocket = new Socket(AddressFamily.InterNetwork,
+                    SocketType.Stream, ProtocolType.Tcp);
 
-                if (tmp.RemoteEndPoint is not IPEndPoint remoteEndPoint) continue;
+                var ipe = new IPEndPoint(IPAddress.Any, LocalMappingPort);
 
-                var clientPort = remoteEndPoint.Port;
+                _acceptSocket.Bind(ipe);
+                _acceptSocket.Listen(1000);
+                _socketAcceptLoopIsRunning = true;
 
-                _logger.LogClientConnected(_id, LocalMappingPort, RemoteRealPort, (ushort)clientPort,
-                    GetProxyInfoForLog());
+                while (!_cancellationToken.IsCancellationRequested)
+                {
+                    var tmp = await _acceptSocket.AcceptAsync(_cancellationToken);
 
-                InvokeOnClientConnected(tmp);
+                    if (tmp.RemoteEndPoint is not IPEndPoint remoteEndPoint) continue;
+
+                    var clientPort = remoteEndPoint.Port;
+
+                    _logger.LogClientConnected(_id, LocalMappingPort, RemoteRealPort, (ushort)clientPort,
+                        GetProxyInfoForLog());
+
+                    InvokeOnClientConnected(tmp);
+                }
             }
-        }
-        catch (SocketException e)
-        {
-            _logger.LogSocketError(e, _id, LocalMappingPort, RemoteRealPort, GetProxyInfoForLog());
-        }
-        finally
-        {
-            _socketAcceptLoopIsRunning = false;
-        }
+            catch (SocketException e)
+            {
+                _logger.LogSocketError(e, _id, LocalMappingPort, RemoteRealPort, GetProxyInfoForLog());
+            }
+            finally
+            {
+                _socketAcceptLoopIsRunning = false;
+            }
+        }, _cancellationToken);
     }
 
     private object GetProxyInfoForLog()
