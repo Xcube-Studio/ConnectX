@@ -252,7 +252,11 @@ public sealed class RelayConnection : ConnectionBase
 
     protected override void SendDatagram(TransDatagram datagram)
     {
-        ArgumentNullException.ThrowIfNull(_relayServerLink);
+        if (!IsConnected || _relayServerLink == null)
+        {
+            Logger.LogSendFailedBecauseLinkNotReadyYet(Source, To);
+            return;
+        }
 
         SendBufferAckFlag[SendPointer] = false;
         SendPointer = (SendPointer + 1) % BufferLength;
@@ -280,4 +284,7 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Connected to relay server [{relayEndPoint}]")]
     public static partial void LogConnectedToRelayServer(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Send failed because link is not ready yet. (Source: {source}, Target: {target})")]
+    public static partial void LogSendFailedBecauseLinkNotReadyYet(this ILogger logger, string source, Guid target);
 }
