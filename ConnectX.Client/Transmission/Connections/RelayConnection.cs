@@ -19,7 +19,6 @@ namespace ConnectX.Client.Transmission.Connections;
 public sealed class RelayConnection : ConnectionBase
 {
     private ISession? _relayServerLink;
-    private CancellationTokenSource? _cts;
 
     private readonly IPEndPoint _relayEndPoint;
     private readonly RelayPacketDispatcher _relayPacketDispatcher;
@@ -27,8 +26,11 @@ public sealed class RelayConnection : ConnectionBase
     private readonly IRoomInfoManager _roomInfoManager;
     private readonly IServerLinkHolder _serverLinkHolder;
 
+    private CancellationToken _linkCt;
+
     private static readonly ConcurrentDictionary<IPEndPoint, ISession> RelayServerLinkPool = new();
     private static readonly ConcurrentDictionary<IPEndPoint, SemaphoreSlim> ConnectionLocks = new();
+    private static readonly ConcurrentDictionary<IPEndPoint, CancellationTokenSource> ConnectionCts = new();
     private static readonly ConcurrentDictionary<IPEndPoint, uint> ConnectionRefCount = new();
 
     public RelayConnection(
@@ -56,13 +58,6 @@ public sealed class RelayConnection : ConnectionBase
     private void OnHeartBeatReceived(MessageContext<HeartBeat> obj)
     {
         Logger.LogHeartbeatReceivedFromServer();
-    }
-
-    private void ResetCts()
-    {
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = new CancellationTokenSource();
     }
 
     private void OnTransDatagramReceived(MessageContext<TransDatagram> ctx)
@@ -142,8 +137,6 @@ public sealed class RelayConnection : ConnectionBase
 
     public override async Task<bool> ConnectAsync()
     {
-        ResetCts();
-
         if (_roomInfoManager.CurrentGroupInfo == null)
             return false;
 
@@ -188,6 +181,17 @@ public sealed class RelayConnection : ConnectionBase
                 session = await _tcpConnector.ConnectAsync(_relayEndPoint, cts.Token);
             }
 
+            if (!ConnectionCts.TryGetValue(_relayEndPoint, out var linkCts))
+            {
+                var newCts = new CancellationTokenSource();
+                
+                linkCts = newCts;
+                
+                ConnectionCts.TryAdd(_relayEndPoint, linkCts);
+            }
+            
+            _linkCt = linkCts.Token;
+
             if (session == null)
             {
                 Logger.LogConnectFailed(Source, To);
@@ -199,7 +203,7 @@ public sealed class RelayConnection : ConnectionBase
             session.BindTo(Dispatcher);
 
             if (!isReusingLink)
-                session.StartAsync(_cts!.Token).Forget();
+                session.StartAsync(_linkCt).Forget();
 
             await Task.Delay(1000, cts.Token);
 
@@ -230,14 +234,12 @@ public sealed class RelayConnection : ConnectionBase
         }
         catch (TaskCanceledException)
         {
-            ResetCts();
             IsConnected = false;
 
             return false;
         }
         catch (SocketException e)
         {
-            ResetCts();
             IsConnected = false;
 
             Logger.LogFailedToConnectToRelayServerWithException(e, _relayEndPoint);
@@ -255,10 +257,10 @@ public sealed class RelayConnection : ConnectionBase
     {
         Logger.LogHeartbeatStarted();
 
-        while (_cts is { IsCancellationRequested: false } && _relayServerLink != null)
+        while (_linkCt is { IsCancellationRequested: false } && _relayServerLink != null)
         {
-            await Dispatcher.SendAsync(_relayServerLink, new HeartBeat(), _cts.Token);
-            await Task.Delay(TimeSpan.FromSeconds(10), _cts.Token);
+            await Dispatcher.SendAsync(_relayServerLink, new HeartBeat(), _linkCt);
+            await Task.Delay(TimeSpan.FromSeconds(10), _linkCt);
         }
 
         Logger.LogHeartbeatStopped();
@@ -267,9 +269,7 @@ public sealed class RelayConnection : ConnectionBase
     public override void Disconnect()
     {
         base.Disconnect();
-
-        ResetCts();
-
+        
         if (_relayServerLink == null) return;
 
         _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
@@ -285,6 +285,12 @@ public sealed class RelayConnection : ConnectionBase
         {
             // There are still other connections using this link, so we don't close it.
             return;
+        }
+
+        if (ConnectionCts.TryRemove(_relayEndPoint, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
         }
 
         _relayServerLink.Close();
@@ -304,7 +310,7 @@ public sealed class RelayConnection : ConnectionBase
         SendBufferAckFlag[SendPointer] = false;
         SendPointer = (SendPointer + 1) % BufferLength;
 
-        Dispatcher.SendAsync(_relayServerLink, datagram).Forget();
+        Dispatcher.SendAsync(_relayServerLink, datagram, _linkCt).Forget();
     }
 }
 
