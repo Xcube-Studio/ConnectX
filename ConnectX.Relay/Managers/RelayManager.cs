@@ -17,6 +17,7 @@ public class RelayManager
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionUserIdMapping = new();
     private readonly ConcurrentDictionary<Guid, ISession> _userIdSessionMapping = new ();
     private readonly ConcurrentDictionary<Guid, Guid> _userIdToRoomMapping = new();
+    private readonly ConcurrentDictionary<IPEndPoint, uint> _linkRefCounts = new();
 
     private readonly ClientManager _clientManager;
     private readonly IServerLinkHolder _serverLinkHolder;
@@ -57,6 +58,13 @@ public class RelayManager
             return;
         }
 
+        if (session.RemoteEndPoint == null)
+        {
+            _logger.LogSessionRemoteEndPointIsNull(session.Id);
+            return;
+        }
+
+        _linkRefCounts.AddOrUpdate(session.RemoteEndPoint, _ => 1, (_, count) => count + 1);
         _sessionUserIdMapping.AddOrUpdate(session.Id, _ => userId, (_, _) => userId);
         _userIdSessionMapping.AddOrUpdate(userId, _ => session, (_, oldSession) =>
         {
@@ -68,6 +76,22 @@ public class RelayManager
         });
 
         _logger.LogRelayLinkAttached(session.Id, userId);
+    }
+
+    private void DecreaseSessionRefCountAndTryRecycle(ISession session)
+    {
+        if (session.RemoteEndPoint != null &&
+            _linkRefCounts.TryGetValue(session.RemoteEndPoint, out var count) &&
+            count == 1)
+        {
+            _linkRefCounts.TryRemove(session.RemoteEndPoint, out _);
+            session.Close();
+        }
+        else if (session.RemoteEndPoint != null &&
+                 _linkRefCounts.TryGetValue(session.RemoteEndPoint, out var readCount))
+        {
+            _linkRefCounts.TryUpdate(session.RemoteEndPoint, readCount - 1, readCount);
+        }
     }
 
     private void OnUpdateRelayUserRoomMappingMessageReceived(MessageContext<UpdateRelayUserRoomMappingMessage> ctx)
@@ -91,10 +115,11 @@ public class RelayManager
             case GroupUserStates.Disconnected:
             case GroupUserStates.Dismissed:
                 _userIdToRoomMapping.TryRemove(message.UserId, out _);
+                _sessionUserIdMapping.TryRemove(ctx.FromSession.Id, out _);
 
-                if (_userIdSessionMapping.TryGetValue(message.UserId, out var session))
+                if (_userIdSessionMapping.TryRemove(message.UserId, out var session))
                 {
-                    session.Close();
+                    DecreaseSessionRefCountAndTryRecycle(session);
                 }
 
                 _logger.LogRelayDestroyed(message.RoomId, message.UserId, message.State);
@@ -131,8 +156,8 @@ public class RelayManager
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
         if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
         if (!_userIdSessionMapping.TryRemove(userId, out var session)) return;
-
-        session.Close();
+        
+        DecreaseSessionRefCountAndTryRecycle(session);
 
         _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
     }
@@ -169,4 +194,7 @@ internal static partial class RelayManagerLoggers
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] User room does not match the record from session [{sessionId}] {address}")]
     public static partial void LogUserRoomDoesNotMatchTheRecord(this ILogger logger, SessionId sessionId, IPAddress address);
+    
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Session remote end point is null [{sessionId}]")]
+    public static partial void LogSessionRemoteEndPointIsNull(this ILogger logger, SessionId sessionId);
 }

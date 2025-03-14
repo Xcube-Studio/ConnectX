@@ -19,6 +19,8 @@ namespace ConnectX.Client.Transmission.Connections;
 public sealed class RelayConnection : ConnectionBase
 {
     private ISession? _relayServerLink;
+    
+    private DateTime _lastHeartBeatTime;
 
     private readonly IPEndPoint _relayEndPoint;
     private readonly RelayPacketDispatcher _relayPacketDispatcher;
@@ -57,6 +59,7 @@ public sealed class RelayConnection : ConnectionBase
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> obj)
     {
+        _lastHeartBeatTime = DateTime.UtcNow;
         Logger.LogHeartbeatReceivedFromServer();
     }
 
@@ -222,6 +225,7 @@ public sealed class RelayConnection : ConnectionBase
             _relayServerLink = session;
 
             SendHeartBeatAsync().Forget();
+            CheckServerLivenessAsync().Forget();
 
             if (isReusingLink)
                 Logger.LogConnectedToRelayServerUsingPool(_relayEndPoint);
@@ -264,6 +268,50 @@ public sealed class RelayConnection : ConnectionBase
         }
 
         Logger.LogHeartbeatStopped();
+    }
+
+    private async Task CheckServerLivenessAsync()
+    {
+        try
+        {
+            while (_linkCt is { IsCancellationRequested: false } &&
+                   IsConnected &&
+                   _relayServerLink != null)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), _linkCt);
+
+                var lastReceiveTimeSeconds = (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds;
+
+                if (lastReceiveTimeSeconds <= 10)
+                    continue;
+
+                Logger.LogServerHeartbeatTimeout(_relayEndPoint, lastReceiveTimeSeconds);
+
+                break;
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // ignored
+        }
+        finally
+        {
+            // we need to destroy the connection
+            RelayServerLinkPool.TryRemove(_relayEndPoint, out _);
+
+            if (_relayServerLink != null)
+            {
+                _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
+                _relayServerLink?.Close();
+            }
+            
+            _relayServerLink = null;
+                
+            if (ConnectionCts.TryRemove(_relayEndPoint, out var cts))
+                await cts.CancelAsync();
+            
+            IsConnected = false;
+        }
     }
 
     public override void Disconnect()
@@ -348,4 +396,7 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Critical, "[RELAY_CONN] Failed to update ref count for link [{EndPoint}]")]
     public static partial void LogFailedToUpdateRefCountForLink(this ILogger logger, IPEndPoint EndPoint);
+    
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
+    public static partial void LogServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
 }
