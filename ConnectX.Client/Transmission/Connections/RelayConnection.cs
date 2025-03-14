@@ -29,6 +29,7 @@ public sealed class RelayConnection : ConnectionBase
 
     private static readonly ConcurrentDictionary<IPEndPoint, ISession> RelayServerLinkPool = new();
     private static readonly ConcurrentDictionary<IPEndPoint, SemaphoreSlim> ConnectionLocks = new();
+    private static readonly ConcurrentDictionary<IPEndPoint, uint> ConnectionRefCount = new();
 
     public RelayConnection(
         Guid targetId,
@@ -173,21 +174,19 @@ public sealed class RelayConnection : ConnectionBase
             Logger.LogWaitingForConnectionLock(_relayEndPoint);
             await connectionLock.WaitAsync(cts.Token);
 
+            var isReusingLink = false;
+            ISession? session;
+
             // If we can find the link in the pool, we can reuse it.
             if (RelayServerLinkPool.TryGetValue(_relayEndPoint, out var link))
             {
-                link.BindTo(Dispatcher);
-
-                await Task.Delay(1000, cts.Token);
-
-                Dispatcher.SendAsync(link, linkCreationReq, cts.Token).Forget();
-                IsConnected = true;
-
-                Logger.LogConnectedToRelayServerUsingPool(_relayEndPoint);
-                return true;
+                isReusingLink = true;
+                session = link;
             }
-
-            var session = await _tcpConnector.ConnectAsync(_relayEndPoint, cts.Token);
+            else
+            {
+                session = await _tcpConnector.ConnectAsync(_relayEndPoint, cts.Token);
+            }
 
             if (session == null)
             {
@@ -198,13 +197,16 @@ public sealed class RelayConnection : ConnectionBase
             }
 
             session.BindTo(Dispatcher);
-            session.StartAsync(_cts!.Token).Forget();
+
+            if (!isReusingLink)
+                session.StartAsync(_cts!.Token).Forget();
 
             await Task.Delay(1000, cts.Token);
 
             await Dispatcher.SendAndListenOnce<CreateRelayLinkMessage, RelayLinkCreatedMessage>(session,
                 linkCreationReq, cts.Token);
 
+            ConnectionRefCount.AddOrUpdate(_relayEndPoint, _ => 1, (_, u) => u + 1);
             RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
             {
                 oldSession.OnMessageReceived -= Dispatcher.Dispatch;
@@ -217,7 +219,10 @@ public sealed class RelayConnection : ConnectionBase
 
             SendHeartBeatAsync().Forget();
 
-            Logger.LogConnectedToRelayServer(_relayEndPoint);
+            if (isReusingLink)
+                Logger.LogConnectedToRelayServerUsingPool(_relayEndPoint);
+            else
+                Logger.LogConnectedToRelayServer(_relayEndPoint);
 
             IsConnected = true;
 
@@ -268,6 +273,20 @@ public sealed class RelayConnection : ConnectionBase
         if (_relayServerLink == null) return;
 
         _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
+
+        if (!ConnectionRefCount.TryGetValue(_relayEndPoint, out var count)) return;
+        if (!ConnectionRefCount.TryUpdate(_relayEndPoint, count - 1, count))
+        {
+            Logger.LogFailedToUpdateRefCountForLink(_relayEndPoint);
+            return;
+        }
+
+        if (count > 1)
+        {
+            // There are still other connections using this link, so we don't close it.
+            return;
+        }
+
         _relayServerLink.Close();
         _relayServerLink = null;
 
@@ -320,4 +339,7 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Receive failed because link is down. (Source: {source}, Target: {target})")]
     public static partial void LogReceiveFailedBecauseLinkDown(this ILogger logger, string source, Guid target);
+
+    [LoggerMessage(LogLevel.Critical, "[RELAY_CONN] Failed to update ref count for link [{EndPoint}]")]
+    public static partial void LogFailedToUpdateRefCountForLink(this ILogger logger, IPEndPoint EndPoint);
 }
