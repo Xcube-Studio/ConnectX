@@ -45,8 +45,17 @@ public class RelayManager
         Guid userId,
         Guid roomId)
     {
-        if (!_userIdToRoomMapping.TryGetValue(userId, out var registeredRoomId)) return;
-        if (registeredRoomId != roomId) return;
+        if (!_userIdToRoomMapping.TryGetValue(userId, out var registeredRoomId))
+        {
+            _logger.LogCanNotFindCorrespondingRoomForUser(session.Id, session.RemoteEndPoint?.Address ?? IPAddress.None);
+            return;
+        }
+
+        if (registeredRoomId != roomId)
+        {
+            _logger.LogUserRoomDoesNotMatchTheRecord(session.Id, session.RemoteEndPoint?.Address ?? IPAddress.None);
+            return;
+        }
 
         _sessionUserIdMapping.AddOrUpdate(session.Id, _ => userId, (_, _) => userId);
         _userIdSessionMapping.AddOrUpdate(userId, _ => session, (_, oldSession) =>
@@ -106,7 +115,7 @@ public class RelayManager
 
         if (!_userIdSessionMapping.TryGetValue(message.RelayTo.Value, out var session))
         {
-            _logger.LogRelayDestinationNotFound(ctx.FromSession.Id);
+            _logger.LogRelayDestinationNotFound(ctx.FromSession.Id, message.RelayFrom, message.RelayTo);
             return;
         }
 
@@ -140,8 +149,8 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay info added, user [{userId}], room [{roomId}]")]
     public static partial void LogRelayInfoAdded(this ILogger logger, Guid userId, Guid roomId);
 
-    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay destination not found from session [{sessionId}], possible bug or wrong sender!")]
-    public static partial void LogRelayDestinationNotFound(this ILogger logger, SessionId sessionId);
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay not found [{sessionId}] {from} -> {to}, possible bug or wrong sender!")]
+    public static partial void LogRelayDestinationNotFound(this ILogger logger, SessionId sessionId, Guid? from, Guid? to);
 
     [LoggerMessage(LogLevel.Debug, "[RELAY_MANAGER] Relay datagram sent from session [{fromSessionId}] to user [{toUserId}]")]
     public static partial void LogRelayDatagramSent(this ILogger logger, SessionId fromSessionId, Guid toUserId);
@@ -154,4 +163,10 @@ internal static partial class RelayManagerLoggers
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Old session closed, remote end point [{remoteEndPoint}]")]
     public static partial void LogOldSessionClosed(this ILogger logger, IPEndPoint? remoteEndPoint);
+
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Can not find corresponding room for user [{sessionId}] {address}")]
+    public static partial void LogCanNotFindCorrespondingRoomForUser(this ILogger logger, SessionId sessionId, IPAddress address);
+
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] User room does not match the record from session [{sessionId}] {address}")]
+    public static partial void LogUserRoomDoesNotMatchTheRecord(this ILogger logger, SessionId sessionId, IPAddress address);
 }

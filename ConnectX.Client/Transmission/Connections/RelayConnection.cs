@@ -70,6 +70,7 @@ public sealed class RelayConnection : ConnectionBase
             ctx.Message.RelayFrom.Value != To)
         {
             // we want to make sure we are processing the right packet
+            Logger.LogCritical("!!!!!!!!!!!");
             return;
         }
 

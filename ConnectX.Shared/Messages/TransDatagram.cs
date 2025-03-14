@@ -6,16 +6,16 @@ namespace ConnectX.Shared.Messages;
 
 [MessageDefine]
 [MemoryPackable]
-public partial struct TransDatagram
+public readonly partial struct TransDatagram
 {
     public readonly DatagramFlag Flag;
     public readonly int SynOrAck;
 
     [BrotliFormatter<ReadOnlyMemory<byte>?>]
-    public ReadOnlyMemory<byte>? Payload;
+    public readonly ReadOnlyMemory<byte>? Payload;
 
-    public Guid? RelayFrom;
-    public Guid? RelayTo;
+    public readonly Guid? RelayFrom;
+    public readonly Guid? RelayTo;
 
     public TransDatagram()
     {
