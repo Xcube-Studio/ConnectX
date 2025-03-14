@@ -26,6 +26,11 @@ public sealed class P2PConnection : ConnectionBase
         _routerPacketDispatcher.OnReceive<TransDatagram>(OnTransDatagramReceived);
     }
 
+    public override void Send(ReadOnlyMemory<byte> payload)
+    {
+        SendDatagram(TransDatagram.CreateNormal(SendPointer, payload));
+    }
+
     public override async Task<bool> ConnectAsync()
     {
         Logger.LogConnectingTo(Source, To);

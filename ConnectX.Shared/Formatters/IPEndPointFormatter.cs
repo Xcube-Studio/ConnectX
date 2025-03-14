@@ -3,7 +3,7 @@ using MemoryPack;
 
 namespace ConnectX.Shared.Formatters;
 
-public class IPEndPointFormatter : MemoryPackFormatter<IPEndPoint>
+public class IpEndPointFormatter : MemoryPackFormatter<IPEndPoint>
 {
     public override void Serialize<TBufferWriter>(ref MemoryPackWriter<TBufferWriter> writer,
         scoped ref IPEndPoint? value)

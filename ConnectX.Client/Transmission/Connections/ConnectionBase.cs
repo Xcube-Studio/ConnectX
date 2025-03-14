@@ -73,10 +73,7 @@ public abstract class ConnectionBase : ISender, ICanPing<Guid>
         }
     }
 
-    public virtual void Send(ReadOnlyMemory<byte> payload)
-    {
-        SendDatagram(TransDatagram.CreateNormal(SendPointer, payload));
-    }
+    public abstract void Send(ReadOnlyMemory<byte> payload);
 
     public void SendData<T>(T data)
     {
