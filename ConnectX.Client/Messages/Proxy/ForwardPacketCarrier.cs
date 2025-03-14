@@ -1,7 +1,7 @@
 ﻿using Hive.Codec.Shared;
 using MemoryPack;
 
-namespace ConnectX.Client.Proxy.Message;
+namespace ConnectX.Client.Messages.Proxy;
 
 [MessageDefine]
 [MemoryPackable]

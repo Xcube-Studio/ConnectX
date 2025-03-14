@@ -3,8 +3,8 @@ using System.Net.Sockets;
 using System.Text;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
+using ConnectX.Client.Messages.Proxy;
 using ConnectX.Client.Models;
-using ConnectX.Client.Proxy.Message;
 using ConnectX.Client.Route;
 using ConnectX.Client.Transmission;
 using ConnectX.Client.Transmission.Connections;
@@ -85,7 +85,7 @@ public class FakeServerMultiCaster : BackgroundService
                 Name = $"[{Prefix}]{serverName}"
             };
 
-            if (partner.Connection is RelayConnection)
+            if (partner.Connection is RelayConnection {IsConnected: true})
             {
                 // Partner is connected through relay, send multicast using the relay connection
                 partner.Connection.SendData(message);

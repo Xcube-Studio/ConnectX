@@ -1,6 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using ConnectX.Client.Managers;
-using ConnectX.Client.Proxy.Message;
+using ConnectX.Client.Messages.Proxy;
 using ConnectX.Client.Transmission;
 using ConnectX.Shared.Helpers;
 using Hive.Both.General.Dispatchers;

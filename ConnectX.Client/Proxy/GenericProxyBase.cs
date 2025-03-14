@@ -1,9 +1,11 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net.Sockets;
-using ConnectX.Client.Proxy.Message;
+using ConnectX.Client.Messages.Proxy;
 using ConnectX.Shared.Helpers;
+using Hive.Common.Shared.Helpers;
 using Microsoft.Extensions.Logging;
+using TaskHelper = ConnectX.Shared.Helpers.TaskHelper;
 
 namespace ConnectX.Client.Proxy;
 
@@ -139,7 +141,7 @@ public abstract class GenericProxyBase : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                SpinWait.SpinUntil(() => !InwardBuffersQueue.IsEmpty);
+                await SpinWaitAsync.SpinUntil(() => !InwardBuffersQueue.IsEmpty);
                 if (!CheckSocketValid()) continue;
 
                 try
@@ -224,7 +226,7 @@ public abstract class GenericProxyBase : IDisposable
             if (_innerSocket is not { Connected: true })
             {
                 if (!CheckSocketValid()) continue;
-                Thread.Sleep(1);
+                await Task.Delay(1, cancellationToken);
                 continue;
             }
 
