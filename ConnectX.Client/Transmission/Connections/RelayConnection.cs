@@ -70,11 +70,14 @@ public sealed class RelayConnection : ConnectionBase
             ctx.Message.RelayFrom.Value != To)
         {
             // we want to make sure we are processing the right packet
-            Logger.LogCritical("!!!!!!!!!!!");
             return;
         }
 
-        ArgumentNullException.ThrowIfNull(_relayServerLink);
+        if (!IsConnected || _relayServerLink == null)
+        {
+            Logger.LogReceiveFailedBecauseLinkDown(Source, To);
+            return;
+        }
 
         var datagram = ctx.Message;
 
@@ -314,4 +317,7 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Debug, "[RELAY_CONN] Waiting for connection lock [{relayEndPoint}]")]
     public static partial void LogWaitingForConnectionLock(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Receive failed because link is down. (Source: {source}, Target: {target})")]
+    public static partial void LogReceiveFailedBecauseLinkDown(this ILogger logger, string source, Guid target);
 }
