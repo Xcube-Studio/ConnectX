@@ -44,13 +44,13 @@ public class ClientManager : BackgroundService
     {
         var watchDog = new WatchDog(session);
 
-        if (!_watchDogMapping.TryAdd(id, watchDog))
+        if (!_watchDogMapping.ContainsKey(id) &&
+            !_watchDogMapping.TryAdd(id, watchDog))
         {
             _logger.LogFailedToAddSessionToSessionMapping(id);
             return default;
         }
 
-        //session.BindTo(_dispatcher);
         _logger.LogSessionAttached(id);
 
         return id;
