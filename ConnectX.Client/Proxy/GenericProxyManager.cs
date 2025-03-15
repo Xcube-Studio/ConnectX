@@ -199,8 +199,16 @@ public abstract class GenericProxyManager : BackgroundService
 
         var key = (partnerId, remoteRealServerPort);
 
-        if (_acceptors.ContainsKey(key))
-            throw new InvalidOperationException($"There has been a acceptor with same key: {partnerId}-{remoteRealServerPort}");
+        if (_acceptors.Remove(key, out var oldAcceptor))
+        {
+            if (oldAcceptor.IsRunning)
+            {
+                _acceptors.Add(key, oldAcceptor);
+                throw new InvalidOperationException($"There has been a acceptor with same key: {partnerId}-{remoteRealServerPort}");
+            }
+
+            oldAcceptor.Dispose();
+        }
 
         var acceptor = ActivatorUtilities.CreateInstance<GenericProxyAcceptor>(
             _serviceProvider,
@@ -251,7 +259,7 @@ public abstract class GenericProxyManager : BackgroundService
     {
         var key = (partnerId, remoteRealServerPort);
 
-        return _acceptors.TryGetValue(key, out var value)
+        return _acceptors.TryGetValue(key, out var value) && value.IsRunning
             ? value
             : CreateAcceptor(partnerId, localMapPortGetter(), remoteRealServerPort, sender);
     }

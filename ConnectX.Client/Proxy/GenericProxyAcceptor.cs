@@ -13,6 +13,8 @@ public class GenericProxyAcceptor : IDisposable
     private Socket? _acceptSocket;
     private bool _socketAcceptLoopIsRunning;
 
+    public bool IsRunning => _socketAcceptLoopIsRunning;
+
     public GenericProxyAcceptor(
         Guid id,
         ushort remoteRealPort,
