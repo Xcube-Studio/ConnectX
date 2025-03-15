@@ -146,12 +146,6 @@ public sealed class RelayConnection : ConnectionBase
 
         Logger.LogConnectingToRelayServer(_relayEndPoint);
 
-        var linkCreationReq = new CreateRelayLinkMessage
-        {
-            UserId = _serverLinkHolder.UserId,
-            RoomId = _roomInfoManager.CurrentGroupInfo.RoomId
-        };
-
         SemaphoreSlim? connectionLock = null;
 
         try
@@ -206,24 +200,39 @@ public sealed class RelayConnection : ConnectionBase
 
             session.BindTo(Dispatcher);
 
+            ConnectionRefCount.AddOrUpdate(_relayEndPoint, _ => 1, (_, u) => u + 1);
+
             if (!isReusingLink)
+            {
                 session.StartAsync(_linkCt).Forget();
 
-            await Task.Delay(1000, cts.Token);
+                await Task.Delay(1000, cts.Token);
 
-            await Dispatcher.SendAndListenOnce<CreateRelayLinkMessage, RelayLinkCreatedMessage>(session,
-                linkCreationReq, cts.Token);
+                var linkCreationReq = new CreateRelayLinkMessage
+                {
+                    UserId = _serverLinkHolder.UserId,
+                    RoomId = _roomInfoManager.CurrentGroupInfo.RoomId
+                };
 
-            ConnectionRefCount.AddOrUpdate(_relayEndPoint, _ => 1, (_, u) => u + 1);
-            RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
+                await Dispatcher.SendAndListenOnce<CreateRelayLinkMessage, RelayLinkCreatedMessage>(session,
+                    linkCreationReq, cts.Token);
+
+                RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
+                {
+                    Logger.LogClosingOldLink(oldSession.Id);
+
+                    oldSession.OnMessageReceived -= Dispatcher.Dispatch;
+                    oldSession.Close();
+
+                    return session;
+                });
+
+                Logger.LogConnectedToRelayServer(_relayEndPoint);
+            }
+            else
             {
-                Logger.LogClosingOldLink(oldSession.Id);
-
-                oldSession.OnMessageReceived -= Dispatcher.Dispatch;
-                oldSession.Close();
-
-                return session;
-            });
+                Logger.LogConnectedToRelayServerUsingPool(_relayEndPoint);
+            }
 
             _relayServerLink = session;
 
@@ -231,11 +240,6 @@ public sealed class RelayConnection : ConnectionBase
 
             SendHeartBeatAsync().Forget();
             CheckServerLivenessAsync().Forget();
-
-            if (isReusingLink)
-                Logger.LogConnectedToRelayServerUsingPool(_relayEndPoint);
-            else
-                Logger.LogConnectedToRelayServer(_relayEndPoint);
 
             return true;
         }
