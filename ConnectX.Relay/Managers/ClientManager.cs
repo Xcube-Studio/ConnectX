@@ -17,7 +17,10 @@ public class ClientManager : BackgroundService
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IDispatcher _dispatcher;
     private readonly ILogger _logger;
-    private readonly ConcurrentDictionary<SessionId, WatchDog> _watchDogMapping = new();
+
+    private readonly ConcurrentDictionary<SessionId, Guid> _sessionIdToUserMapping = new();
+    private readonly ConcurrentDictionary<Guid, SessionId> _userToSessionIdMapping = new();
+    private readonly ConcurrentDictionary<Guid, WatchDog> _watchDogMapping = new();
 
     public ClientManager(
         IServerLinkHolder serverLinkHolder,
@@ -37,28 +40,31 @@ public class ClientManager : BackgroundService
     /// <summary>
     ///     Add the session to the session mapping.
     /// </summary>
+    /// <param name="sessionId"></param>
     /// <param name="id"></param>
     /// <param name="session"></param>
     /// <returns>returns the assigned session id, if id is default(Guid), it means the process has failed</returns>
-    public SessionId AttachSession(SessionId id, ISession session)
+    public Guid AttachSession(SessionId sessionId, Guid userId, ISession session)
     {
         var watchDog = new WatchDog(session);
 
-        if (!_watchDogMapping.TryAdd(id, watchDog))
+        if (!_watchDogMapping.TryAdd(userId, watchDog) ||
+            !_userToSessionIdMapping.TryAdd(userId, sessionId) ||
+            !_sessionIdToUserMapping.TryAdd(sessionId, userId))
         {
-            _logger.LogFailedToAddSessionToSessionMapping(id);
-            return default;
+            _logger.LogFailedToAddSessionToSessionMapping(userId);
+            return Guid.Empty;
         }
 
-        //session.BindTo(_dispatcher);
-        _logger.LogSessionAttached(id);
+        _logger.LogSessionAttached(userId);
 
-        return id;
+        return userId;
     }
 
     private void OnReceivedShutdownMessage(MessageContext<ShutdownMessage> ctx)
     {
-        if (!_watchDogMapping.TryRemove(ctx.FromSession.Id, out _)) return;
+        if (!_sessionIdToUserMapping.TryGetValue(ctx.FromSession.Id, out var userId) ||
+            !_watchDogMapping.TryRemove(userId, out _)) return;
 
         _logger.LogReceivedShutdownMessage(ctx.FromSession.Id);
 
@@ -73,7 +79,8 @@ public class ClientManager : BackgroundService
             return;
         }
 
-        if (!_watchDogMapping.TryGetValue(ctx.FromSession.Id, out var watchDog))
+        if (!_sessionIdToUserMapping.TryGetValue(ctx.FromSession.Id, out var userId) ||
+            !_watchDogMapping.TryGetValue(userId, out var watchDog))
         {
             _logger.LogReceivedHeartBeatFromUnattachedSession(ctx.FromSession.Id);
 
@@ -100,7 +107,12 @@ public class ClientManager : BackgroundService
 
                 _logger.LogSessionTimeout(id);
 
-                OnSessionDisconnected?.Invoke(id);
+                if (_userToSessionIdMapping.TryRemove(id, out var sessionId) &&
+                    _sessionIdToUserMapping.TryRemove(sessionId, out _))
+                {
+                    OnSessionDisconnected?.Invoke(sessionId);
+                }
+
                 _dispatcher.SendAsync(watchDog.Session, new ShutdownMessage(), CancellationToken.None).Forget();
                 watchDog.Session.Close();
 
@@ -117,11 +129,11 @@ public class ClientManager : BackgroundService
 internal static partial class ClientManagerLoggers
 {
     [LoggerMessage(LogLevel.Error,
-        "[CLIENT_MANAGER] Failed to add session to the session mapping, session id: {sessionId}")]
-    public static partial void LogFailedToAddSessionToSessionMapping(this ILogger logger, SessionId sessionId);
+        "[CLIENT_MANAGER] Failed to add session to the session mapping, session id: {userId}")]
+    public static partial void LogFailedToAddSessionToSessionMapping(this ILogger logger, Guid userId);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Session attached, session id: {sessionId}")]
-    public static partial void LogSessionAttached(this ILogger logger, SessionId sessionId);
+    [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Session attached, session id: {userId}")]
+    public static partial void LogSessionAttached(this ILogger logger, Guid userId);
 
     [LoggerMessage(LogLevel.Information,
         "[CLIENT_MANAGER] Received shutdown message from session, session id: {sessionId}")]
@@ -135,8 +147,8 @@ internal static partial class ClientManagerLoggers
     public static partial void LogWatchDogStarted(this ILogger logger);
 
     [LoggerMessage(LogLevel.Warning,
-        "[CLIENT_MANAGER] Session timeout, session id: {sessionId}, removed from session mapping.")]
-    public static partial void LogSessionTimeout(this ILogger logger, SessionId sessionId);
+        "[CLIENT_MANAGER] Session timeout, session id: {userId}, removed from session mapping.")]
+    public static partial void LogSessionTimeout(this ILogger logger, Guid userId);
 
     [LoggerMessage(LogLevel.Information, "[CLIENT_MANAGER] Watchdog stopped.")]
     public static partial void LogWatchDogStopped(this ILogger logger);
