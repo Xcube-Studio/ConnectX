@@ -66,14 +66,7 @@ public class RelayManager
 
         _linkRefCounts.AddOrUpdate(session.RemoteEndPoint, _ => 1, (_, count) => count + 1);
         _sessionUserIdMapping.AddOrUpdate(session.Id, _ => userId, (_, _) => userId);
-        _userIdSessionMapping.AddOrUpdate(userId, _ => session, (_, oldSession) =>
-        {
-            _logger.LogOldSessionClosed(oldSession.RemoteEndPoint);
-
-            oldSession.Close();
-
-            return session;
-        });
+        _userIdSessionMapping.AddOrUpdate(userId, _ => session, (_, _) => session);
 
         _logger.LogRelayLinkAttached(session.Id, userId);
     }
@@ -185,9 +178,6 @@ internal static partial class RelayManagerLoggers
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay info update unauthorized from session [{sessionId}] {address}")]
     public static partial void LogRelayInfoUpdateUnauthorized(this ILogger logger, SessionId sessionId, IPAddress address);
-
-    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Old session closed, remote end point [{remoteEndPoint}]")]
-    public static partial void LogOldSessionClosed(this ILogger logger, IPEndPoint? remoteEndPoint);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Can not find corresponding room for user [{sessionId}] {address}")]
     public static partial void LogCanNotFindCorrespondingRoomForUser(this ILogger logger, SessionId sessionId, IPAddress address);
