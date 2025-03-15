@@ -227,6 +227,8 @@ public sealed class RelayConnection : ConnectionBase
 
             _relayServerLink = session;
 
+            IsConnected = true;
+
             SendHeartBeatAsync().Forget();
             CheckServerLivenessAsync().Forget();
 
@@ -234,8 +236,6 @@ public sealed class RelayConnection : ConnectionBase
                 Logger.LogConnectedToRelayServerUsingPool(_relayEndPoint);
             else
                 Logger.LogConnectedToRelayServer(_relayEndPoint);
-
-            IsConnected = true;
 
             return true;
         }
