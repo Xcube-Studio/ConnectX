@@ -9,6 +9,7 @@ using ConnectX.Shared.Messages.Relay;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
+using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
@@ -216,6 +217,8 @@ public sealed class RelayConnection : ConnectionBase
             ConnectionRefCount.AddOrUpdate(_relayEndPoint, _ => 1, (_, u) => u + 1);
             RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
             {
+                Logger.LogClosingOldLink(oldSession.Id);
+
                 oldSession.OnMessageReceived -= Dispatcher.Dispatch;
                 oldSession.Close();
 
@@ -274,6 +277,8 @@ public sealed class RelayConnection : ConnectionBase
     {
         try
         {
+            Logger.LogServerLivenessProbeStarted(_relayEndPoint);
+
             while (_linkCt is { IsCancellationRequested: false } &&
                    IsConnected &&
                    _relayServerLink != null)
@@ -282,7 +287,7 @@ public sealed class RelayConnection : ConnectionBase
 
                 var lastReceiveTimeSeconds = (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds;
 
-                if (lastReceiveTimeSeconds <= 10)
+                if (lastReceiveTimeSeconds <= 15)
                     continue;
 
                 Logger.LogServerHeartbeatTimeout(_relayEndPoint, lastReceiveTimeSeconds);
@@ -311,6 +316,8 @@ public sealed class RelayConnection : ConnectionBase
                 await cts.CancelAsync();
             
             IsConnected = false;
+
+            Logger.LogServerLivenessProbeStopped(_relayEndPoint);
         }
     }
 
@@ -394,9 +401,18 @@ internal static partial class RelayConnectionLoggers
     [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Receive failed because link is down. (Source: {source}, Target: {target})")]
     public static partial void LogReceiveFailedBecauseLinkDown(this ILogger logger, string source, Guid target);
 
-    [LoggerMessage(LogLevel.Critical, "[RELAY_CONN] Failed to update ref count for link [{EndPoint}]")]
-    public static partial void LogFailedToUpdateRefCountForLink(this ILogger logger, IPEndPoint EndPoint);
+    [LoggerMessage(LogLevel.Critical, "[RELAY_CONN] Failed to update ref count for link [{endPoint}]")]
+    public static partial void LogFailedToUpdateRefCountForLink(this ILogger logger, IPEndPoint endPoint);
     
     [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
     public static partial void LogServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Closing old link [{sessionId}]")]
+    public static partial void LogClosingOldLink(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Server liveness probe started for [{relayEndPoint}]")]
+    public static partial void LogServerLivenessProbeStarted(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Server liveness probe stopped for [{relayEndPoint}]")]
+    public static partial void LogServerLivenessProbeStopped(this ILogger logger, IPEndPoint relayEndPoint);
 }

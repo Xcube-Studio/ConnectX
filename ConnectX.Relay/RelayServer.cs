@@ -120,12 +120,11 @@ public class RelayServer : BackgroundService
         var session = ctx.FromSession;
 
         // Remove temp session mapping
-        if (!_tempSessionMapping.TryRemove(session.Id, out _))
-            return;
+        _tempSessionMapping.TryRemove(session.Id, out _);
 
         var newVal = Interlocked.Increment(ref _currentSessionCount);
-        _logger.LogCurrentOnline(newVal);
 
+        _logger.LogCurrentOnline(newVal);
         _logger.LogRelayLinkCreateMessageReceived(session.RemoteEndPoint!, session.Id);
 
         _clientManager.AttachSession(session.Id, session);
