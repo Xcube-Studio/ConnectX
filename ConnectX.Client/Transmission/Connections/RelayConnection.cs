@@ -328,10 +328,13 @@ public sealed class RelayConnection : ConnectionBase
     public override void Disconnect()
     {
         base.Disconnect();
-        
-        if (_relayServerLink == null) return;
 
-        _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
+        if (_relayServerLink != null)
+        {
+            _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
+            _relayServerLink.Close();
+            _relayServerLink = null;
+        }
 
         if (!ConnectionRefCount.TryGetValue(_relayEndPoint, out var count)) return;
         if (!ConnectionRefCount.TryUpdate(_relayEndPoint, count - 1, count))
@@ -351,9 +354,6 @@ public sealed class RelayConnection : ConnectionBase
             cts.Cancel();
             cts.Dispose();
         }
-
-        _relayServerLink.Close();
-        _relayServerLink = null;
 
         RelayServerLinkPool.TryRemove(_relayEndPoint, out _);
     }

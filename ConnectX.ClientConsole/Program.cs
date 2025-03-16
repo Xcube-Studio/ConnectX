@@ -9,7 +9,7 @@ using Serilog;
 
 namespace ConnectX.ClientConsole;
 
-internal class Program
+internal static class Program
 {
     private static IClientSettingProvider GetSettings(IConfiguration configuration)
     {
@@ -31,9 +31,7 @@ internal class Program
         var builder = Host
             .CreateDefaultBuilder(args)
             .UseSerilog((hostingContext, loggerConfiguration) => loggerConfiguration
-                .ReadFrom.Configuration(hostingContext.Configuration)
-                .Enrich.FromLogContext()
-                .WriteTo.Console());
+                .ReadFrom.Configuration(hostingContext.Configuration));
 
         builder.ConfigureServices((ctx, services) =>
         {
