@@ -34,6 +34,10 @@
 |`客户端`: 基于 ZT 的中继联机实现                   |✅   |
 |`客户端`: 基于 ConnectX 中继服务器的联机实现        |✅   |
 
+## 如何部署？
+
+[快速部署教程](https://github.com/Corona-Studio/ConnectX/blob/main/deploy.md)
+
 ## 快速开始！
 
 我们使用 MSDI（`Microsoft.Extensions.DependencyInjection`）作为 DI 容器。最佳做法是在程序中使用 `.NET Generic Host`。
