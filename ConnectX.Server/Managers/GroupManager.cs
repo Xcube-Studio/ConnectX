@@ -192,7 +192,7 @@ public class GroupManager
             await _dispatcher.SendAsync(member.Session, stateChange);
 
             if (member.RelayServerAddress != null &&
-                _relayServerManager.TryRelayServerSession(member.RelayServerAddress, out var relaySession) &&
+                _relayServerManager.TryGetRelayServerSession(member.RelayServerAddress, out var relaySession) &&
                 stateChange is GroupUserStateChanged stateChangedMessage)
             {
                 var relayUpdate = new UpdateRelayUserRoomMappingMessage
@@ -381,7 +381,7 @@ public class GroupManager
         };
 
         if (assignedRelayServerAddress != null &&
-            _relayServerManager.TryRelayServerSession(assignedRelayServerAddress, out var relaySession))
+            _relayServerManager.TryGetRelayServerSession(assignedRelayServerAddress, out var relaySession))
         {
             var relayUpdate = new UpdateRelayUserRoomMappingMessage
             {
@@ -482,14 +482,14 @@ public class GroupManager
     {
         if (!TryGetGroup(groupId, dispatcher, session, out var group)) return;
 
-        var user = group.Users.FirstOrDefault(u => u.UserId != userId);
+        var user = group.Users.FirstOrDefault(u => u.UserId == userId);
 
         if (user == null) return;
 
+        group.Users.Remove(user);
+
         DeleteGroupNetworkMemberAsync(group, user).Forget();
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(state, user)).Forget();
-        
-        group.Users.Remove(user);
     }
 
     private async Task DeleteGroupNetworkAsync(Group group)

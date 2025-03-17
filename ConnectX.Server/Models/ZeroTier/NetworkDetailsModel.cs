@@ -111,7 +111,7 @@ public class NetworkDetailsModel
     public ulong CreationTime { get; init; }
 
     [JsonPropertyName("dns")]
-    public required Dns[] Dns { get; init; }
+    public Dns[]? Dns { get; init; }
 
     [JsonPropertyName("enableBroadcast")]
     public bool EnableBroadcast { get; init; }
@@ -129,7 +129,7 @@ public class NetworkDetailsModel
     public ushort MulticastLimit { get; init; }
 
     [JsonPropertyName("name")]
-    public required string Name { get; init; }
+    public string? Name { get; init; }
 
     [JsonPropertyName("nwid")]
     public required string NetworkId { get; init; }
@@ -165,8 +165,8 @@ public class NetworkDetailsModel
     public int[]? Tags { get; init; }
 
     [JsonPropertyName("v4AssignMode")]
-    public required V4AssignMode V4AssignMode { get; init; }
+    public V4AssignMode? V4AssignMode { get; init; }
 
     [JsonPropertyName("v6AssignMode")]
-    public required V6AssignMode V6AssignMode { get; init; }
+    public V6AssignMode? V6AssignMode { get; init; }
 }

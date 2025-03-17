@@ -85,7 +85,7 @@ public sealed class RelayConnection : ConnectionBase
         {
             // 握手的回复
             var handshake = TransDatagram.CreateHandShakeSecond(1, _serverLinkHolder.UserId, To);
-            Dispatcher.SendAsync(_relayServerLink, handshake).Forget();
+            Dispatcher.SendAsync(_relayServerLink, handshake, CancellationToken.None).Forget();
 
             Logger.LogReceiveFirstShakeHandPacket(Source, To);
 
@@ -114,7 +114,7 @@ public sealed class RelayConnection : ConnectionBase
 
             var ack = TransDatagram.CreateAck(datagram.SynOrAck, _serverLinkHolder.UserId, To);
 
-            Dispatcher.SendAsync(_relayServerLink, ack).Forget();
+            Dispatcher.SendAsync(_relayServerLink, ack, CancellationToken.None).Forget();
         }
         else if ((datagram.Flag & DatagramFlag.ACK) != 0)
         {
@@ -260,7 +260,8 @@ public sealed class RelayConnection : ConnectionBase
         {
             ArgumentNullException.ThrowIfNull(connectionLock);
 
-            connectionLock.Release();
+            if (connectionLock.CurrentCount == 0)
+                connectionLock.Release();
         }
     }
 
@@ -282,6 +283,9 @@ public sealed class RelayConnection : ConnectionBase
         try
         {
             Logger.LogServerLivenessProbeStarted(_relayEndPoint);
+
+            // Set the last for init
+            _lastHeartBeatTime = DateTime.UtcNow;
 
             while (_linkCt is { IsCancellationRequested: false } &&
                    IsConnected &&
@@ -305,21 +309,25 @@ public sealed class RelayConnection : ConnectionBase
         }
         finally
         {
-            // we need to destroy the connection
-            RelayServerLinkPool.TryRemove(_relayEndPoint, out _);
-
-            if (_relayServerLink != null)
+            if (!ConnectionRefCount.TryGetValue(_relayEndPoint, out var count) ||
+                count <= 1)
             {
-                _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
-                _relayServerLink?.Close();
+                // we need to destroy the connection
+                RelayServerLinkPool.TryRemove(_relayEndPoint, out _);
+
+                if (_relayServerLink != null)
+                {
+                    _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
+                    _relayServerLink?.Close();
+                }
+
+                _relayServerLink = null;
+
+                if (ConnectionCts.TryRemove(_relayEndPoint, out var cts))
+                    await cts.CancelAsync();
+
+                IsConnected = false;
             }
-            
-            _relayServerLink = null;
-                
-            if (ConnectionCts.TryRemove(_relayEndPoint, out var cts))
-                await cts.CancelAsync();
-            
-            IsConnected = false;
 
             Logger.LogServerLivenessProbeStopped(_relayEndPoint);
         }
@@ -328,13 +336,6 @@ public sealed class RelayConnection : ConnectionBase
     public override void Disconnect()
     {
         base.Disconnect();
-
-        if (_relayServerLink != null)
-        {
-            _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
-            _relayServerLink.Close();
-            _relayServerLink = null;
-        }
 
         if (!ConnectionRefCount.TryGetValue(_relayEndPoint, out var count)) return;
         if (!ConnectionRefCount.TryUpdate(_relayEndPoint, count - 1, count))
@@ -349,13 +350,21 @@ public sealed class RelayConnection : ConnectionBase
             return;
         }
 
+        RelayServerLinkPool.TryRemove(_relayEndPoint, out _);
+
         if (ConnectionCts.TryRemove(_relayEndPoint, out var cts))
         {
             cts.Cancel();
             cts.Dispose();
         }
 
-        RelayServerLinkPool.TryRemove(_relayEndPoint, out _);
+        if (_relayServerLink == null) return;
+
+        _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
+        _relayServerLink.Close();
+        _relayServerLink = null;
+
+        Logger.LogRelayDisconnected(_relayEndPoint);
     }
 
     protected override void SendDatagram(TransDatagram datagram)
@@ -419,4 +428,7 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Server liveness probe stopped for [{relayEndPoint}]")]
     public static partial void LogServerLivenessProbeStopped(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_CONN] Relay disconnected [{relayEndPoint}]")]
+    public static partial void LogRelayDisconnected(this ILogger logger, IPEndPoint relayEndPoint);
 }

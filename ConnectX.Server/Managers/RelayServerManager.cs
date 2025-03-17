@@ -55,7 +55,7 @@ public class RelayServerManager
         return Random.Shared.GetItems(_serverAddressMapping.Values.ToArray(), 1)[0];
     }
 
-    public bool TryRelayServerSession(IPEndPoint endPoint, [NotNullWhen(true)] out ISession? session)
+    public bool TryGetRelayServerSession(IPEndPoint endPoint, [NotNullWhen(true)] out ISession? session)
     {
         return _relayAddressSessionMapping.TryGetValue(endPoint, out session);
     }

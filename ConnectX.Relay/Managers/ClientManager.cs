@@ -4,6 +4,7 @@ using Hive.Network.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
+using ConnectX.Relay.Helpers;
 using ConnectX.Relay.Interfaces;
 using ConnectX.Shared.Helpers;
 using Hive.Both.General.Dispatchers;
@@ -67,7 +68,14 @@ public class ClientManager : BackgroundService
 
     private void OnReceivedHeartBeat(MessageContext<HeartBeat> ctx)
     {
-        if (ctx.FromSession.RemoteEndPoint?.Address.Equals(_serverLinkHolder.ServerSession?.RemoteEndPoint?.Address) ?? false)
+        if (_serverLinkHolder.ServerSession == null)
+        {
+            // Server session is not set, ignore the heart beat.
+            _logger.LogServerLinkDisconnectedOrNotReadyYet();
+            return;
+        }
+
+        if (ctx.FromSession.IsSameSession(_serverLinkHolder.ServerSession))
         {
             // This is the heart beat from the server, ignore it.
             return;
@@ -143,4 +151,8 @@ internal static partial class ClientManagerLoggers
 
     [LoggerMessage(LogLevel.Debug, "[CLIENT_MANAGER] Heartbeat received from session, session id: {sessionId}")]
     public static partial void RelayHeartBeatReceived(this ILogger logger, SessionId sessionId);
+
+    [LoggerMessage(LogLevel.Critical,
+        "[CLIENT_MANAGER] Server link is disconnected or not ready yet, ignore the heartbeat.")]
+    public static partial void LogServerLinkDisconnectedOrNotReadyYet(this ILogger logger);
 }
