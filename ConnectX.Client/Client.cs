@@ -48,9 +48,16 @@ public class Client
 
         _dispatcher.AddHandler<GroupUserStateChanged>(OnGroupUserStateChanged);
         _dispatcher.AddHandler<RoomMemberInfoUpdated>(OnRoomMemberInfoUpdated);
+
+        serverLinkHolder.OnServerLinkDisconnected += OnServerLinkDisconnected;
     }
 
     public event GroupStateChangedHandler? OnGroupStateChanged;
+
+    private void OnServerLinkDisconnected()
+    {
+        ResetRoomState().Forget();
+    }
 
     private void OnRoomMemberInfoUpdated(MessageContext<RoomMemberInfoUpdated> obj)
     {

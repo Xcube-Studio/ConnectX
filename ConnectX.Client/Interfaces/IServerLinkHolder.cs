@@ -10,6 +10,8 @@ public interface IServerLinkHolder : IHostedService
     bool IsSignedIn { get; }
     Guid UserId { get; }
 
+    event Action OnServerLinkDisconnected;
+
     Task ConnectAsync(CancellationToken cancellationToken);
     Task DisconnectAsync(CancellationToken cancellationToken);
 }

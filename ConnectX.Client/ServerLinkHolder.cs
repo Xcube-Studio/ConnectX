@@ -18,6 +18,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     private readonly IClientSettingProvider _settingProvider;
     private readonly IConnector<TcpSession> _tcpConnector;
 
+    private DateTime _lastHeartBeatTime;
+
     public ServerLinkHolder(
         IDispatcher dispatcher,
         IClientSettingProvider settingProvider,
@@ -39,6 +41,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     public bool IsSignedIn { get; private set; }
     public Guid UserId { get; private set; }
 
+    public event Action? OnServerLinkDisconnected;
+
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogStartingServerLinkHolder();
@@ -52,6 +56,47 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     {
         _logger.LogStoppingServerLinkHolder();
         return base.StopAsync(cancellationToken);
+    }
+
+    private async Task CheckServerLivenessAsync(CancellationToken cancellationToken)
+    {
+        var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
+
+        try
+        {
+            _logger.LogMainServerLivenessProbeStarted(endPoint);
+
+            // Set the last for init
+            _lastHeartBeatTime = DateTime.UtcNow;
+
+            while (cancellationToken is { IsCancellationRequested: false } &&
+                   IsConnected &&
+                   ServerSession != null)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+
+                var lastReceiveTimeSeconds = (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds;
+
+                if (lastReceiveTimeSeconds <= 15)
+                    continue;
+
+                _logger.LogMainServerHeartbeatTimeout(endPoint, lastReceiveTimeSeconds);
+
+                break;
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // ignored
+        }
+        finally
+        {
+            OnServerLinkDisconnected?.Invoke();
+
+            IsConnected = false;
+            ServerSession?.Close();
+            ServerSession = null;
+        }
     }
 
     public async Task ConnectAsync(CancellationToken cancellationToken)
@@ -85,6 +130,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         ServerSession = session;
         IsConnected = true;
+
+        CheckServerLivenessAsync(cancellationToken).Forget();
     }
 
     public async Task DisconnectAsync(CancellationToken cancellationToken)
@@ -114,6 +161,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> ctx)
     {
+        _lastHeartBeatTime = DateTime.UtcNow;
         _logger.LogHeartbeatReceivedFromServer();
     }
 
@@ -129,8 +177,15 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         await TaskHelper.WaitUntilAsync(() => IsConnected, stoppingToken);
 
-        while (!stoppingToken.IsCancellationRequested && IsConnected && ServerSession != null)
+        while (!stoppingToken.IsCancellationRequested)
         {
+            if (!IsConnected || ServerSession == null)
+            {
+                // Wait for connection to be established
+                await TaskHelper.WaitUntilAsync(() => IsConnected && ServerSession != null, stoppingToken);
+                continue;
+            }
+
             await _dispatcher.SendAsync(ServerSession, new HeartBeat(), stoppingToken);
             await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
         }
@@ -179,4 +234,13 @@ internal static partial class ServerLinkHolderLoggers
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] Stop sending heartbeat.")]
     public static partial void LogStopSendingHeartbeat(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Server liveness probe started for [{relayEndPoint}]")]
+    public static partial void LogMainServerLivenessProbeStarted(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Server liveness probe stopped for [{relayEndPoint}]")]
+    public static partial void LogMainServerLivenessProbeStopped(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
+    public static partial void LogMainServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
 }
