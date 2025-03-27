@@ -158,6 +158,8 @@ public abstract class GenericProxyBase : IDisposable
             {
                 Logger.LogCurrentlyRemainPacket(GetProxyInfoForLog(), InwardBuffersQueue.Count);
 
+                var startTime = Stopwatch.GetTimestamp();
+
                 var totalLen = packet.Payload.Length;
                 var sentLen = 0;
                 var buffer = packet.Payload;
@@ -167,6 +169,8 @@ public abstract class GenericProxyBase : IDisposable
                         buffer[sentLen..],
                         SocketFlags.None,
                         CancellationToken);
+
+                Logger.LogCritical("[InnerSendLoop] {time:F} ms", Stopwatch.GetElapsedTime(startTime).TotalMilliseconds);
 
                 packet.Dispose();
 
@@ -230,10 +234,10 @@ public abstract class GenericProxyBase : IDisposable
                 continue;
             }
 
-            var startTime = Stopwatch.GetTimestamp();
-
             var bufferOwner = MemoryPool<byte>.Shared.Rent(DefaultReceiveBufferSize);
             var buffer = bufferOwner.Memory;
+
+            var startTime = Stopwatch.GetTimestamp();
 
             var len = await _innerSocket.ReceiveAsync(buffer, SocketFlags.None, CancellationToken);
 
@@ -249,7 +253,7 @@ public abstract class GenericProxyBase : IDisposable
                 break;
             }
 
-            Logger.LogCritical("[Proxy] {time:F} ms", Stopwatch.GetElapsedTime(startTime).TotalMilliseconds);
+            Logger.LogCritical("[InnerReceiveLoop] {time:F} ms", Stopwatch.GetElapsedTime(startTime).TotalMilliseconds);
 
             Logger.LogBytesReceived(GetProxyInfoForLog(), len, LocalServerPort);
 
