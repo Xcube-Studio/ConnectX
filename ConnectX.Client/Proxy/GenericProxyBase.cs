@@ -1,6 +1,5 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Net.Sockets;
 using ConnectX.Client.Messages.Proxy;
 using Microsoft.Extensions.Logging;

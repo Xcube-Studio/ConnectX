@@ -9,5 +9,7 @@ public readonly partial struct RelayDatagram(Guid from, Guid to, ReadOnlyMemory<
 {
     public readonly Guid From = from;
     public readonly Guid To = to;
+
+    [BrotliFormatter<ReadOnlyMemory<byte>>]
     public readonly ReadOnlyMemory<byte> Payload = payload;
 }
