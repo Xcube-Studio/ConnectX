@@ -144,8 +144,8 @@ public class FakeServerMultiCaster : BackgroundService
             
             EndPoint remoteEp = multicastIpe;
 
-            var len = (await multicastSocket.ReceiveFromAsync(buffer, remoteEp)).ReceivedBytes;
-            var message = Encoding.UTF8.GetString(buffer, 0, len);
+            var receiveFromResult = await multicastSocket.ReceiveFromAsync(buffer, remoteEp);
+            var message = Encoding.UTF8.GetString(buffer, 0, receiveFromResult.ReceivedBytes);
             var serverName = message[6..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
             var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
             var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
