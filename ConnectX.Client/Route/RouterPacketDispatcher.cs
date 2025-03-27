@@ -19,10 +19,10 @@ public sealed class RouterPacketDispatcher : PacketDispatcherBase<P2PPacket>
     {
         _router = router;
 
-        router.OnDelivery += OnReceiveTransDatagram;
+        router.OnDelivery += OnReceiveDatagram;
     }
 
-    protected override void OnReceiveTransDatagram(P2PPacket packet)
+    protected override void OnReceiveDatagram(P2PPacket packet)
     {
         var sequence = new ReadOnlySequence<byte>(packet.Payload);
         var message = Codec.Decode(sequence);

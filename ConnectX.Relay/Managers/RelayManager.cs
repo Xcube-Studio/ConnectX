@@ -3,8 +3,8 @@ using System.Net;
 using ConnectX.Relay.Helpers;
 using ConnectX.Relay.Interfaces;
 using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Relay;
+using ConnectX.Shared.Messages.Relay.Datagram;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
@@ -116,7 +116,9 @@ public class RelayManager
             return;
         }
 
-        _dispatcher.SendAsync(session, message).Forget();
+        var unwrappedMessage = new UnwrappedRelayDatagram(message.From, message.Payload);
+
+        _dispatcher.SendAsync(session, unwrappedMessage).Forget();
 
         _logger.LogRelayDatagramSent(ctx.FromSession.Id, message.To);
     }

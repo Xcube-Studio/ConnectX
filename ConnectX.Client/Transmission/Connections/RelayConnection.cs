@@ -6,6 +6,7 @@ using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Relay;
+using ConnectX.Shared.Messages.Relay.Datagram;
 using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
 using Hive.Network.Abstractions;
@@ -53,7 +54,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         _roomInfoManager = roomInfoManager;
         _serverLinkHolder = serverLinkHolder;
 
-        dispatcher.AddHandler<RelayDatagram>(OnTransDatagramReceived);
+        dispatcher.AddHandler<UnwrappedRelayDatagram>(OnUnwrappedRelayDatagramReceived);
         dispatcher.AddHandler<HeartBeat>(OnHeartBeatReceived);
     }
 
@@ -63,7 +64,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         Logger.LogHeartbeatReceivedFromServer();
     }
 
-    private void OnTransDatagramReceived(MessageContext<RelayDatagram> ctx)
+    private void OnUnwrappedRelayDatagramReceived(MessageContext<UnwrappedRelayDatagram> ctx)
     {
         if (ctx.Message.From != To)
         {

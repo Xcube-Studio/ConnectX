@@ -62,7 +62,7 @@ public abstract class PacketDispatcherBase<TInPacket>
         }
     }
 
-    protected abstract void OnReceiveTransDatagram(TInPacket packet);
+    protected abstract void OnReceiveDatagram(TInPacket packet);
 
     protected readonly struct CallbackWarp()
     {

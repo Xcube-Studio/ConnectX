@@ -1,7 +1,7 @@
 ﻿using Hive.Codec.Shared;
 using MemoryPack;
 
-namespace ConnectX.Shared.Messages;
+namespace ConnectX.Shared.Messages.Relay.Datagram;
 
 [MessageDefine]
 [MemoryPackable]
