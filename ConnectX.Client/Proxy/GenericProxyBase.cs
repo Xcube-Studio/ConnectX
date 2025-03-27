@@ -230,12 +230,6 @@ public abstract class GenericProxyBase : IDisposable
                 continue;
             }
 
-            if (_innerSocket.Available == 0)
-            {
-                await Task.Delay(1, cancellationToken);
-                continue;
-            }
-
             var bufferOwner = MemoryPool<byte>.Shared.Rent(DefaultReceiveBufferSize);
             var buffer = bufferOwner.Memory;
 
