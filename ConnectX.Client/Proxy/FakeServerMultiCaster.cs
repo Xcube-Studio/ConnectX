@@ -21,6 +21,10 @@ public class FakeServerMultiCaster : BackgroundService
     private readonly PartnerManager _partnerManager;
     private readonly ProxyManager _proxyManager;
 
+    private const int MulticastPort = 4445;
+    private static readonly IPAddress MulticastAddress = IPAddress.Parse("224.0.2.60");
+    private static readonly IPEndPoint MulticastIpe = new (MulticastAddress, MulticastPort);
+
     private readonly IRoomInfoManager _roomInfoManager;
     private readonly ILogger _logger;
 
@@ -56,8 +60,7 @@ public class FakeServerMultiCaster : BackgroundService
         }
 
         var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        var multicastAddress = IPAddress.Parse("224.0.2.60");
-        var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
+        var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
 
         multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
 
@@ -65,9 +68,7 @@ public class FakeServerMultiCaster : BackgroundService
         var mess = $"[MOTD]{message.Name}[/MOTD][AD]{proxy.LocalMappingPort}[/AD]";
         var buf = Encoding.Default.GetBytes(mess);
 
-        var endPoint = new IPEndPoint(multicastAddress, 4445);
-
-        multicastSocket.SendTo(buf, endPoint);
+        multicastSocket.SendTo(buf, MulticastIpe);
         _logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
 
@@ -125,7 +126,7 @@ public class FakeServerMultiCaster : BackgroundService
             }
 
             using var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
+            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
             
             multicastSocket.SetSocketOption(
                 SocketOptionLevel.IP,
@@ -137,16 +138,11 @@ public class FakeServerMultiCaster : BackgroundService
                 SocketOptionName.ReuseAddress,
                 true);
 
-            var multicastAddress = IPAddress.Parse("224.0.2.60");
-            var multicastIpe = new IPEndPoint(multicastAddress, 4445);
-
-            multicastSocket.Bind(new IPEndPoint(IPAddress.Any, 4445));
+            multicastSocket.Bind(new IPEndPoint(IPAddress.Any, MulticastPort));
             
-            EndPoint remoteEp = multicastIpe;
-
-            var receiveFromResult = await multicastSocket.ReceiveFromAsync(buffer, remoteEp);
+            var receiveFromResult = await multicastSocket.ReceiveFromAsync(buffer, MulticastIpe);
             var message = Encoding.UTF8.GetString(buffer, 0, receiveFromResult.ReceivedBytes);
-            var serverName = message[6..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
+            var serverName = message["[MOTD]".Length..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
             var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
             var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
             var port = ushort.Parse(message[portStart..portEnd]);
@@ -155,7 +151,6 @@ public class FakeServerMultiCaster : BackgroundService
                 ListenedLanServer(serverName, port);
 
             multicastSocket.Close();
-            multicastSocket.Dispose();
 
             await Task.Delay(3000, stoppingToken);
         }

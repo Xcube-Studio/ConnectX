@@ -55,7 +55,7 @@ public class GenericProxyPair : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    public bool OnSend(ForwardPacketCarrier data)
+    private bool OnSend(ForwardPacketCarrier data)
     {
         if (data.SelfRealPort != LocalRealPort) return false;
 
