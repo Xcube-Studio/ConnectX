@@ -131,7 +131,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         ServerSession = session;
         IsConnected = true;
 
-        CheckServerLivenessAsync(cancellationToken).Forget();
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => CheckServerLivenessAsync(cancellationToken));
     }
 
     public async Task DisconnectAsync(CancellationToken cancellationToken)

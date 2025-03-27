@@ -89,7 +89,7 @@ public class RelayServer : BackgroundService
     {
         await _acceptor.SetupAsync(_serverSettingProvider.RelayEndPoint, cancellationToken);
 
-        _acceptor.StartAcceptLoop(cancellationToken).Forget();
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => _acceptor.StartAcceptLoop(cancellationToken));
         _acceptor.OnSessionCreated += AcceptorOnOnSessionCreated;
 
         _logger.LogServerStarted(_serverSettingProvider.RelayEndPoint);

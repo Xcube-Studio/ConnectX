@@ -7,12 +7,20 @@ using Microsoft.Extensions.Logging;
 using System.Buffers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Models;
+using System.Collections;
+using ConnectX.Shared.Helpers;
+using ConnectX.Client.Interfaces;
 
 namespace ConnectX.Client.Transmission.Connections;
 
-public sealed class P2PConnection : ConnectionBase
+public sealed class P2PConnection : ConnectionBase, IDatagramTransmit<TransDatagram>
 {
     private readonly RouterPacketDispatcher _routerPacketDispatcher;
+    private readonly BitArray _sendBufferAckFlag = new(BufferLength);
+
+    private int _ackPointer;
+    private int _lastAckTime;
+    private int _sendPointer;
 
     public P2PConnection(
         Guid targetId,
@@ -24,11 +32,33 @@ public sealed class P2PConnection : ConnectionBase
     {
         _routerPacketDispatcher = routerPacketDispatcher;
         _routerPacketDispatcher.OnReceive<TransDatagram>(OnTransDatagramReceived);
+
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(StartResendCoroutineAsync);
+    }
+
+    private async Task StartResendCoroutineAsync()
+    {
+        while (Lifetime.ApplicationStopping.IsCancellationRequested == false)
+        {
+            await TaskHelper.WaitUntilAsync(NeedResend, Lifetime.ApplicationStopping);
+
+            if (!Lifetime.ApplicationStopping.IsCancellationRequested) Logger.LogResendCoroutineStarted(Source, To);
+        }
+
+        return;
+
+        bool NeedResend()
+        {
+            if (_ackPointer == _sendPointer) return false;
+            var now = DateTime.Now.Millisecond;
+            var time = now - _lastAckTime;
+            return time > Timeout;
+        }
     }
 
     public override void Send(ReadOnlyMemory<byte> payload)
     {
-        SendDatagram(TransDatagram.CreateNormal(SendPointer, payload));
+        SendDatagram(TransDatagram.CreateNormal(_sendPointer, payload));
     }
 
     public override async Task<bool> ConnectAsync()
@@ -103,24 +133,24 @@ public sealed class P2PConnection : ConnectionBase
         {
             //是ACK包，需要更新发送缓冲区的状态
 
-            SendBufferAckFlag[datagram.SynOrAck] = true;
+            _sendBufferAckFlag[datagram.SynOrAck] = true;
 
-            if (AckPointer != datagram.SynOrAck) return;
+            if (_ackPointer != datagram.SynOrAck) return;
 
-            LastAckTime = DateTime.Now.Millisecond;
+            _lastAckTime = DateTime.Now.Millisecond;
 
             // 向后寻找第一个未收到ACK的包
             for (;
-                 SendBufferAckFlag[AckPointer] && AckPointer <= SendPointer;
-                 AckPointer = (AckPointer + 1) % BufferLength)
-                SendBufferAckFlag[AckPointer] = false;
+                 _sendBufferAckFlag[_ackPointer] && _ackPointer <= _sendPointer;
+                 _ackPointer = (_ackPointer + 1) % BufferLength)
+                _sendBufferAckFlag[_ackPointer] = false;
         }
     }
 
-    protected override void SendDatagram(TransDatagram datagram)
+    public void SendDatagram(TransDatagram datagram)
     {
-        SendBufferAckFlag[SendPointer] = false;
-        SendPointer = (SendPointer + 1) % BufferLength;
+        _sendBufferAckFlag[_sendPointer] = false;
+        _sendPointer = (_sendPointer + 1) % BufferLength;
 
         _routerPacketDispatcher.Send(To, datagram);
     }

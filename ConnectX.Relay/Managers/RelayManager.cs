@@ -37,7 +37,7 @@ public class RelayManager
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
-        dispatcher.AddHandler<TransDatagram>(OnTransDatagramReceived);
+        dispatcher.AddHandler<RelayDatagram>(OnRelayDatagramReceived);
         dispatcher.AddHandler<UpdateRelayUserRoomMappingMessage>(OnUpdateRelayUserRoomMappingMessageReceived);
     }
 
@@ -106,27 +106,19 @@ public class RelayManager
         }
     }
 
-    private void OnTransDatagramReceived(MessageContext<TransDatagram> ctx)
+    private void OnRelayDatagramReceived(MessageContext<RelayDatagram> ctx)
     {
         var message = ctx.Message;
 
-        if (!message.RelayTo.HasValue || message.RelayTo.Value == Guid.Empty)
+        if (!_userIdSessionMapping.TryGetValue(message.To, out var session))
         {
-            _logger.LogRelayToEmpty(ctx.FromSession.Id);
+            _logger.LogRelayDestinationNotFound(ctx.FromSession.Id, message.From, message.To);
             return;
         }
 
-        if (!_userIdSessionMapping.TryGetValue(message.RelayTo.Value, out var session))
-        {
-            _logger.LogRelayDestinationNotFound(ctx.FromSession.Id, message.RelayFrom, message.RelayTo);
-            return;
-        }
+        _dispatcher.SendAsync(session, message).Forget();
 
-        var repackedDatagram = new TransDatagram(message.Flag, message.SynOrAck, message.Payload, message.RelayFrom, message.RelayTo);
-
-        _dispatcher.SendAsync(session, repackedDatagram).Forget();
-
-        _logger.LogRelayDatagramSent(ctx.FromSession.Id, message.RelayTo.Value);
+        _logger.LogRelayDatagramSent(ctx.FromSession.Id, message.To);
     }
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)

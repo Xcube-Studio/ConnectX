@@ -6,7 +6,6 @@ using ConnectX.Client.Interfaces;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Relay;
-using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
 using Hive.Network.Abstractions;
@@ -17,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Client.Transmission.Connections;
 
-public sealed class RelayConnection : ConnectionBase
+public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDatagram>
 {
     private ISession? _relayServerLink;
     
@@ -54,7 +53,7 @@ public sealed class RelayConnection : ConnectionBase
         _roomInfoManager = roomInfoManager;
         _serverLinkHolder = serverLinkHolder;
 
-        dispatcher.AddHandler<TransDatagram>(OnTransDatagramReceived);
+        dispatcher.AddHandler<RelayDatagram>(OnTransDatagramReceived);
         dispatcher.AddHandler<HeartBeat>(OnHeartBeatReceived);
     }
 
@@ -64,10 +63,9 @@ public sealed class RelayConnection : ConnectionBase
         Logger.LogHeartbeatReceivedFromServer();
     }
 
-    private void OnTransDatagramReceived(MessageContext<TransDatagram> ctx)
+    private void OnTransDatagramReceived(MessageContext<RelayDatagram> ctx)
     {
-        if (ctx.Message.RelayFrom.HasValue &&
-            ctx.Message.RelayFrom.Value != To)
+        if (ctx.Message.From != To)
         {
             // we want to make sure we are processing the right packet
             return;
@@ -80,63 +78,23 @@ public sealed class RelayConnection : ConnectionBase
         }
 
         var datagram = ctx.Message;
+        var sequence = new ReadOnlySequence<byte>(datagram.Payload);
+        var message = Codec.Decode(sequence);
 
-        if (datagram.Flag == TransDatagram.FirstHandShakeFlag)
+        if (message == null)
         {
-            // 握手的回复
-            var handshake = TransDatagram.CreateHandShakeSecond(1, _serverLinkHolder.UserId, To);
-            Dispatcher.SendAsync(_relayServerLink, handshake, CancellationToken.None).Forget();
+            Logger.LogDecodeMessageFailed(Source, datagram.Payload.Length, To);
 
-            Logger.LogReceiveFirstShakeHandPacket(Source, To);
-
-            IsConnected = true;
             return;
         }
 
-        // 如果是TransDatagram，需要回复确认
-        if ((datagram.Flag & DatagramFlag.SYN) != 0)
-        {
-            if (datagram.Payload != null)
-            {
-                var sequence = new ReadOnlySequence<byte>(datagram.Payload.Value);
-                var message = Codec.Decode(sequence);
-
-                if (message == null)
-                {
-                    Logger.LogDecodeMessageFailed(Source, datagram.Payload.Value.Length, To);
-
-                    return;
-                }
-
-                _relayPacketDispatcher.DispatchPacket(datagram);
-                Dispatcher.Dispatch(_relayServerLink, message.GetType(), message);
-            }
-
-            var ack = TransDatagram.CreateAck(datagram.SynOrAck, _serverLinkHolder.UserId, To);
-
-            Dispatcher.SendAsync(_relayServerLink, ack, CancellationToken.None).Forget();
-        }
-        else if ((datagram.Flag & DatagramFlag.ACK) != 0)
-        {
-            //是ACK包，需要更新发送缓冲区的状态
-
-            SendBufferAckFlag[datagram.SynOrAck] = true;
-
-            if (AckPointer != datagram.SynOrAck) return;
-
-            LastAckTime = DateTime.Now.Millisecond;
-
-            // 向后寻找第一个未收到ACK的包
-            for (;
-                 SendBufferAckFlag[AckPointer] && AckPointer <= SendPointer;
-                 AckPointer = (AckPointer + 1) % BufferLength)
-                SendBufferAckFlag[AckPointer] = false;
-        }
+        _relayPacketDispatcher.DispatchPacket(datagram);
+        Dispatcher.Dispatch(_relayServerLink, message.GetType(), message);
     }
 
     public override void Send(ReadOnlyMemory<byte> payload)
     {
-        SendDatagram(TransDatagram.CreateNormal(SendPointer, payload, _serverLinkHolder.UserId, To));
+        SendDatagram(new RelayDatagram(_serverLinkHolder.UserId, To, payload));
     }
 
     public override async Task<bool> ConnectAsync()
@@ -238,8 +196,8 @@ public sealed class RelayConnection : ConnectionBase
 
             IsConnected = true;
 
-            SendHeartBeatAsync().Forget();
-            CheckServerLivenessAsync().Forget();
+            Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(SendHeartBeatAsync);
+            Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(CheckServerLivenessAsync);
 
             return true;
         }
@@ -367,16 +325,13 @@ public sealed class RelayConnection : ConnectionBase
         Logger.LogRelayDisconnected(_relayEndPoint);
     }
 
-    protected override void SendDatagram(TransDatagram datagram)
+    public void SendDatagram(RelayDatagram datagram)
     {
         if (!IsConnected || _relayServerLink == null)
         {
             Logger.LogSendFailedBecauseLinkNotReadyYet(Source, To);
             return;
         }
-
-        SendBufferAckFlag[SendPointer] = false;
-        SendPointer = (SendPointer + 1) % BufferLength;
 
         Dispatcher.SendAsync(_relayServerLink, datagram, _linkCt).Forget();
     }

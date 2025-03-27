@@ -69,9 +69,9 @@ public abstract class GenericProxyBase : IDisposable
     {
         Logger.LogStartingProxy(GetProxyInfoForLog());
 
-        Task.Run(async () => await OuterSendLoopAsync(CancellationToken), CancellationToken).Forget();
-        Task.Run(async () => await InnerSendLoopAsync(CancellationToken), CancellationToken).Forget();
-        Task.Run(async () => await InnerReceiveLoopAsync(CancellationToken), CancellationToken).Forget();
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => OuterSendLoopAsync(CancellationToken));
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => InnerSendLoopAsync(CancellationToken));
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => InnerReceiveLoopAsync(CancellationToken));
 
         Logger.LogProxyStarted(GetProxyInfoForLog());
     }

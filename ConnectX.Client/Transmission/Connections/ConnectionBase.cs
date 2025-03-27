@@ -4,10 +4,7 @@ using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using System.Collections;
-using ConnectX.Shared.Helpers;
 using ConnectX.Client.Route.Packet;
-using ConnectX.Shared.Messages;
 using Hive.Network.Shared;
 
 namespace ConnectX.Client.Transmission.Connections;
@@ -21,12 +18,7 @@ public abstract class ConnectionBase : ISender, ICanPing<Guid>
     protected readonly IPacketCodec Codec;
     protected readonly ILogger Logger;
 
-    private readonly IHostApplicationLifetime _lifetime;
-    protected readonly BitArray SendBufferAckFlag = new(BufferLength);
-
-    protected int AckPointer;
-    protected int LastAckTime;
-    protected int SendPointer;
+    protected readonly IHostApplicationLifetime Lifetime;
 
     protected ConnectionBase(
         string source,
@@ -42,36 +34,14 @@ public abstract class ConnectionBase : ISender, ICanPing<Guid>
         To = targetId;
 
         Codec = codec;
-        _lifetime = lifetime;
+        Lifetime = lifetime;
         Logger = logger;
-
-        Task.Run(StartResendCoroutineAsync, _lifetime.ApplicationStopping).Forget();
     }
 
     public Guid To { get; }
     public bool IsConnected { get; protected set; }
     public IDispatcher Dispatcher { get; }
     public bool ShouldUseDispatcherSenderInfo => false;
-
-    private async Task StartResendCoroutineAsync()
-    {
-        while (_lifetime.ApplicationStopping.IsCancellationRequested == false)
-        {
-            await TaskHelper.WaitUntilAsync(NeedResend, _lifetime.ApplicationStopping);
-
-            if (!_lifetime.ApplicationStopping.IsCancellationRequested) Logger.LogResendCoroutineStarted(Source, To);
-        }
-
-        return;
-
-        bool NeedResend()
-        {
-            if (AckPointer == SendPointer) return false;
-            var now = DateTime.Now.Millisecond;
-            var time = now - LastAckTime;
-            return time > Timeout;
-        }
-    }
 
     public abstract void Send(ReadOnlyMemory<byte> payload);
 
@@ -98,7 +68,6 @@ public abstract class ConnectionBase : ISender, ICanPing<Guid>
     }
 
     public abstract Task<bool> ConnectAsync();
-    protected abstract void SendDatagram(TransDatagram datagram);
 }
 
 internal static partial class ConnectionBaseLoggers

@@ -1,7 +1,7 @@
 ﻿namespace ConnectX.Shared.Models;
 
 [Flags]
-public enum DatagramFlag
+public enum DatagramFlag : byte
 {
     SYN = 0x01,
     ACK = 0x02,

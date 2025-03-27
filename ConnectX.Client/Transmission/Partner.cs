@@ -1,5 +1,4 @@
 ﻿using ConnectX.Client.Transmission.Connections;
-using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -33,7 +32,7 @@ public class Partner
         _serviceProvider = serviceProvider;
         _logger = logger;
 
-        KeepConnectAsync().Forget();
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(KeepConnectAsync);
     }
 
     public ConnectionBase Connection { get; }

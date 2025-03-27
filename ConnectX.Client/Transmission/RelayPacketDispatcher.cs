@@ -7,22 +7,18 @@ namespace ConnectX.Client.Transmission;
 
 public sealed class RelayPacketDispatcher(
     IPacketCodec codec,
-    ILogger<RelayPacketDispatcher> logger) : PacketDispatcherBase<TransDatagram>(codec, logger)
+    ILogger<RelayPacketDispatcher> logger) : PacketDispatcherBase<RelayDatagram>(codec, logger)
 {
-    public void DispatchPacket(TransDatagram packet) => OnReceiveTransDatagram(packet);
+    public void DispatchPacket(RelayDatagram packet) => OnReceiveTransDatagram(packet);
 
-    protected override void OnReceiveTransDatagram(TransDatagram packet)
+    protected override void OnReceiveTransDatagram(RelayDatagram packet)
     {
-        if (packet.Payload == null ||
-            !packet.RelayFrom.HasValue)
-            return;
-
-        var sequence = new ReadOnlySequence<byte>(packet.Payload.Value);
+        var sequence = new ReadOnlySequence<byte>(packet.Payload);
         var message = Codec.Decode(sequence);
         var messageType = message!.GetType();
 
-        Logger.LogReceived(messageType.Name, packet.RelayFrom.Value);
+        Logger.LogReceived(messageType.Name, packet.From);
 
-        Dispatch(message, messageType, packet.RelayFrom.Value);
+        Dispatch(message, messageType, packet.From);
     }
 }

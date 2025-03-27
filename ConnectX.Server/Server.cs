@@ -21,6 +21,7 @@ public class Server : BackgroundService
 
     private readonly GroupManager _groupManager;
     private readonly ClientManager _clientManager;
+    // ReSharper disable once InconsistentNaming
     private readonly P2PManager _p2pManager;
     private readonly RelayServerManager _relayServerManager;
 
@@ -96,7 +97,7 @@ public class Server : BackgroundService
     {
         await _acceptor.SetupAsync(_serverSettingProvider.ListenIpEndPoint, cancellationToken);
 
-        _acceptor.StartAcceptLoop(cancellationToken).Forget();
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => _acceptor.StartAcceptLoop(cancellationToken));
         _acceptor.OnSessionCreated += AcceptorOnOnSessionCreated;
 
         _logger.LogServerStarted(_serverSettingProvider.ListenIpEndPoint);

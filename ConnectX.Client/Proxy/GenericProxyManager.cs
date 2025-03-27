@@ -246,7 +246,7 @@ public abstract class GenericProxyManager : BackgroundService
 
         Logger.LogCreateAcceptor(key);
 
-        acceptor.StartAcceptAsync().Forget();
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(acceptor.StartAcceptAsync);
 
         return acceptor;
     }
