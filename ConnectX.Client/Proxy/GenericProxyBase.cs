@@ -9,7 +9,7 @@ namespace ConnectX.Client.Proxy;
 
 public abstract class GenericProxyBase : IDisposable
 {
-    private const int DefaultReceiveBufferSize = 8192;
+    private const int DefaultReceiveBufferSize = 1024 * 500;
     private const int RetryInterval = 500;
     private const int TryTime = 20;
 
@@ -158,8 +158,6 @@ public abstract class GenericProxyBase : IDisposable
             {
                 Logger.LogCurrentlyRemainPacket(GetProxyInfoForLog(), InwardBuffersQueue.Count);
 
-                var startTime = Stopwatch.GetTimestamp();
-
                 var totalLen = packet.Payload.Length;
                 var sentLen = 0;
                 var buffer = packet.Payload;
@@ -169,8 +167,6 @@ public abstract class GenericProxyBase : IDisposable
                         buffer[sentLen..],
                         SocketFlags.None,
                         CancellationToken);
-
-                Logger.LogCritical("[InnerSendLoop] {time:F} ms", Stopwatch.GetElapsedTime(startTime).TotalMilliseconds);
 
                 packet.Dispose();
 
@@ -247,8 +243,11 @@ public abstract class GenericProxyBase : IDisposable
                 Logger.LogServerDisconnected(GetProxyInfoForLog(), LocalServerPort);
 
                 bufferOwner.Dispose();
+
+                _innerSocket?.Shutdown(SocketShutdown.Both);
                 _innerSocket?.Dispose();
                 _innerSocket = null;
+
                 InvokeRealServerDisconnected();
                 break;
             }
