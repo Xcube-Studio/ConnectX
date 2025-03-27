@@ -124,7 +124,7 @@ public class FakeServerMultiCaster : BackgroundService
                 continue;
             }
 
-            var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            using var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
             var multicastOption = new MulticastOption(IPAddress.Parse("224.0.2.60"), IPAddress.Any);
             
             multicastSocket.SetSocketOption(
@@ -144,7 +144,7 @@ public class FakeServerMultiCaster : BackgroundService
             
             EndPoint remoteEp = multicastIpe;
 
-            var len = multicastSocket.ReceiveFrom(buffer, ref remoteEp);
+            var len = (await multicastSocket.ReceiveFromAsync(buffer, remoteEp)).ReceivedBytes;
             var message = Encoding.UTF8.GetString(buffer, 0, len);
             var serverName = message[6..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
             var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
