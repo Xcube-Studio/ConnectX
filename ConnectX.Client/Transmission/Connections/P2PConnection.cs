@@ -5,11 +5,10 @@ using Hive.Codec.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Buffers;
-using ConnectX.Shared.Messages;
-using ConnectX.Shared.Models;
 using System.Collections;
 using ConnectX.Shared.Helpers;
 using ConnectX.Client.Interfaces;
+using ConnectX.Client.Messages;
 
 namespace ConnectX.Client.Transmission.Connections;
 

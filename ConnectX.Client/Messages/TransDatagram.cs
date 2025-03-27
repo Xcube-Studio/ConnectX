@@ -1,8 +1,8 @@
-﻿using ConnectX.Shared.Models;
+﻿using ConnectX.Client.Models;
 using Hive.Codec.Shared;
 using MemoryPack;
 
-namespace ConnectX.Shared.Messages;
+namespace ConnectX.Client.Messages;
 
 [MessageDefine]
 [MemoryPackable]

@@ -1,4 +1,4 @@
-﻿namespace ConnectX.Shared.Models;
+﻿namespace ConnectX.Client.Models;
 
 [Flags]
 public enum DatagramFlag : byte
