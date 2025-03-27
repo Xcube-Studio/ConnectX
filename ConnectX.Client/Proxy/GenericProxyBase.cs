@@ -230,7 +230,7 @@ public abstract class GenericProxyBase : IDisposable
                 continue;
             }
 
-            if (!_innerSocket.Poll(10000, SelectMode.SelectRead))
+            if (_innerSocket.Available == 0)
             {
                 await Task.Delay(1, cancellationToken);
                 continue;
