@@ -181,6 +181,7 @@ public abstract class GenericProxyBase : IDisposable
             }
             catch (ObjectDisposedException ex)
             {
+                _innerSocket = null;
                 Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
             }
         }
@@ -214,7 +215,10 @@ public abstract class GenericProxyBase : IDisposable
     private void InitConnectionSocket()
     {
         if (_innerSocket is { Connected: true })
+        {
+            _innerSocket.Shutdown(SocketShutdown.Both);
             _innerSocket.Close();
+        }
 
         _innerSocket?.Dispose();
         _innerSocket = CreateSocket();
@@ -242,8 +246,6 @@ public abstract class GenericProxyBase : IDisposable
             var bufferOwner = MemoryPool<byte>.Shared.Rent(DefaultReceiveBufferSize);
             var buffer = bufferOwner.Memory;
 
-            var startTime = Stopwatch.GetTimestamp();
-
             var len = await _innerSocket.ReceiveAsync(buffer, SocketFlags.None, CancellationToken);
 
             if (len == 0)
@@ -260,8 +262,6 @@ public abstract class GenericProxyBase : IDisposable
                 InvokeRealServerDisconnected();
                 break;
             }
-
-            Logger.LogCritical("[InnerReceiveLoop] {time:F} ms", Stopwatch.GetElapsedTime(startTime).TotalMilliseconds);
 
             Logger.LogBytesReceived(GetProxyInfoForLog(), len, LocalServerPort);
 
