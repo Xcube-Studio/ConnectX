@@ -62,6 +62,8 @@ public class GenericProxyAcceptor : IDisposable
                 {
                     var tmp = await _acceptSocket.AcceptAsync(_cancellationToken);
 
+                    tmp.NoDelay = true;
+
                     if (tmp.RemoteEndPoint is not IPEndPoint remoteEndPoint) continue;
 
                     var clientPort = remoteEndPoint.Port;

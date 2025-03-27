@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ConnectX.Client.Route.Packet;
 using Hive.Network.Shared;
+using System.Diagnostics;
 
 namespace ConnectX.Client.Transmission.Connections;
 
@@ -47,6 +48,8 @@ public abstract class ConnectionBase : ISender, ICanPing<Guid>
 
     public void SendData<T>(T data)
     {
+        var startTime = Stopwatch.GetTimestamp();
+
         using var stream = RecycleMemoryStreamManagerHolder.Shared.GetStream();
         Codec.Encode(data, stream);
 
@@ -55,6 +58,8 @@ public abstract class ConnectionBase : ISender, ICanPing<Guid>
         var buffer = stream.GetBuffer();
 
         Send(buffer.AsMemory(0, (int)stream.Length));
+
+        Logger.LogCritical("[Relay] {time:F} ms", Stopwatch.GetElapsedTime(startTime).TotalMilliseconds);
     }
 
     public void SendPingPacket<T>(T packet) where T : RouteLayerPacket

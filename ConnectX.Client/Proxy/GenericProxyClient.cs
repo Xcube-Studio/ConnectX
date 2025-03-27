@@ -30,8 +30,8 @@ public sealed class GenericProxyClient : GenericProxyBase
     {
         var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
-        socket.Connect(new IPEndPoint(IPAddress.Loopback,
-            LocalServerPort));
+        socket.NoDelay = true;
+        socket.Connect(new IPEndPoint(IPAddress.Loopback, LocalServerPort));
 
         Logger.LogConnectedToMc(LocalServerPort, GetProxyInfoForLog());
 

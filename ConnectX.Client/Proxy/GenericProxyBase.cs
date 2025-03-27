@@ -1,5 +1,6 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net.Sockets;
 using ConnectX.Client.Messages.Proxy;
 using Microsoft.Extensions.Logging;
@@ -229,6 +230,8 @@ public abstract class GenericProxyBase : IDisposable
                 continue;
             }
 
+            var startTime = Stopwatch.GetTimestamp();
+
             var bufferOwner = MemoryPool<byte>.Shared.Rent(DefaultReceiveBufferSize);
             var buffer = bufferOwner.Memory;
 
@@ -245,6 +248,8 @@ public abstract class GenericProxyBase : IDisposable
                 InvokeRealServerDisconnected();
                 break;
             }
+
+            Logger.LogCritical("[Proxy] {time:F} ms", Stopwatch.GetElapsedTime(startTime).TotalMilliseconds);
 
             Logger.LogBytesReceived(GetProxyInfoForLog(), len, LocalServerPort);
 
