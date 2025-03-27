@@ -14,22 +14,22 @@ public class NetworkPathModel
     public bool Expired { get; init; }
 
     [JsonPropertyName("lastReceive")]
-    public long LastReceive { get; init; }
+    public ulong LastReceive { get; init; }
 
     [JsonPropertyName("lastSend")]
-    public long LastSend { get; init; }
+    public ulong LastSend { get; init; }
 
     [JsonPropertyName("localPort")]
     public ushort LocalPort { get; init; }
 
     [JsonPropertyName("localSocket")]
-    public long LocalSocket { get; init; }
+    public ulong LocalSocket { get; init; }
 
     [JsonPropertyName("preferred")]
     public bool Preferred { get; init; }
 
     [JsonPropertyName("trustedPathId")]
-    public long TrustedPathId { get; init; }
+    public ulong TrustedPathId { get; init; }
 }
 
 public class NetworkPeerModel
