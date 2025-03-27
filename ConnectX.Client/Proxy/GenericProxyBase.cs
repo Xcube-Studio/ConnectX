@@ -2,8 +2,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Sockets;
-using System.Reflection.PortableExecutable;
-using System.Threading.Channels;
 using ConnectX.Client.Messages.Proxy;
 using Microsoft.Extensions.Logging;
 
