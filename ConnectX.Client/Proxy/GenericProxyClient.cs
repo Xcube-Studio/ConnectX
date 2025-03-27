@@ -31,7 +31,7 @@ public sealed class GenericProxyClient : GenericProxyBase
         var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
         socket.NoDelay = true;
-        socket.Blocking = false;
+        socket.ReceiveBufferSize = 0;
         socket.LingerState = new LingerOption(true, 3);
 
         socket.Connect(new IPEndPoint(IPAddress.Loopback, LocalServerPort));
