@@ -21,7 +21,7 @@ public abstract class GenericProxyBase : IDisposable
     protected Channel<ForwardPacketCarrier> InwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
     {
         SingleReader = true,
-        SingleWriter = false
+        SingleWriter = true
     });
 
     protected Channel<ForwardPacketCarrier> OutwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
