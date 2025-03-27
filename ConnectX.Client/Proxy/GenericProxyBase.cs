@@ -9,7 +9,7 @@ namespace ConnectX.Client.Proxy;
 
 public abstract class GenericProxyBase : IDisposable
 {
-    private const int DefaultReceiveBufferSize = 1024 * 500;
+    private const int DefaultReceiveBufferSize = 20480;
     private const int RetryInterval = 500;
     private const int TryTime = 20;
 
