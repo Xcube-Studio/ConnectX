@@ -58,9 +58,9 @@ public sealed class ZtTcpSession : AbstractSession
 
         while (!token.IsCancellationRequested)
         {
-            if (!Socket.Poll(10000, SelectMode.SelectRead))
+            if (!Socket.Poll(1000, SelectMode.SelectRead))
             {
-                await Task.Delay(1, token);
+                await Task.Yield();
                 continue;
             }
 

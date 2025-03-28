@@ -266,30 +266,8 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         {
             // ignored
         }
-        finally
-        {
-            if (!ConnectionRefCount.TryGetValue(_relayEndPoint, out var count) ||
-                count <= 1)
-            {
-                // we need to destroy the connection
-                RelayServerLinkPool.TryRemove(_relayEndPoint, out _);
 
-                if (_relayServerLink != null)
-                {
-                    _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
-                    _relayServerLink?.Close();
-                }
-
-                _relayServerLink = null;
-
-                if (ConnectionCts.TryRemove(_relayEndPoint, out var cts))
-                    await cts.CancelAsync();
-
-                IsConnected = false;
-            }
-
-            Logger.LogServerLivenessProbeStopped(_relayEndPoint);
-        }
+        Logger.LogServerLivenessProbeStopped(_relayEndPoint);
     }
 
     public override void Disconnect()
