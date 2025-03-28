@@ -281,6 +281,10 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             return;
         }
 
+        if (_relayServerLink != null)
+            _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
+        _relayServerLink = null;
+
         if (count > 1)
         {
             // There are still other connections using this link, so we don't close it.
@@ -296,10 +300,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         }
 
         if (_relayServerLink == null) return;
-
-        _relayServerLink.OnMessageReceived -= Dispatcher.Dispatch;
-        _relayServerLink.Close();
-        _relayServerLink = null;
+            _relayServerLink.Close();
 
         Logger.LogRelayDisconnected(_relayEndPoint);
     }
