@@ -193,12 +193,12 @@ public class GroupManager
 
             if (member.RelayServerAddress != null &&
                 _relayServerManager.TryGetRelayServerSession(member.RelayServerAddress, out var relaySession) &&
-                stateChange is GroupUserStateChanged stateChangedMessage)
+                stateChange is GroupUserStateChanged { UserInfo: not null } stateChangedMessage)
             {
                 var relayUpdate = new UpdateRelayUserRoomMappingMessage
                 {
                     RoomId = group.RoomId,
-                    UserId = member.UserId,
+                    UserId = stateChangedMessage.UserInfo.UserId,
                     State = stateChangedMessage.State
                 };
 
