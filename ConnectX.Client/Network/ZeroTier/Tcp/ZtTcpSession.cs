@@ -60,7 +60,7 @@ public sealed class ZtTcpSession : AbstractSession
         {
             if (!Socket.Poll(10000, SelectMode.SelectRead))
             {
-                await Task.Delay(10, token);
+                await Task.Delay(1, token);
                 continue;
             }
 
