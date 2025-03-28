@@ -1,6 +1,6 @@
 ﻿using System.Buffers;
-using System.Collections.Concurrent;
 using System.Net.Sockets;
+using System.Threading.Channels;
 using ConnectX.Client.Messages.Proxy;
 using Microsoft.Extensions.Logging;
 
@@ -17,9 +17,17 @@ public abstract class GenericProxyBase : IDisposable
 
     protected readonly CancellationToken CancellationToken;
 
-    protected readonly ConcurrentQueue<ForwardPacketCarrier> InwardBuffersQueue = [];
+    protected Channel<ForwardPacketCarrier>? InwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
+    {
+        SingleReader = true,
+        SingleWriter = true
+    });
 
-    protected readonly ConcurrentQueue<ForwardPacketCarrier> OutwardBuffersQueue = [];
+    protected Channel<ForwardPacketCarrier>? OutwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
+    {
+        SingleReader = true,
+        SingleWriter = false
+    });
 
     public readonly List<Func<ForwardPacketCarrier, bool>> OutwardSenders = [];
     public readonly TunnelIdentifier TunnelIdentifier;
@@ -43,14 +51,35 @@ public abstract class GenericProxyBase : IDisposable
     private ushort LocalServerPort => TunnelIdentifier.LocalRealPort;
     private ushort RemoteClientPort => TunnelIdentifier.RemoteRealPort;
 
+    private void ResetChannels()
+    {
+        InwardBuffersQueue?.Writer.Complete();
+        InwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = true
+        });
+
+        OutwardBuffersQueue?.Writer.Complete();
+        OutwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+    }
+
     public void Dispose()
     {
         _internalTokenSource.Cancel();
         _combinedTokenSource.Dispose();
         _internalTokenSource.Dispose();
 
-        InwardBuffersQueue.Clear();
-        OutwardBuffersQueue.Clear();
+        InwardBuffersQueue?.Writer.Complete();
+        OutwardBuffersQueue?.Writer.Complete();
+
+        InwardBuffersQueue = null;
+        OutwardBuffersQueue = null;
+
         OutwardSenders.Clear();
 
         _innerSocket?.Shutdown(SocketShutdown.Both);
@@ -78,49 +107,56 @@ public abstract class GenericProxyBase : IDisposable
 
     protected async Task OuterSendLoopAsync(CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(OutwardBuffersQueue);
+
+        var reader = OutwardBuffersQueue.Reader;
+        var writer = OutwardBuffersQueue.Writer;
+
         while (!cancellationToken.IsCancellationRequested)
         {
-            if (!OutwardBuffersQueue.TryDequeue(out var packetCarrier))
+            while (await reader.WaitToReadAsync(cancellationToken))
             {
-                await Task.Delay(1, cancellationToken);
-                continue;
+                while (reader.TryRead(out var packetCarrier))
+                {
+                    if (Environment.TickCount - packetCarrier.LastTryTime < RetryInterval)
+                    {
+                        await writer.WriteAsync(packetCarrier, cancellationToken);
+                        continue;
+                    }
+
+                    var sent = false;
+
+                    packetCarrier.LastTryTime = Environment.TickCount;
+
+                    foreach (var sender in OutwardSenders)
+                    {
+                        if (!sender(packetCarrier)) continue;
+                        sent = true;
+                        break;
+                    }
+
+                    if (sent)
+                    {
+                        packetCarrier.Dispose();
+                        continue;
+                    }
+
+                    // If all return false, it means that it has not been sent.
+                    // If buffer.TryCount greater tha const value TryTime, drop it.
+                    packetCarrier.TryCount++;
+
+                    if (packetCarrier.TryCount > TryTime)
+                    {
+                        packetCarrier.Dispose();
+                        continue;
+                    }
+
+                    // Re-enqueue.
+                    await writer.WriteAsync(packetCarrier, cancellationToken);
+                }
             }
 
-            if (Environment.TickCount - packetCarrier.LastTryTime < RetryInterval)
-            {
-                OutwardBuffersQueue.Enqueue(packetCarrier);
-                continue;
-            }
-
-            var sent = false;
-
-            packetCarrier.LastTryTime = Environment.TickCount;
-
-            foreach (var sender in OutwardSenders)
-            {
-                if (!sender(packetCarrier)) continue;
-                sent = true;
-                break;
-            }
-
-            if (sent)
-            {
-                packetCarrier.Dispose();
-                continue;
-            }
-
-            // If all return false, it means that it has not been sent.
-            // If buffer.TryCount greater tha const value TryTime, drop it.
-            packetCarrier.TryCount++;
-
-            if (packetCarrier.TryCount > TryTime)
-            {
-                packetCarrier.Dispose();
-                continue;
-            }
-
-            // Re-enqueue.
-            OutwardBuffersQueue.Enqueue(packetCarrier);
+            break;
         }
     }
 
@@ -132,7 +168,8 @@ public abstract class GenericProxyBase : IDisposable
     {
         Logger.LogReceivedPacket(GetProxyInfoForLog(), message.Payload.Length, RemoteClientPort);
 
-        InwardBuffersQueue.Enqueue(message);
+        ArgumentNullException.ThrowIfNull(InwardBuffersQueue);
+        ArgumentOutOfRangeException.ThrowIfEqual(InwardBuffersQueue.Writer.TryWrite(message), false);
     }
 
     protected virtual object GetProxyInfoForLog()
@@ -146,42 +183,46 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerSendLoopAsync(CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(InwardBuffersQueue);
+
+        var reader = InwardBuffersQueue.Reader;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             if (!CheckSocketValid()) continue;
 
-            if (!InwardBuffersQueue.TryDequeue(out var packetCarrier))
+            while (await reader.WaitToReadAsync(cancellationToken))
             {
-                await Task.Delay(1, cancellationToken);
-                continue;
-            }
+                while (reader.TryRead(out var packetCarrier))
+                {
+                    try
+                    {
+                        Logger.LogCurrentlyRemainPacket(GetProxyInfoForLog(), reader.Count);
 
-            try
-            {
-                Logger.LogCurrentlyRemainPacket(GetProxyInfoForLog(), InwardBuffersQueue.Count);
+                        var totalLen = packetCarrier.Payload.Length;
+                        var sentLen = 0;
+                        var buffer = packetCarrier.Payload;
 
-                var totalLen = packetCarrier.Payload.Length;
-                var sentLen = 0;
-                var buffer = packetCarrier.Payload;
+                        while (sentLen < totalLen)
+                            sentLen += await _innerSocket!.SendAsync(
+                                buffer[sentLen..],
+                                SocketFlags.None,
+                                CancellationToken);
 
-                while (sentLen < totalLen)
-                    sentLen += await _innerSocket!.SendAsync(
-                        buffer[sentLen..],
-                        SocketFlags.None,
-                        CancellationToken);
+                        packetCarrier.Dispose();
 
-                packetCarrier.Dispose();
-
-                Logger.LogSentPacket(GetProxyInfoForLog(), totalLen, LocalServerPort);
-            }
-            catch (SocketException ex)
-            {
-                Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
-            }
-            catch (ObjectDisposedException ex)
-            {
-                _innerSocket = null;
-                Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
+                        Logger.LogSentPacket(GetProxyInfoForLog(), totalLen, LocalServerPort);
+                    }
+                    catch (SocketException ex)
+                    {
+                        Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
+                    }
+                    catch (ObjectDisposedException ex)
+                    {
+                        _innerSocket = null;
+                        Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
+                    }
+                }
             }
         }
     }
@@ -198,14 +239,14 @@ public abstract class GenericProxyBase : IDisposable
             }
             catch (SocketException e) //无法初始化，清除队列
             {
-                InwardBuffersQueue.Clear();
+                ResetChannels();
                 Logger.LogFailedToInitConnectionSocket(e, GetProxyInfoForLog(), e.SocketErrorCode);
 
                 return false;
             }
             catch (ObjectDisposedException)
             {
-                InwardBuffersQueue.Clear();
+                ResetChannels();
                 return false;
             }
         }
@@ -227,18 +268,16 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerReceiveLoopAsync(CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(OutwardBuffersQueue);
+
+        var writer = OutwardBuffersQueue.Writer;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             if (_innerSocket is not { Connected: true })
             {
                 if (!CheckSocketValid()) continue;
-                await Task.Delay(1, cancellationToken);
-                continue;
-            }
-
-            if (!_innerSocket.Poll(1000, SelectMode.SelectRead))
-            {
-                await Task.Delay(1, cancellationToken);
+                await Task.Yield();
                 continue;
             }
 
@@ -274,7 +313,7 @@ public abstract class GenericProxyBase : IDisposable
                 TargetRealPort = RemoteClientPort
             };
 
-            OutwardBuffersQueue.Enqueue(carrier);
+            await writer.WriteAsync(carrier, cancellationToken);
         }
     }
 
