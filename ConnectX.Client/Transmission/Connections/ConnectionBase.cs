@@ -6,7 +6,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ConnectX.Client.Route.Packet;
 using Hive.Network.Shared;
-using System.Diagnostics;
 
 namespace ConnectX.Client.Transmission.Connections;
 

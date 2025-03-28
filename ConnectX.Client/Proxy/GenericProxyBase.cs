@@ -197,8 +197,6 @@ public abstract class GenericProxyBase : IDisposable
                 {
                     try
                     {
-                        Logger.LogCurrentlyRemainPacket(GetProxyInfoForLog(), reader.Count);
-
                         var totalLen = packetCarrier.Payload.Length;
                         var sentLen = 0;
                         var buffer = packetCarrier.Payload;
@@ -339,9 +337,6 @@ internal static partial class GenericProxyBaseLoggers
     [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Received packet with length [{Length}] from {RemoteClientPort}")]
     public static partial void LogReceivedPacket(this ILogger logger, object proxyInfo, int length,
         ushort remoteClientPort);
-
-    [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Currently remain {PacketLength} packet")]
-    public static partial void LogCurrentlyRemainPacket(this ILogger logger, object proxyInfo, int packetLength);
 
     [LoggerMessage(LogLevel.Trace, "[{ProxyInfo}] Sent {PacketLength} bytes to {LocalRealMcPort}")]
     public static partial void LogSentPacket(this ILogger logger, object proxyInfo, int packetLength,
