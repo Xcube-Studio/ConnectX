@@ -26,7 +26,7 @@ internal static class Program
             var connectionString = configuration.GetConnectionString("Default");
 
             services.AddDbContext<RoomOpsHistoryContext>(o =>
-                o.UseSqlServer(connectionString, b => b.MigrationsAssembly("ConnectX.Server")));
+                o.UseSqlite(connectionString, b => b.MigrationsAssembly("ConnectX.Server")));
 
             services.AddHttpClient<IZeroTierApiService, ZeroTierApiService>(client =>
             {
