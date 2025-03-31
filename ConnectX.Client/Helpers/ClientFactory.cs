@@ -3,6 +3,7 @@ using ConnectX.Client.Managers;
 using ConnectX.Client.Proxy;
 using ConnectX.Client.Route;
 using ConnectX.Client.Transmission;
+using ConnectX.Shared;
 using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -15,6 +16,8 @@ public static class ClientFactory
         Func<IClientSettingProvider> settingGetter)
     {
         services.AddSingleton(_ => settingGetter());
+
+        services.RegisterConnectXClientPackets();
         services.AddConnectXEssentials();
 
         services.AddSingleton<RelayPacketDispatcher>();

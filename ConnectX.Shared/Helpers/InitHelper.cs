@@ -18,6 +18,8 @@ public static class InitHelper
         MemoryPackFormatterProvider.Register(new IpEndPointFormatter());
         MemoryPackFormatterProvider.Register(new IpAddressFormatter());
 
+        services.RegisterConnectXSharedPackets();
+
         services.AddSingleton<ICustomCodecProvider, DefaultCustomCodecProvider>();
         services.AddSingleton<IPacketIdMapper, DefaultPacketIdMapper>();
         services.AddSingleton<IPacketCodec, MemoryPackPacketCodec>();
