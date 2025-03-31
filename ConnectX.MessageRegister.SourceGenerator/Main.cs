@@ -36,7 +36,7 @@ public class PacketRegisterSourceGenerator : IIncrementalGenerator
     }
 
     private static bool IsCandidate(SyntaxNode node, CancellationToken _) =>
-        node is ClassDeclarationSyntax or StructDeclarationSyntax;
+        node is ClassDeclarationSyntax or StructDeclarationSyntax or RecordDeclarationSyntax;
 
     private static INamedTypeSymbol? Transform(GeneratorSyntaxContext context, CancellationToken _)
     {
