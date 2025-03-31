@@ -1,0 +1,129 @@
+name: .NET Core
+
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    strategy:
+      matrix:
+        configuration: [Relay, Server]
+
+    runs-on: ubuntu-latest  
+                          
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+
+    - name: Init git submodule
+      run: |
+        git submodule init
+        git submodule update
+    
+    - name: Restore the application
+      run: dotnet restore
+      
+    - name: Build the application
+      run: |
+        cd ./ConnectX.$Configuration
+        dotnet build
+      env:
+        Configuration: ${{ matrix.configuration }}
+      
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.configuration }}-Debug-linux-x64 
+        path: ./ConnectX.{{ matrix.configuration }}/bin/
+      
+        
+  publish:
+    needs: build
+    strategy:
+      matrix:
+        configuration: [Relay, Server]
+
+    runs-on: ubuntu-latest  
+                          
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Install .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 9.0.x
+
+    - name: Init git submodule
+      run: |
+        git submodule init
+        git submodule update
+    
+    - name: Restore the application
+      run: dotnet restore
+      
+    - name: Build the application
+      run: |
+        cd ./ConnectX.$Configuration
+        dotnet publish -f net9.0 -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true
+      env:
+        Configuration: ${{ matrix.configuration }}
+
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.configuration }}-Release-linux-x64 
+        path: ./ConnectX.${{ matrix.configuration }}/bin/Release/net9.0/linux-x64/publish/
+    
+  deploy:
+    needs: publish
+    strategy:
+      matrix:
+        configuration: [Relay, Server]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ matrix.configuration }}-Release-linux-x64
+        path: ./deploy-package
+        
+    - name: Remove excluded files
+      run: |
+            find ./deploy-package -name "appsettings*.json" -delete
+
+    - name: Executing remote stop service
+      uses: appleboy/ssh-action@v1
+      with: 
+        host: ${{ secrets[format('{0}_SSH_HOST', matrix.configuration)] }}
+        username: ${{ secrets[format('{0}_SSH_USERNAME', matrix.configuration)] }}
+        password: ${{ secrets[format('{0}_SSH_KEY', matrix.configuration)] }}
+        script: sudo supervisorctl stop connectx-${{ matrix.configuration }}-service
+          
+    - name: SFTP Deployment
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.5
+      with:
+        server: ${{ secrets[format('{0}_SSH_HOST', matrix.configuration)] }}
+        username: ${{ secrets[format('{0}_SSH_USERNAME', matrix.configuration)] }}
+        password: ${{ secrets[format('{0}_SSH_KEY', matrix.configuration)] }}
+        local_path: './deploy-package/*'
+        remote_path: '/www/connectx/${{ matrix.configuration }}'
+        
+    - name: Executing remote start service
+      uses: appleboy/ssh-action@v1
+      with: 
+        host: ${{ secrets[format('{0}_SSH_HOST', matrix.configuration)] }}
+        username: ${{ secrets[format('{0}_SSH_USERNAME', matrix.configuration)] }}
+        password: ${{ secrets[format('{0}_SSH_KEY', matrix.configuration)] }}
+        script: sudo supervisorctl start connectx-${{ matrix.configuration }}-service
+
