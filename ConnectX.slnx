@@ -1,0 +1,25 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/ExternalLibs/" />
+  <Folder Name="/ExternalLibs/Hive/">
+    <Project Path="Hive.Framework/Hive.Both.General/Hive.Both.General.csproj" />
+    <Project Path="Hive.Framework/Hive.Codec.Abstractions/Hive.Codec.Abstractions.csproj" />
+    <Project Path="Hive.Framework/Hive.Codec.MemoryPack/Hive.Codec.MemoryPack.csproj" />
+    <Project Path="Hive.Framework/Hive.Codec.Shared/Hive.Codec.Shared.csproj" />
+    <Project Path="Hive.Framework/Hive.Common.Shared/Hive.Common.Shared.csproj" />
+    <Project Path="Hive.Framework/Hive.Network.Abstractions/Hive.Network.Abstractions.csproj" />
+    <Project Path="Hive.Framework/Hive.Network.Shared/Hive.Network.Shared.csproj" />
+    <Project Path="Hive.Framework/Hive.Network.Tcp/Hive.Network.Tcp.csproj" />
+    <Project Path="Hive.Framework/Hive.Network.Udp/Hive.Network.Udp.csproj" />
+  </Folder>
+  <Project Path="ConnectX.Client/ConnectX.Client.csproj" />
+  <Project Path="ConnectX.ClientConsole/ConnectX.ClientConsole.csproj" />
+  <Project Path="ConnectX.MessageRegister.SourceGenerator/ConnectX.MessageRegister.SourceGenerator.csproj" />
+  <Project Path="ConnectX.Relay/ConnectX.Relay.csproj" />
+  <Project Path="ConnectX.Server/ConnectX.Server.csproj" />
+  <Project Path="ConnectX.Shared/ConnectX.Shared.csproj" />
+</Solution>
