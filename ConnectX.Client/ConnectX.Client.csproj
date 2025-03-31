@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ConnectX.MessageRegister.SourceGenerator\ConnectX.MessageRegister.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\ConnectX.Shared\ConnectX.Shared.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Both.General\Hive.Both.General.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Codec.MemoryPack\Hive.Codec.MemoryPack.csproj" />
