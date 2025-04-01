@@ -98,6 +98,8 @@ public abstract class GenericProxyBase : IDisposable
     {
         Logger.LogStartingProxy(GetProxyInfoForLog());
 
+        ResetChannels();
+
         Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => OuterSendLoopAsync(CancellationToken));
         Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => InnerSendLoopAsync(CancellationToken));
         Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => InnerReceiveLoopAsync(CancellationToken));
@@ -107,13 +109,14 @@ public abstract class GenericProxyBase : IDisposable
 
     protected async Task OuterSendLoopAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(OutwardBuffersQueue);
-
-        var reader = OutwardBuffersQueue.Reader;
-        var writer = OutwardBuffersQueue.Writer;
-
         while (!cancellationToken.IsCancellationRequested)
         {
+            if (OutwardBuffersQueue == null)
+                break;
+
+            var reader = OutwardBuffersQueue.Reader;
+            var writer = OutwardBuffersQueue.Writer;
+
             while (await reader.WaitToReadAsync(cancellationToken))
             {
                 while (reader.TryRead(out var packetCarrier))
@@ -186,13 +189,12 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerSendLoopAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(InwardBuffersQueue);
-
-        var reader = InwardBuffersQueue.Reader;
-
         while (!cancellationToken.IsCancellationRequested)
         {
+            if (InwardBuffersQueue == null) break;
             if (!CheckSocketValid()) continue;
+
+            var reader = InwardBuffersQueue.Reader;
 
             while (await reader.WaitToReadAsync(cancellationToken))
             {
@@ -269,12 +271,12 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerReceiveLoopAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(OutwardBuffersQueue);
-
-        var writer = OutwardBuffersQueue.Writer;
-
         while (!cancellationToken.IsCancellationRequested)
         {
+            if (OutwardBuffersQueue == null) break;
+
+            var writer = OutwardBuffersQueue.Writer;
+
             if (_innerSocket is not { Connected: true })
             {
                 if (!CheckSocketValid()) continue;
