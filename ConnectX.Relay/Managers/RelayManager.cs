@@ -90,7 +90,7 @@ public class RelayManager
         switch (message.State)
         {
             case GroupUserStates.Joined when message.IsGroupOwner:
-                _roomOwnerRecords.AddOrUpdate(message.RoomId, message.UserId, (_, _) => message.UserId);
+                _roomOwnerRecords.AddOrUpdate(message.UserId, message.UserId, (_, _) => message.UserId);
                 _userIdToRoomMapping.AddOrUpdate(message.UserId, message.RoomId, (_, _) => message.RoomId);
                 _logger.LogRelayInfoAdded(message.UserId, message.RoomId, _userIdToRoomMapping.Count, message.IsGroupOwner);
                 break;
