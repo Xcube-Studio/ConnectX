@@ -135,16 +135,19 @@ public class RelayManager
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
-        if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
         if (!_userIdSessionMapping.TryRemove(userId, out var session)) return;
+        if (!_roomOwnerRecords.TryGetValue(userId, out _))
+        {
+            if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
+
+            _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
+        }
 
         // Because the session is already disconnected, we just recycle the link with it.
         // No need to ask the client's current ref count
         if (_userIdSessionMapping.Any(p => p.Value == session)) return;
 
         session.Close();
-
-        _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
     }
 }
 
