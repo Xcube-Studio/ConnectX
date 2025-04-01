@@ -10,6 +10,7 @@ using ConnectX.Shared.Helpers;
 using System.Net;
 using ConnectX.Relay.Helpers;
 using ConnectX.Shared.Messages.Relay;
+using Microsoft.Extensions.Hosting.Internal;
 
 namespace ConnectX.Relay;
 
@@ -18,6 +19,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     private readonly IDispatcher _dispatcher;
     private readonly IServerSettingProvider _settingProvider;
     private readonly IConnector<TcpSession> _tcpConnector;
+    private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ILogger _logger;
 
     private DateTime _lastHeartBeatTime;
@@ -26,11 +28,13 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         IDispatcher dispatcher,
         IServerSettingProvider settingProvider,
         IConnector<TcpSession> tcpConnector,
+        IHostApplicationLifetime applicationLifetime,
         ILogger<ServerLinkHolder> logger)
     {
         _dispatcher = dispatcher;
         _settingProvider = settingProvider;
         _tcpConnector = tcpConnector;
+        _applicationLifetime = applicationLifetime;
         _logger = logger;
 
         _dispatcher.AddHandler<SigninSucceeded>(OnSigninSucceededReceived);
@@ -219,6 +223,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
             IsConnected = false;
             ServerSession?.Close();
             ServerSession = null;
+
+            _applicationLifetime.StopApplication();
         }
     }
 }
