@@ -67,7 +67,7 @@ public abstract class ConnectionBase : ISender, ICanPing<Guid>
         IsConnected = false;
     }
 
-    public abstract Task<bool> ConnectAsync();
+    public abstract Task<bool> ConnectAsync(CancellationToken token);
 }
 
 internal static partial class ConnectionBaseLoggers

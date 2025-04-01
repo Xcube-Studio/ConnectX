@@ -98,7 +98,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         SendDatagram(new RelayDatagram(_serverLinkHolder.UserId, To, payload));
     }
 
-    public override async Task<bool> ConnectAsync()
+    public override async Task<bool> ConnectAsync(CancellationToken token)
     {
         if (_roomInfoManager.CurrentGroupInfo == null)
             return false;
@@ -109,10 +109,8 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
         try
         {
-            using var cts = new CancellationTokenSource();
-
             // Make a random delay to avoid duplicate creation
-            await Task.Delay(Random.Shared.Next(100, 1000), cts.Token);
+            await Task.Delay(Random.Shared.Next(100, 1000), token);
 
             if (!ConnectionLocks.TryGetValue(_relayEndPoint, out connectionLock))
             {
@@ -122,7 +120,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
             // Wait for the connection lock
             Logger.LogWaitingForConnectionLock(_relayEndPoint);
-            await connectionLock.WaitAsync(cts.Token);
+            await connectionLock.WaitAsync(token);
 
             var isReusingLink = false;
             ISession? session;
@@ -135,7 +133,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             }
             else
             {
-                session = await _tcpConnector.ConnectAsync(_relayEndPoint, cts.Token);
+                session = await _tcpConnector.ConnectAsync(_relayEndPoint, token);
             }
 
             if (!ConnectionCts.TryGetValue(_relayEndPoint, out var linkCts))
@@ -165,7 +163,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             {
                 session.StartAsync(_linkCt).Forget();
 
-                await Task.Delay(1000, cts.Token);
+                await Task.Delay(1000, token);
 
                 var linkCreationReq = new CreateRelayLinkMessage
                 {
@@ -174,7 +172,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
                 };
 
                 await Dispatcher.SendAndListenOnce<CreateRelayLinkMessage, RelayLinkCreatedMessage>(session,
-                    linkCreationReq, cts.Token);
+                    linkCreationReq, token);
 
                 RelayServerLinkPool.AddOrUpdate(_relayEndPoint, _ => session, (_, oldSession) =>
                 {

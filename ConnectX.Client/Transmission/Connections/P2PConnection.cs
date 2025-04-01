@@ -60,13 +60,13 @@ public sealed class P2PConnection : ConnectionBase, IDatagramTransmit<TransDatag
         SendDatagram(TransDatagram.CreateNormal(_sendPointer, payload));
     }
 
-    public override async Task<bool> ConnectAsync()
+    public override async Task<bool> ConnectAsync(CancellationToken token)
     {
         Logger.LogConnectingTo(Source, To);
 
         if (IsConnected) return true;
 
-        using var cts = new CancellationTokenSource();
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
         cts.CancelAfter(Timeout);
 
         // SYN

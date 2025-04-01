@@ -138,11 +138,7 @@ public class PartnerManager
             relayServerAddress,
             dispatcher);
 
-        if (Partners.ContainsKey(partnerId))
-        {
-            _logger.LogFailedToAddPartner(partnerId);
-            return false;
-        }
+        if (Partners.ContainsKey(partnerId)) return false;
 
         var partner = ActivatorUtilities.CreateInstance<Partner>(
             _serviceProvider,
@@ -150,11 +146,7 @@ public class PartnerManager
             partnerId,
             connection);
 
-        if (!Partners.TryAdd(partnerId, partner))
-        {
-            _logger.LogFailedToAddPartner(partnerId);
-            return false;
-        }
+        if (!Partners.TryAdd(partnerId, partner)) return false;
 
         OnPartnerAdded?.Invoke(partner);
 
@@ -173,11 +165,7 @@ public class PartnerManager
             partnerId,
             dispatcher);
 
-        if (Partners.ContainsKey(partnerId))
-        {
-            _logger.LogFailedToAddPartner(partnerId);
-            return false;
-        }
+        if (Partners.ContainsKey(partnerId)) return false;
 
         var partner = ActivatorUtilities.CreateInstance<Partner>(
             _serviceProvider,
@@ -185,11 +173,7 @@ public class PartnerManager
             partnerId,
             connection);
 
-        if (!Partners.TryAdd(partnerId, partner))
-        {
-            _logger.LogFailedToAddPartner(partnerId);
-            return false;
-        }
+        if (!Partners.TryAdd(partnerId, partner)) return false;
 
         _peerManager.AddLink(partnerId);
         OnPartnerAdded?.Invoke(partner);
@@ -201,7 +185,11 @@ public class PartnerManager
 
     private bool RemovePartner(Guid partnerId)
     {
-        if (!Partners.TryRemove(partnerId, out var partner)) return false;
+        if (!Partners.TryRemove(partnerId, out var partner))
+        {
+            _logger.LogFailedToRemovePartner(partnerId);
+            return false;
+        }
 
         partner.Disconnect();
         _logger.LogDisconnectedWithPartnerId(partnerId);
@@ -245,8 +233,8 @@ internal static partial class PartnerManagerLoggers
     [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Relay server address assigned [{serverAddress}]")]
     public static partial void LogRelayServerAddressAssigned(this ILogger logger, IPEndPoint serverAddress);
 
-    [LoggerMessage(LogLevel.Error, "[PARTNER_MANAGER] Failed to add partner with user ID [{partnerId}]")]
-    public static partial void LogFailedToAddPartner(this ILogger logger, Guid partnerId);
+    [LoggerMessage(LogLevel.Error, "[PARTNER_MANAGER] Failed to remove partner with user ID [{partnerId}]")]
+    public static partial void LogFailedToRemovePartner(this ILogger logger, Guid partnerId);
 
     [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] All partners removed")]
     public static partial void LogAllPartnersRemoved(this ILogger logger);

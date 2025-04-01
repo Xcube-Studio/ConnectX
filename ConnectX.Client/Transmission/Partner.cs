@@ -59,7 +59,7 @@ public class Partner
                     _pingChecker = null;
                 }
 
-                if (await Connection.ConnectAsync())
+                if (await Connection.ConnectAsync(token))
                 {
                     _logger.LogConnectedWithPartnerId(_partnerId);
 
