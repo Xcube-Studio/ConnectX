@@ -263,6 +263,8 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         catch (TaskCanceledException)
         {
             // ignored
+            _lastHeartBeatTime = default;
+            IsConnected = false;
         }
 
         Logger.LogServerLivenessProbeStopped(_relayEndPoint);
