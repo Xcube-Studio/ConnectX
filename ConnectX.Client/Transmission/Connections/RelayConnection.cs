@@ -46,7 +46,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         IConnector<TcpSession> tcpConnector,
         IPacketCodec codec,
         IHostApplicationLifetime lifetime,
-        ILogger<P2PConnection> logger) : base("RELAY_CONN", targetId, dispatcher, codec, lifetime, logger)
+        ILogger<RelayConnection> logger) : base("RELAY_CONN", targetId, dispatcher, codec, lifetime, logger)
     {
         _relayEndPoint = relayEndPoint;
         _relayPacketDispatcher = relayPacketDispatcher;
