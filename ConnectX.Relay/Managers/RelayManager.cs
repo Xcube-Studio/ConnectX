@@ -49,7 +49,7 @@ public class RelayManager
     {
         if (!_userIdToRoomMapping.TryGetValue(userId, out var registeredRoomId))
         {
-            _logger.LogCanNotFindCorrespondingRoomForUser(session.Id, session.RemoteEndPoint?.Address ?? IPAddress.None);
+            _logger.LogCanNotFindCorrespondingRoomForUser(session.Id, userId, session.RemoteEndPoint?.Address ?? IPAddress.None);
             return;
         }
 
@@ -174,8 +174,8 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay info update unauthorized from session [{sessionId}] {address}")]
     public static partial void LogRelayInfoUpdateUnauthorized(this ILogger logger, SessionId sessionId, IPAddress address);
 
-    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Can not find corresponding room for user [{sessionId}] {address}")]
-    public static partial void LogCanNotFindCorrespondingRoomForUser(this ILogger logger, SessionId sessionId, IPAddress address);
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Can not find corresponding room for user [{sessionId}][{userId}] {address}")]
+    public static partial void LogCanNotFindCorrespondingRoomForUser(this ILogger logger, SessionId sessionId, Guid userId, IPAddress address);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] User room does not match the record from session [{sessionId}] {address}")]
     public static partial void LogUserRoomDoesNotMatchTheRecord(this ILogger logger, SessionId sessionId, IPAddress address);
