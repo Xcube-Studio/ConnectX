@@ -175,10 +175,12 @@ public abstract class GenericProxyManager : BackgroundService
         return proxy;
     }
 
-    private void OnProxyDisconnected(TunnelIdentifier id, GenericProxyBase obj)
+    private void OnProxyDisconnected(TunnelIdentifier id, GenericProxyBase proxy)
     {
-        obj.Dispose();
-        _proxies.Remove(id);
+        proxy.Dispose();
+
+        if (_proxies.Remove(id, out var proxyPair))
+            proxyPair.Dispose();
 
         Logger.LogProxyDisconnected(id);
     }

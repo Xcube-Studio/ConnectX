@@ -1,13 +1,13 @@
 ﻿using System.Collections.Concurrent;
-using ConnectX.Client.Managers;
 using ConnectX.Client.Messages.Proxy;
+using ConnectX.Client.Proxy;
 using ConnectX.Client.Transmission;
 using ConnectX.Shared.Helpers;
 using Hive.Both.General.Dispatchers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace ConnectX.Client.Proxy;
+namespace ConnectX.Client.Managers;
 
 public sealed class ProxyManager : GenericProxyManager
 {

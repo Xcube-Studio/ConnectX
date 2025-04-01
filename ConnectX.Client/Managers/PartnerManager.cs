@@ -185,7 +185,11 @@ public class PartnerManager
 
     private bool RemovePartner(Guid partnerId)
     {
-        if (!Partners.TryRemove(partnerId, out var partner)) return false;
+        if (!Partners.TryRemove(partnerId, out var partner))
+        {
+            _logger.LogFailedToRemovePartner(partnerId);
+            return false;
+        }
 
         partner.Disconnect();
         _logger.LogDisconnectedWithPartnerId(partnerId);
@@ -204,6 +208,8 @@ public class PartnerManager
             partner.Disconnect();
 
         Partners.Clear();
+
+        _logger.LogAllPartnersRemoved();
     }
 }
 
@@ -226,4 +232,10 @@ internal static partial class PartnerManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] Relay server address assigned [{serverAddress}]")]
     public static partial void LogRelayServerAddressAssigned(this ILogger logger, IPEndPoint serverAddress);
+
+    [LoggerMessage(LogLevel.Error, "[PARTNER_MANAGER] Failed to remove partner with user ID [{partnerId}]")]
+    public static partial void LogFailedToRemovePartner(this ILogger logger, Guid partnerId);
+
+    [LoggerMessage(LogLevel.Information, "[PARTNER_MANAGER] All partners removed")]
+    public static partial void LogAllPartnersRemoved(this ILogger logger);
 }

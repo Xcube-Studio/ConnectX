@@ -11,4 +11,5 @@ public partial class UpdateRelayUserRoomMappingMessage
     public Guid UserId { get; init; }
     public Guid RoomId { get; init; }
     public GroupUserStates State { get; init; }
+    public bool IsGroupOwner { get; init; }
 }
