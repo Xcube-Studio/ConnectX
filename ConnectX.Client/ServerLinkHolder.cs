@@ -244,9 +244,9 @@ internal static partial class ServerLinkHolderLoggers
     [LoggerMessage(LogLevel.Information, "[CLIENT] Server liveness probe started for [{relayEndPoint}]")]
     public static partial void LogMainServerLivenessProbeStarted(this ILogger logger, IPEndPoint relayEndPoint);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Server liveness probe stopped for [{relayEndPoint}]")]
+    [LoggerMessage(LogLevel.Warning, "[CLIENT] Server liveness probe stopped for [{relayEndPoint}]")]
     public static partial void LogMainServerLivenessProbeStopped(this ILogger logger, IPEndPoint relayEndPoint);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
+    [LoggerMessage(LogLevel.Critical, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
     public static partial void LogMainServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
 }
