@@ -17,17 +17,8 @@ public abstract class GenericProxyBase : IDisposable
 
     protected readonly CancellationToken CancellationToken;
 
-    protected Channel<ForwardPacketCarrier>? InwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
-    {
-        SingleReader = true,
-        SingleWriter = true
-    });
-
-    protected Channel<ForwardPacketCarrier>? OutwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
-    {
-        SingleReader = true,
-        SingleWriter = false
-    });
+    protected Channel<ForwardPacketCarrier>? InwardBuffersQueue;
+    protected Channel<ForwardPacketCarrier>? OutwardBuffersQueue;
 
     public readonly List<Func<ForwardPacketCarrier, bool>> OutwardSenders = [];
     public readonly TunnelIdentifier TunnelIdentifier;
@@ -87,8 +78,6 @@ public abstract class GenericProxyBase : IDisposable
         _innerSocket?.Dispose();
 
         Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
-
-        GC.SuppressFinalize(this);
     }
 
     public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerConnected;
@@ -171,11 +160,15 @@ public abstract class GenericProxyBase : IDisposable
     {
         Logger.LogReceivedPacket(GetProxyInfoForLog(), message.Payload.Length, RemoteClientPort);
 
-        if (InwardBuffersQueue == null ||
-            !InwardBuffersQueue.Writer.TryWrite(message))
+        if (InwardBuffersQueue == null)
         {
-            Logger.LogFailedToSendMcPacketCarrier(GetProxyInfoForLog(), message.SelfRealPort, message.TargetRealPort, message.LastTryTime);
+            // If the queue is null, it means that the proxy has been disposed.
+            return;
         }
+
+        if (InwardBuffersQueue.Writer.TryWrite(message)) return;
+
+        Logger.LogFailedToSendMcPacketCarrier(GetProxyInfoForLog(), message.SelfRealPort, message.TargetRealPort, message.LastTryTime);
     }
 
     protected virtual object GetProxyInfoForLog()
