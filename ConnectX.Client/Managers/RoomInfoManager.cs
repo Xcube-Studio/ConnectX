@@ -38,12 +38,15 @@ public class RoomInfoManager(
     {
         var needToRefreshRoomInfo = false;
         var lastRefreshTime = DateTime.MinValue;
-        var hashset = new HashSet<Guid>();
 
         while (!stoppingToken.IsCancellationRequested)
         {
             if (CurrentGroupInfo == null)
             {
+                // Reset flags to original state
+                needToRefreshRoomInfo = false;
+                lastRefreshTime = DateTime.MinValue;
+
                 await Task.Delay(1000, stoppingToken);
                 continue;
             }
@@ -110,6 +113,7 @@ public class RoomInfoManager(
                 continue;
             }
 
+            var hashset = new HashSet<Guid>();
             var possibleUsers = new List<UserInfo>();
 
             foreach (var user in CurrentGroupInfo.Users)

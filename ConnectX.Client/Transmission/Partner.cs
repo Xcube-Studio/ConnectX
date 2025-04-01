@@ -7,7 +7,6 @@ namespace ConnectX.Client.Transmission;
 
 public class Partner
 {
-    private readonly IHostApplicationLifetime _lifetime;
     private readonly ILogger _logger;
     private readonly Guid _partnerId;
 
@@ -15,6 +14,8 @@ public class Partner
     private readonly IServiceProvider _serviceProvider;
     private bool _isLastTimeConnected;
     private PingChecker<Guid>? _pingChecker;
+
+    private CancellationTokenSource? _linkedCts;
 
     public Partner(
         Guid selfId,
@@ -28,11 +29,12 @@ public class Partner
 
         _selfId = selfId;
         _partnerId = partnerId;
-        _lifetime = lifetime;
         _serviceProvider = serviceProvider;
         _logger = logger;
 
-        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(KeepConnectAsync);
+        _linkedCts = CancellationTokenSource.CreateLinkedTokenSource(lifetime.ApplicationStopping);
+
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => KeepConnectAsync(_linkedCts.Token));
     }
 
     public ConnectionBase Connection { get; }
@@ -41,9 +43,9 @@ public class Partner
     public event Action<Partner>? OnDisconnected;
     public event Action<Partner>? OnConnected;
 
-    private async Task KeepConnectAsync()
+    private async Task KeepConnectAsync(CancellationToken token)
     {
-        while (!_lifetime.ApplicationStopping.IsCancellationRequested)
+        while (!token.IsCancellationRequested)
         {
             if (!Connection.IsConnected)
             {
@@ -86,12 +88,16 @@ public class Partner
                 Latency = await _pingChecker.CheckPingAsync();
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(10), _lifetime.ApplicationStopping);
+            await Task.Delay(TimeSpan.FromSeconds(10), token);
         }
     }
 
     public void Disconnect()
     {
+        _linkedCts?.Cancel();
+        _linkedCts?.Dispose();
+        _linkedCts = null;
+
         Connection.Disconnect();
     }
 }
