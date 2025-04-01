@@ -93,6 +93,8 @@ public sealed class ZtTcpSession : AbstractSession
 
     public override void Close()
     {
+        base.Close();
+
         _closed = true;
         IsConnected = false;
         Socket?.Close();

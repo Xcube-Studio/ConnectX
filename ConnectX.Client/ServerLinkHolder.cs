@@ -31,7 +31,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         _tcpConnector = tcpConnector;
         _logger = logger;
 
-        _dispatcher.AddHandler<SigninSucceeded>(OnSigninSucceededReceived);
         _dispatcher.AddHandler<HeartBeat>(OnHeartBeatReceived);
         _dispatcher.AddHandler<ShutdownMessage>(OnShutdownMessageReceived);
     }
@@ -101,37 +100,46 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     public async Task ConnectAsync(CancellationToken cancellationToken)
     {
+        _dispatcher.AddHandler<SigninSucceeded>(OnSigninSucceededReceived);
+
         _logger.LogConnectingToServer();
 
-        var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
-        var session = await _tcpConnector.ConnectAsync(endPoint, cancellationToken);
-
-        if (session == null)
+        try
         {
-            _logger.LogFailedToConnectToServer(endPoint);
-            return;
+            var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
+            var session = await _tcpConnector.ConnectAsync(endPoint, cancellationToken);
+
+            if (session == null)
+            {
+                _logger.LogFailedToConnectToServer(endPoint);
+                return;
+            }
+
+            session.BindTo(_dispatcher);
+            session.StartAsync(cancellationToken).Forget();
+
+            _logger.LogSendingSigninMessageToServer();
+
+            await Task.Delay(1000, cancellationToken);
+            await _dispatcher.SendAsync(session, new SigninMessage
+            {
+                JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
+                DisplayName = session.RemoteEndPoint?.ToString() ?? Guid.NewGuid().ToString("N")
+            }, cancellationToken);
+
+            await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
+
+            _logger.LogConnectedAndSignedToServer(endPoint);
+
+            ServerSession = session;
+            IsConnected = true;
+
+            Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => CheckServerLivenessAsync(cancellationToken));
         }
-
-        session.BindTo(_dispatcher);
-        session.StartAsync(cancellationToken).Forget();
-
-        _logger.LogSendingSigninMessageToServer();
-
-        await Task.Delay(1000, cancellationToken);
-        await _dispatcher.SendAsync(session, new SigninMessage
+        finally
         {
-            JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
-            DisplayName = session.RemoteEndPoint?.ToString() ?? Guid.NewGuid().ToString("N")
-        }, cancellationToken);
-
-        await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
-
-        _logger.LogConnectedAndSignedToServer(endPoint);
-
-        ServerSession = session;
-        IsConnected = true;
-
-        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => CheckServerLivenessAsync(cancellationToken));
+            _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
+        }
     }
 
     public async Task DisconnectAsync(CancellationToken cancellationToken)
@@ -155,8 +163,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         UserId = obj.Message.UserId;
 
         _logger.LogSuccessfullyLoggedIn(UserId);
-
-        _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
     }
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> ctx)
@@ -238,9 +244,9 @@ internal static partial class ServerLinkHolderLoggers
     [LoggerMessage(LogLevel.Information, "[CLIENT] Server liveness probe started for [{relayEndPoint}]")]
     public static partial void LogMainServerLivenessProbeStarted(this ILogger logger, IPEndPoint relayEndPoint);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Server liveness probe stopped for [{relayEndPoint}]")]
+    [LoggerMessage(LogLevel.Warning, "[CLIENT] Server liveness probe stopped for [{relayEndPoint}]")]
     public static partial void LogMainServerLivenessProbeStopped(this ILogger logger, IPEndPoint relayEndPoint);
 
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
+    [LoggerMessage(LogLevel.Critical, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
     public static partial void LogMainServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
 }

@@ -20,6 +20,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
     private readonly IConnector<TcpSession> _tcpConnector;
     private readonly ILogger _logger;
 
+    private DateTime _lastHeartBeatTime;
+
     public ServerLinkHolder(
         IDispatcher dispatcher,
         IServerSettingProvider settingProvider,
@@ -128,6 +130,8 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         ServerSession = session;
         IsConnected = true;
+
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => CheckServerLivenessAsync(cancellationToken));
     }
 
     public async Task DisconnectAsync(CancellationToken cancellationToken)
@@ -154,6 +158,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> ctx)
     {
+        _lastHeartBeatTime = DateTime.UtcNow;
         _logger.LogHeartbeatReceivedFromServer();
     }
 
@@ -176,6 +181,45 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         }
 
         _logger.LogStopSendingHeartbeat();
+    }
+
+    private async Task CheckServerLivenessAsync(CancellationToken cancellationToken)
+    {
+        var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
+
+        try
+        {
+            _logger.LogMainServerLivenessProbeStarted(endPoint);
+
+            // Set the last for init
+            _lastHeartBeatTime = DateTime.UtcNow;
+
+            while (cancellationToken is { IsCancellationRequested: false } &&
+                   IsConnected &&
+                   ServerSession != null)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+
+                var lastReceiveTimeSeconds = (DateTime.UtcNow - _lastHeartBeatTime).TotalSeconds;
+
+                if (lastReceiveTimeSeconds <= 15)
+                    continue;
+
+                _logger.LogMainServerHeartbeatTimeout(endPoint, lastReceiveTimeSeconds);
+
+                break;
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            // ignored
+        }
+        finally
+        {
+            IsConnected = false;
+            ServerSession?.Close();
+            ServerSession = null;
+        }
     }
 }
 
@@ -231,4 +275,13 @@ internal static partial class ServerLinkHolderLoggers
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] Server public address acquired [{endPoint}]")]
     public static partial void LogServerPublicAddressAcquired(this ILogger logger, IPEndPoint endPoint);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Server liveness probe started for [{relayEndPoint}]")]
+    public static partial void LogMainServerLivenessProbeStarted(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Warning, "[CLIENT] Server liveness probe stopped for [{relayEndPoint}]")]
+    public static partial void LogMainServerLivenessProbeStopped(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Critical, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
+    public static partial void LogMainServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
 }
