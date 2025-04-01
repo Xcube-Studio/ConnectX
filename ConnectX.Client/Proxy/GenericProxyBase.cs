@@ -168,8 +168,11 @@ public abstract class GenericProxyBase : IDisposable
     {
         Logger.LogReceivedPacket(GetProxyInfoForLog(), message.Payload.Length, RemoteClientPort);
 
-        ArgumentNullException.ThrowIfNull(InwardBuffersQueue);
-        ArgumentOutOfRangeException.ThrowIfEqual(InwardBuffersQueue.Writer.TryWrite(message), false);
+        if (InwardBuffersQueue == null ||
+            !InwardBuffersQueue.Writer.TryWrite(message))
+        {
+            Logger.LogFailedToSendMcPacketCarrier(GetProxyInfoForLog(), message.SelfRealPort, message.TargetRealPort, message.LastTryTime);
+        }
     }
 
     protected virtual object GetProxyInfoForLog()
@@ -361,4 +364,12 @@ internal static partial class GenericProxyBaseLoggers
 
     [LoggerMessage(LogLevel.Information, "[{ProxyInfo}] Proxy disposed, local port: {LocalPort}")]
     public static partial void LogProxyDisposed(this ILogger logger, object proxyInfo, ushort localPort);
+
+    [LoggerMessage(LogLevel.Warning, "[{ProxyInfo}] Failed to send McPacketCarrier, self port [{selfRealPort}], target port [{targetRealPort}], last try time: {LastTryTime}, maybe is because proxy is disposed.")]
+    public static partial void LogFailedToSendMcPacketCarrier(
+        this ILogger logger,
+        object proxyInfo,
+        ushort selfRealPort,
+        ushort targetRealPort,
+        int lastTryTime);
 }
