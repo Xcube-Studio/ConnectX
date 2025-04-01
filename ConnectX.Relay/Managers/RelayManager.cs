@@ -97,9 +97,6 @@ public class RelayManager
             case GroupUserStates.Disconnected:
             case GroupUserStates.Dismissed:
                 _userIdToRoomMapping.TryRemove(message.UserId, out _);
-                _sessionUserIdMapping.TryRemove(ctx.FromSession.Id, out _);
-                _userIdSessionMapping.TryRemove(message.UserId, out _);
-
                 _logger.LogRelayDestroyed(message.RoomId, message.UserId, message.State);
 
                 break;
