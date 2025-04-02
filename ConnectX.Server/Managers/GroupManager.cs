@@ -199,7 +199,8 @@ public class GroupManager
                 {
                     RoomId = group.RoomId,
                     UserId = stateChangedMessage.UserInfo.UserId,
-                    State = stateChangedMessage.State
+                    State = stateChangedMessage.State,
+                    IsGroupOwner = false
                 };
 
                 _dispatcher.SendAsync(relaySession, relayUpdate).Forget();
@@ -387,7 +388,8 @@ public class GroupManager
             {
                 RoomId = group.RoomId,
                 UserId = userId,
-                State = GroupUserStates.Joined
+                State = GroupUserStates.Joined,
+                IsGroupOwner = true
             };
 
             _dispatcher.SendAsync(relaySession, relayUpdate).Forget();

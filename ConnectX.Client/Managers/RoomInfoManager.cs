@@ -15,10 +15,13 @@ public class RoomInfoManager(
     IZeroTierNodeLinkHolder zeroTierNodeLinkHolder,
     ILogger<RoomInfoManager> logger) : BackgroundService, IRoomInfoManager
 {
+    private readonly HashSet<Guid> _possiblePeers = [];
+
     public GroupInfo? CurrentGroupInfo { get; private set; }
 
     public void ClearRoomInfo()
     {
+        _possiblePeers.Clear();
         CurrentGroupInfo = null;
     }
 
@@ -38,12 +41,15 @@ public class RoomInfoManager(
     {
         var needToRefreshRoomInfo = false;
         var lastRefreshTime = DateTime.MinValue;
-        var hashset = new HashSet<Guid>();
 
         while (!stoppingToken.IsCancellationRequested)
         {
             if (CurrentGroupInfo == null)
             {
+                // Reset flags to original state
+                needToRefreshRoomInfo = false;
+                lastRefreshTime = DateTime.MinValue;
+
                 await Task.Delay(1000, stoppingToken);
                 continue;
             }
@@ -126,14 +132,14 @@ public class RoomInfoManager(
 
                 foreach (var address in user.NetworkIpAddresses)
                 {
-                    if (hashset.Contains(user.UserId)) continue;
+                    if (_possiblePeers.Contains(user.UserId)) continue;
                     if (address.AddressFamily != AddressFamily.InterNetwork) continue;
                     if (address.GetAddressBytes()[3] == 0)
                         continue;
 
                     logger.LogPossiblePeerDiscovered(address);
 
-                    hashset.Add(user.UserId);
+                    _possiblePeers.Add(user.UserId);
                     possibleUsers.Add(user);
                     break;
                 }

@@ -51,8 +51,6 @@ public class GenericProxyPair : IDisposable
     {
         _dispatcher.RemoveHandler<ForwardPacketCarrier>(ReceivedForwardPacket);
         ProxyBase?.Dispose();
-
-        GC.SuppressFinalize(this);
     }
 
     private bool OnSend(ForwardPacketCarrier data)

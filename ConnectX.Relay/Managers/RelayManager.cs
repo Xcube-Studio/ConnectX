@@ -16,8 +16,9 @@ namespace ConnectX.Relay.Managers;
 public class RelayManager
 {
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionUserIdMapping = new();
-    private readonly ConcurrentDictionary<Guid, ISession> _userIdSessionMapping = new ();
+    private readonly ConcurrentDictionary<Guid, ISession> _userIdSessionMapping = new();
     private readonly ConcurrentDictionary<Guid, Guid> _userIdToRoomMapping = new();
+    private readonly ConcurrentDictionary<Guid, Guid> _roomOwnerRecords = new();
 
     private readonly ClientManager _clientManager;
     private readonly IServerLinkHolder _serverLinkHolder;
@@ -48,7 +49,7 @@ public class RelayManager
     {
         if (!_userIdToRoomMapping.TryGetValue(userId, out var registeredRoomId))
         {
-            _logger.LogCanNotFindCorrespondingRoomForUser(session.Id, session.RemoteEndPoint?.Address ?? IPAddress.None);
+            _logger.LogCanNotFindCorrespondingRoomForUser(session.Id, userId, session.RemoteEndPoint?.Address ?? IPAddress.None);
             return;
         }
 
@@ -88,17 +89,28 @@ public class RelayManager
 
         switch (message.State)
         {
+            case GroupUserStates.Joined when message.IsGroupOwner:
+                _roomOwnerRecords.AddOrUpdate(message.UserId, message.UserId, (_, _) => message.UserId);
+                _userIdToRoomMapping.AddOrUpdate(message.UserId, message.RoomId, (_, _) => message.RoomId);
+                _logger.LogRelayInfoAdded(message.UserId, message.RoomId, _userIdToRoomMapping.Count, message.IsGroupOwner);
+                break;
             case GroupUserStates.Joined:
                 _userIdToRoomMapping.AddOrUpdate(message.UserId, message.RoomId, (_, _) => message.RoomId);
-                _logger.LogRelayInfoAdded(message.UserId, message.RoomId, _userIdToRoomMapping.Count);
+                _logger.LogRelayInfoAdded(message.UserId, message.RoomId, _userIdToRoomMapping.Count, message.IsGroupOwner);
+                break;
+            case GroupUserStates.Dismissed:
+                _roomOwnerRecords.TryRemove(message.UserId, out _);
+                _userIdToRoomMapping.TryRemove(message.UserId, out _);
                 break;
             case GroupUserStates.Left:
             case GroupUserStates.Kicked:
             case GroupUserStates.Disconnected:
-            case GroupUserStates.Dismissed:
-                _userIdToRoomMapping.TryRemove(message.UserId, out _);
-                _logger.LogRelayDestroyed(message.RoomId, message.UserId, message.State);
-
+                if (!_roomOwnerRecords.TryGetValue(message.UserId, out _))
+                {
+                    _userIdToRoomMapping.TryRemove(message.UserId, out _);
+                    _logger.LogRelayDestroyed(message.RoomId, message.UserId, message.State);
+                }
+                
                 break;
         }
     }
@@ -123,16 +135,19 @@ public class RelayManager
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
-        if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
         if (!_userIdSessionMapping.TryRemove(userId, out var session)) return;
+        if (!_roomOwnerRecords.TryGetValue(userId, out _))
+        {
+            if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
+
+            _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
+        }
 
         // Because the session is already disconnected, we just recycle the link with it.
         // No need to ask the client's current ref count
         if (_userIdSessionMapping.Any(p => p.Value == session)) return;
 
         session.Close();
-
-        _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
     }
 }
 
@@ -144,8 +159,8 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay destroyed, room [{roomId}], user [{userId}], state [{state}]")]
     public static partial void LogRelayDestroyed(this ILogger logger, Guid roomId, Guid userId, GroupUserStates state);
 
-    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay info added, user [{userId}], room [{roomId}], registered mapping count: {mappingCount}")]
-    public static partial void LogRelayInfoAdded(this ILogger logger, Guid userId, Guid roomId, int mappingCount);
+    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay info added, user [{userId}], room [{roomId}], is room owner [{isRoomOwner}], registered mapping count: {mappingCount}")]
+    public static partial void LogRelayInfoAdded(this ILogger logger, Guid userId, Guid roomId, int mappingCount, bool isRoomOwner);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay not found [{sessionId}] {from} -> {to}, possible bug or wrong sender!")]
     public static partial void LogRelayDestinationNotFound(this ILogger logger, SessionId sessionId, Guid? from, Guid? to);
@@ -159,8 +174,8 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay info update unauthorized from session [{sessionId}] {address}")]
     public static partial void LogRelayInfoUpdateUnauthorized(this ILogger logger, SessionId sessionId, IPAddress address);
 
-    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Can not find corresponding room for user [{sessionId}] {address}")]
-    public static partial void LogCanNotFindCorrespondingRoomForUser(this ILogger logger, SessionId sessionId, IPAddress address);
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Can not find corresponding room for user [{sessionId}][{userId}] {address}")]
+    public static partial void LogCanNotFindCorrespondingRoomForUser(this ILogger logger, SessionId sessionId, Guid userId, IPAddress address);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] User room does not match the record from session [{sessionId}] {address}")]
     public static partial void LogUserRoomDoesNotMatchTheRecord(this ILogger logger, SessionId sessionId, IPAddress address);

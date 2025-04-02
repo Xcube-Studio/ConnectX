@@ -51,6 +51,8 @@ public class ConsoleService(
     ILogger<ConsoleService> logger)
     : BackgroundService
 {
+    private GroupInfo? _lastGroupInfo;
+
     private static string[] ParseArguments(string commandLine)
     {
         var paraChars = commandLine.ToCharArray();
@@ -93,10 +95,31 @@ public class ConsoleService(
 
         joinCommand.SetHandler(HandleRoomJoinAsync);
 
+        var leaveCommand = new Command("leave", "Leave the room.");
+        leaveCommand.SetHandler(HandleRoomLeaveAsync);
+
         room.AddCommand(createCommand);
         room.AddCommand(joinCommand);
+        room.AddCommand(leaveCommand);
 
         return room;
+    }
+
+    private async Task HandleRoomLeaveAsync(InvocationContext obj)
+    {
+        if (_lastGroupInfo == null)
+        {
+            logger.LogError("You are not in any room");
+            return;
+        }
+
+        var (status, error) = await client.LeaveGroupAsync(new LeaveGroup
+        {
+            GroupId = _lastGroupInfo.RoomId,
+            UserId = serverLinkHolder.UserId
+        });
+
+        logger.LogInformation("Room left, {status:G}, {error}", status, error);
     }
 
     private async Task HandleRoomJoinAsync(InvocationContext obj)
@@ -124,6 +147,8 @@ public class ConsoleService(
         var (groupInfo, status, error) = await client.JoinGroupAsync(message, CancellationToken.None);
 
         logger.LogInformation("Room joined, {@info}, {status:G}, {error}", groupInfo, status, error);
+
+        _lastGroupInfo = groupInfo;
     }
 
     private async Task HandleRoomCreateAsync(InvocationContext obj)

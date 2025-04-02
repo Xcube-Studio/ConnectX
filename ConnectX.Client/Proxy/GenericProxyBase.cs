@@ -17,17 +17,8 @@ public abstract class GenericProxyBase : IDisposable
 
     protected readonly CancellationToken CancellationToken;
 
-    protected Channel<ForwardPacketCarrier>? InwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
-    {
-        SingleReader = true,
-        SingleWriter = true
-    });
-
-    protected Channel<ForwardPacketCarrier>? OutwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
-    {
-        SingleReader = true,
-        SingleWriter = false
-    });
+    protected Channel<ForwardPacketCarrier>? InwardBuffersQueue;
+    protected Channel<ForwardPacketCarrier>? OutwardBuffersQueue;
 
     public readonly List<Func<ForwardPacketCarrier, bool>> OutwardSenders = [];
     public readonly TunnelIdentifier TunnelIdentifier;
@@ -87,8 +78,6 @@ public abstract class GenericProxyBase : IDisposable
         _innerSocket?.Dispose();
 
         Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
-
-        GC.SuppressFinalize(this);
     }
 
     public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerConnected;
@@ -97,6 +86,8 @@ public abstract class GenericProxyBase : IDisposable
     public virtual void Start()
     {
         Logger.LogStartingProxy(GetProxyInfoForLog());
+
+        ResetChannels();
 
         Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => OuterSendLoopAsync(CancellationToken));
         Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => InnerSendLoopAsync(CancellationToken));
@@ -107,13 +98,14 @@ public abstract class GenericProxyBase : IDisposable
 
     protected async Task OuterSendLoopAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(OutwardBuffersQueue);
-
-        var reader = OutwardBuffersQueue.Reader;
-        var writer = OutwardBuffersQueue.Writer;
-
         while (!cancellationToken.IsCancellationRequested)
         {
+            if (OutwardBuffersQueue == null)
+                break;
+
+            var reader = OutwardBuffersQueue.Reader;
+            var writer = OutwardBuffersQueue.Writer;
+
             while (await reader.WaitToReadAsync(cancellationToken))
             {
                 while (reader.TryRead(out var packetCarrier))
@@ -168,8 +160,15 @@ public abstract class GenericProxyBase : IDisposable
     {
         Logger.LogReceivedPacket(GetProxyInfoForLog(), message.Payload.Length, RemoteClientPort);
 
-        ArgumentNullException.ThrowIfNull(InwardBuffersQueue);
-        ArgumentOutOfRangeException.ThrowIfEqual(InwardBuffersQueue.Writer.TryWrite(message), false);
+        if (InwardBuffersQueue == null)
+        {
+            // If the queue is null, it means that the proxy has been disposed.
+            return;
+        }
+
+        if (InwardBuffersQueue.Writer.TryWrite(message)) return;
+
+        Logger.LogFailedToSendMcPacketCarrier(GetProxyInfoForLog(), message.SelfRealPort, message.TargetRealPort, message.LastTryTime);
     }
 
     protected virtual object GetProxyInfoForLog()
@@ -183,13 +182,12 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerSendLoopAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(InwardBuffersQueue);
-
-        var reader = InwardBuffersQueue.Reader;
-
         while (!cancellationToken.IsCancellationRequested)
         {
+            if (InwardBuffersQueue == null) break;
             if (!CheckSocketValid()) continue;
+
+            var reader = InwardBuffersQueue.Reader;
 
             while (await reader.WaitToReadAsync(cancellationToken))
             {
@@ -266,12 +264,12 @@ public abstract class GenericProxyBase : IDisposable
 
     protected virtual async Task InnerReceiveLoopAsync(CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(OutwardBuffersQueue);
-
-        var writer = OutwardBuffersQueue.Writer;
-
         while (!cancellationToken.IsCancellationRequested)
         {
+            if (OutwardBuffersQueue == null) break;
+
+            var writer = OutwardBuffersQueue.Writer;
+
             if (_innerSocket is not { Connected: true })
             {
                 if (!CheckSocketValid()) continue;
@@ -361,4 +359,12 @@ internal static partial class GenericProxyBaseLoggers
 
     [LoggerMessage(LogLevel.Information, "[{ProxyInfo}] Proxy disposed, local port: {LocalPort}")]
     public static partial void LogProxyDisposed(this ILogger logger, object proxyInfo, ushort localPort);
+
+    [LoggerMessage(LogLevel.Warning, "[{ProxyInfo}] Failed to send McPacketCarrier, self port [{selfRealPort}], target port [{targetRealPort}], last try time: {LastTryTime}, maybe is because proxy is disposed.")]
+    public static partial void LogFailedToSendMcPacketCarrier(
+        this ILogger logger,
+        object proxyInfo,
+        ushort selfRealPort,
+        ushort targetRealPort,
+        int lastTryTime);
 }
