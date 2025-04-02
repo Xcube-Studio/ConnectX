@@ -1,6 +1,5 @@
 ﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
-using ConnectX.Client.Proxy;
 using ConnectX.Client.Route;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
@@ -13,6 +12,8 @@ using Microsoft.Extensions.Logging;
 namespace ConnectX.Client;
 
 public delegate void GroupStateChangedHandler(GroupUserStates state, UserInfo? userInfo);
+
+public record PartnerConnectionState(bool IsConnected, bool IsDirectConnection, int Latency);
 
 public class Client
 {
@@ -233,17 +234,29 @@ public class Client
     /// </summary>
     /// <param name="partnerId">目标用户的ID</param>
     /// <returns>(是否可以连通，是否直连，ping)</returns>
-    public (bool, bool, int) GetPartnerConState(Guid partnerId)
+    public PartnerConnectionState GetPartnerConState(Guid partnerId)
     {
+        if (_partnerManager.Partners.TryGetValue(partnerId, out var partner))
+        {
+            return new PartnerConnectionState(
+                partner.Connection.IsConnected,
+                false,
+                partner.Latency);
+        }
+
         var forwardInterface = _router.RouteTable.GetForwardInterface(partnerId);
 
-        if (forwardInterface == Guid.Empty) return (false, false, int.MaxValue);
+        if (forwardInterface == Guid.Empty)
+            return new PartnerConnectionState(false, false, -1);
 
         var linkState = _router.RouteTable.GetSelfLinkState();
         var ping = -1;
 
         if (linkState == null)
-            return (true, forwardInterface == partnerId, ping);
+            return new PartnerConnectionState(
+                true,
+                forwardInterface == partnerId,
+                ping);
 
         var guidList = linkState.Interfaces;
         for (var index = 0; index < guidList.Length; index++)
@@ -257,7 +270,10 @@ public class Client
             break;
         }
 
-        return (true, forwardInterface == partnerId, ping);
+        return new PartnerConnectionState(
+            true,
+            forwardInterface == partnerId,
+            ping);
     }
 }
 

@@ -554,11 +554,11 @@ public class GroupManager
 
         if (group.RoomOwner.UserId == message.UserId)
         {
-            _logger.LogGroupHasBeenDismissedBy(message.GroupId, ctx.FromSession.Id);
-
             _groupMappings.TryRemove(group.RoomId, out _);
             DeleteGroupNetworkAsync(group).Forget();
             NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, null)).Forget();
+
+            _logger.LogGroupHasBeenDismissedBy(message.GroupId, ctx.FromSession.Id);
 
             return;
         }
