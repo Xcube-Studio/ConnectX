@@ -79,7 +79,7 @@ public class GroupManager
             return Guid.Empty;
         }
 
-        var assignedId = Guid.NewGuid();
+        var assignedId = Guid.CreateVersion7();
         var user = new BasicUserInfo
         {
             UserId = assignedId,
