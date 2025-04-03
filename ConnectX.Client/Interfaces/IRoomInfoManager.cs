@@ -14,4 +14,5 @@ public interface IRoomInfoManager : IHostedService
     Task<GroupInfo?> AcquireGroupInfoAsync(Guid groupId);
 
     event Action<UserInfo[]> OnMemberAddressInfoUpdated;
+    event Action<GroupInfo> OnGroupInfoUpdated;
 }

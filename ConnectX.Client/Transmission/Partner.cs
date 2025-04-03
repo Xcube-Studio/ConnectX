@@ -8,7 +8,6 @@ namespace ConnectX.Client.Transmission;
 public class Partner
 {
     private readonly ILogger _logger;
-    private readonly Guid _partnerId;
 
     private readonly Guid _selfId;
     private readonly IServiceProvider _serviceProvider;
@@ -26,9 +25,10 @@ public class Partner
         ILogger<Partner> logger)
     {
         Connection = connection;
+        PartnerId = partnerId;
 
         _selfId = selfId;
-        _partnerId = partnerId;
+        
         _serviceProvider = serviceProvider;
         _logger = logger;
 
@@ -37,6 +37,7 @@ public class Partner
         Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => KeepConnectAsync(_linkedCts.Token));
     }
 
+    public Guid PartnerId { get; }
     public ConnectionBase Connection { get; }
     public int Latency { get; private set; }
 
@@ -49,9 +50,11 @@ public class Partner
         {
             if (!Connection.IsConnected)
             {
+                Latency = -1;
+
                 if (_isLastTimeConnected)
                 {
-                    _logger.LogDisconnectedWithPartnerId(_partnerId);
+                    _logger.LogDisconnectedWithPartnerId(PartnerId);
 
                     OnDisconnected?.Invoke(this);
 
@@ -61,7 +64,7 @@ public class Partner
 
                 if (await Connection.ConnectAsync(token))
                 {
-                    _logger.LogConnectedWithPartnerId(_partnerId);
+                    _logger.LogConnectedWithPartnerId(PartnerId);
 
                     _isLastTimeConnected = true;
 
@@ -72,7 +75,7 @@ public class Partner
             {
                 if (_isLastTimeConnected == false)
                 {
-                    _logger.LogConnectedWithPartnerId(_partnerId);
+                    _logger.LogConnectedWithPartnerId(PartnerId);
 
                     _isLastTimeConnected = true;
 
@@ -82,7 +85,7 @@ public class Partner
                 _pingChecker ??= ActivatorUtilities.CreateInstance<PingChecker<Guid>>(
                     _serviceProvider,
                     _selfId,
-                    _partnerId,
+                    PartnerId,
                     Connection);
 
                 Latency = await _pingChecker.CheckPingAsync();

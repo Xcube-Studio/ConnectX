@@ -55,8 +55,6 @@ public class PingChecker<TId>
 
     private void OnPongReceived(MessageContext<Pong> ctx)
     {
-        _logger.LogPongReceived(GetPingSourceString(ctx));
-
         var pong = ctx.Message;
         pong.SelfReceiveTime = DateTime.Now.Ticks;
 
@@ -64,6 +62,8 @@ public class PingChecker<TId>
             _pongPackets.TryRemove(pong.SeqId, out _);
 
         _pongPackets.TryAdd(pong.SeqId, pong);
+
+        _logger.LogPongReceived(GetPingSourceString(ctx));
     }
 
     public async Task<int> CheckPingAsync()

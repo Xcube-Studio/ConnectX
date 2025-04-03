@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
 using ConnectX.Client.Messages.Proxy;
+using ConnectX.Client.Proxy;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
@@ -8,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace ConnectX.Client.Proxy;
+namespace ConnectX.Client.Managers;
 
 public abstract class GenericProxyManager : BackgroundService
 {
