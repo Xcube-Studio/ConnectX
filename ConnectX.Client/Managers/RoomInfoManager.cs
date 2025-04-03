@@ -61,6 +61,7 @@ public class RoomInfoManager(
             {
                 logger.LogUpdatingRoomInfo();
                 await AcquireGroupInfoAsync(CurrentGroupInfo.RoomId);
+                await Task.Delay(1000, stoppingToken);
                 needToRefreshRoomInfo = false;
             }
 
@@ -177,6 +178,7 @@ public class RoomInfoManager(
         }
 
         CurrentGroupInfo = groupInfo;
+        OnGroupInfoUpdated?.Invoke(groupInfo);
 
         logger.LogRoomInfoAcquired();
 
@@ -184,6 +186,7 @@ public class RoomInfoManager(
     }
 
     public event Action<UserInfo[]>? OnMemberAddressInfoUpdated;
+    public event Action<GroupInfo>? OnGroupInfoUpdated;
 }
 
 internal static partial class RoomInfoManagerLoggers
