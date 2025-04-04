@@ -7,48 +7,7 @@ on:
       - completed
   workflow_dispatch:
 jobs:
-  build:
-    strategy:
-      matrix:
-        configuration: [Relay, Server]
-
-    runs-on: ubuntu-latest  
-                          
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        
-    - name: Install .NET Core
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 9.0.x
-
-    - name: Init git submodule
-      run: |
-        git submodule init
-        git submodule update
-    
-    - name: Restore the application
-      run: dotnet restore
-      
-    - name: Build the application
-      run: |
-        cd ./ConnectX.$Configuration
-        dotnet build
-      env:
-        Configuration: ${{ matrix.configuration }}
-      
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.configuration }}-Debug-linux-x64 
-        path: ./ConnectX.{{ matrix.configuration }}/bin/
-      
-        
   publish:
-    needs: build
     strategy:
       matrix:
         configuration: [Relay, Server]
