@@ -2,12 +2,13 @@ name: .NET Core
 
 on:
   workflow_run:
-    workflows: [ "CodeQL Advanced" ]  # 必须与 Workflow A 的 name 完全匹配
+    workflows: [ "CodeQL Advanced" ]
     types:
       - completed
   workflow_dispatch:
 jobs:
   publish:
+    if: github.event.workflow_run.conclusion == 'success'
     strategy:
       matrix:
         configuration: [Relay, Server]
