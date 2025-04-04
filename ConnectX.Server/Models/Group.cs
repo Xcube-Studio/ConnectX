@@ -9,7 +9,7 @@ public class Group(
     UserSessionInfo roomOwner,
     List<UserSessionInfo> users)
 {
-    public Guid RoomId { get; } = Guid.NewGuid();
+    public Guid RoomId { get; } = Guid.CreateVersion7();
     public UserSessionInfo RoomOwner { get; } = roomOwner;
     public string RoomShortId { get; } = RandomHelper.GetRandomString();
     public required ulong NetworkId { get; set; }

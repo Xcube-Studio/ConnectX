@@ -4,7 +4,7 @@ namespace ConnectX.Server.Models.DataBase;
 
 public class RoomJoinHistory
 {
-    [Key] public Guid Id { get; init; } = Guid.NewGuid();
+    [Key] public Guid Id { get; init; } = Guid.CreateVersion7();
 
     public required Guid UserId { get; init; }
 
