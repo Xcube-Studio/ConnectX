@@ -1,7 +1,10 @@
 name: .NET Core
 
 on:
-  push:
+  workflow_run:
+    workflows: [ "CodeQL Advanced" ]  # 必须与 Workflow A 的 name 完全匹配
+    types:
+      - completed
   workflow_dispatch:
 jobs:
   build:
