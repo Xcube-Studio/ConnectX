@@ -6,6 +6,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using ConnectX.Relay.Interfaces;
 using ConnectX.Relay.Managers;
 using ConnectX.Shared.Helpers;
@@ -100,6 +101,9 @@ public class RelayServer : BackgroundService
     private void AcceptorOnOnSessionCreated(IAcceptor acceptor, SessionId id, TcpSession session)
     {
         var currentTime = DateTime.UtcNow;
+
+        session.Socket!.LingerState = new LingerOption(true, 10);
+        session.Socket!.NoDelay = true;
 
         session.StartAsync(_lifetime.ApplicationStopping).Forget();
 
