@@ -28,7 +28,7 @@ public sealed class GenericProxyClient : GenericProxyBase
 
     protected override Socket CreateSocket()
     {
-        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
         socket.Connect(new IPEndPoint(IPAddress.Loopback, LocalServerPort));
 

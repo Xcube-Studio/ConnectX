@@ -59,7 +59,7 @@ public class FakeServerMultiCaster : BackgroundService
             return;
         }
 
-        var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        var multicastSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
         var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
 
         multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
@@ -125,7 +125,7 @@ public class FakeServerMultiCaster : BackgroundService
                 continue;
             }
 
-            using var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            using var multicastSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
             var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
             
             multicastSocket.SetSocketOption(
