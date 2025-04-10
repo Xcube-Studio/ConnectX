@@ -12,7 +12,7 @@ public static class AddressHelper
 
         foreach (var address in addresses)
         {
-            if (address.AddressFamily == AddressFamily.InterNetwork)
+            if (address.AddressFamily is AddressFamily.InterNetwork or AddressFamily.InterNetworkV6)
             {
                 yield return address;
             }
