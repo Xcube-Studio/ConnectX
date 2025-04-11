@@ -49,8 +49,7 @@ public class GenericProxyAcceptor : IDisposable
         {
             try
             {
-                _acceptSocket = new Socket(AddressFamily.InterNetwork,
-                    SocketType.Stream, ProtocolType.Tcp);
+                _acceptSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
                 var ipe = new IPEndPoint(IPAddress.Any, LocalMappingPort);
 
