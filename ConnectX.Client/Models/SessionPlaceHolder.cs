@@ -15,7 +15,6 @@ public class SessionPlaceHolder : ISession
     public long LastHeartBeatTime => throw new NotImplementedException();
 
     public event SessionReceivedHandler? OnMessageReceived;
-    public event SessionRawReceivedHandler? OnRawStreamReceived;
 
     public Task StartAsync(CancellationToken token)
     {

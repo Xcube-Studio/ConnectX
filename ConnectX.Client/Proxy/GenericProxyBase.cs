@@ -12,6 +12,8 @@ public abstract class GenericProxyBase : IDisposable
     private const int RetryInterval = 500;
     private const int TryTime = 20;
 
+    private bool _disposed;
+
     private readonly CancellationTokenSource _combinedTokenSource;
     private readonly CancellationTokenSource _internalTokenSource;
 
@@ -61,6 +63,10 @@ public abstract class GenericProxyBase : IDisposable
 
     public void Dispose()
     {
+        if (_disposed) return;
+
+        _disposed = true;
+
         _internalTokenSource.Cancel();
         _combinedTokenSource.Dispose();
         _internalTokenSource.Dispose();
