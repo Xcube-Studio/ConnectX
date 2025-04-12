@@ -230,7 +230,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             return false;
         }
 
-        session.BindTo(Dispatcher);
+        session.BindTo(dispatcher);
 
         session.StartAsync(_linkCt).Forget();
 
@@ -243,7 +243,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             RoomId = _roomInfoManager.CurrentGroupInfo.RoomId
         };
 
-        await Dispatcher.SendAndListenOnce<CreateRelayWorkerLinkMessage, RelayWorkerLinkCreatedMessage>(
+        await dispatcher.SendAndListenOnce<CreateRelayWorkerLinkMessage, RelayWorkerLinkCreatedMessage>(
             session,
             linkCreationReq,
             token);
@@ -252,26 +252,28 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
         // Switch to streaming mode
         session.OnMessageReceived -= dispatcher.Dispatch;
-        session.OnMessageReceived += (_, buffer) =>
-        {
-            Logger.LogCritical(buffer.Length.ToString());
-
-            if (_relayServerDataLink == null)
-                return;
-
-            var carrier = new ForwardPacketCarrier
-            {
-                Payload = buffer.ToArray(),
-                LastTryTime = 0,
-                TryCount = 0
-            };
-
-            Dispatcher.Dispatch(_relayServerDataLink, carrier);
-        };
+        session.OnMessageReceived += SessionOnOnMessageReceived;
 
         _relayServerWorkerLink = session;
 
         return true;
+    }
+
+    private void SessionOnOnMessageReceived(ISession session, ReadOnlySequence<byte> buffer)
+    {
+        Logger.LogCritical(buffer.Length.ToString());
+
+        if (_relayServerDataLink == null)
+            return;
+
+        var carrier = new ForwardPacketCarrier
+        {
+            Payload = buffer.ToArray(),
+            LastTryTime = 0,
+            TryCount = 0
+        };
+
+        Dispatcher.Dispatch(session, carrier);
     }
 
     public override async Task<bool> ConnectAsync(CancellationToken token)
@@ -355,7 +357,11 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
     {
         base.Disconnect();
 
-        _relayServerWorkerLink?.Close();
+        if (_relayServerWorkerLink != null)
+        {
+            _relayServerWorkerLink.OnMessageReceived -= SessionOnOnMessageReceived;
+            _relayServerWorkerLink.Close();
+        }
 
         if (!ConnectionRefCount.TryGetValue(_relayEndPoint, out var count)) return;
         if (!ConnectionRefCount.TryUpdate(_relayEndPoint, count - 1, count))
