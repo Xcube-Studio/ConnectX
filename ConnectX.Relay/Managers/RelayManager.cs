@@ -102,8 +102,7 @@ public class RelayManager
         _workerSessionRouteMapping.AddOrUpdate(session.Id, _ => (userId, relayTo), (_, _) => (userId, relayTo));
         _workerSessionMapping.AddOrUpdate((userId, relayTo), _ => session, (_, _) => session);
 
-        session.OnRawStreamReceived += SessionOnOnRawStreamReceived;
-        session.StreamMode = true;
+        session.OnMessageReceived += SessionOnOnRawStreamReceived;
 
         _logger.LogRelayLinkAttached(session.Id, userId);
     }

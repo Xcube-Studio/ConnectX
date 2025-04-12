@@ -251,7 +251,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         await Task.Delay(1000, token);
 
         // Switch to streaming mode
-        session.OnRawStreamReceived += (_, buffer) =>
+        session.OnMessageReceived += (_, buffer) =>
         {
             if (_relayServerDataLink == null)
                 return;
@@ -266,7 +266,6 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             Dispatcher.Dispatch(_relayServerDataLink, carrier);
         };
         session.OnMessageReceived -= dispatcher.Dispatch;
-        session.StreamMode = true;
 
         _relayServerWorkerLink = session;
 
