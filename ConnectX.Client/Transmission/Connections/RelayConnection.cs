@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using CommunityToolkit.HighPerformance;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Shared.Helpers;
@@ -393,6 +394,12 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         }
 
         Dispatcher.SendAsync(_relayServerDataLink, datagram, _linkCt).Forget();
+    }
+
+    public void SendByWorker(ReadOnlyMemory<byte> data)
+    {
+        using var stream = data.AsStream();
+        _relayServerWorkerLink?.TrySendAsync(stream, _linkCt).Forget();
     }
 }
 

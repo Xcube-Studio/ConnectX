@@ -59,7 +59,7 @@ public class GenericProxyPair : IDisposable
         if (data.SelfRealPort != LocalRealPort) return false;
         if (Sender is RelayConnection relayConnection)
         {
-            relayConnection.Send(data.Payload);
+            relayConnection.SendByWorker(data.Payload);
             return true;
         }
 
