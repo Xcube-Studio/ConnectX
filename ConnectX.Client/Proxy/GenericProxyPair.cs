@@ -1,4 +1,5 @@
 ﻿using ConnectX.Client.Messages.Proxy;
+using ConnectX.Client.Transmission.Connections;
 using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
 
@@ -56,6 +57,11 @@ public class GenericProxyPair : IDisposable
     private bool OnSend(ForwardPacketCarrier data)
     {
         if (data.SelfRealPort != LocalRealPort) return false;
+        if (Sender is RelayConnection relayConnection)
+        {
+            relayConnection.Send(data.Payload);
+            return true;
+        }
 
         Sender.SendData(data);
         return true;
