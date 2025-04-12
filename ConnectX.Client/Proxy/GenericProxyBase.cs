@@ -82,6 +82,7 @@ public abstract class GenericProxyBase : IDisposable
         _innerSocket?.Shutdown(SocketShutdown.Both);
         _innerSocket?.Close();
         _innerSocket?.Dispose();
+        _innerSocket = null;
 
         Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
     }
@@ -218,6 +219,9 @@ public abstract class GenericProxyBase : IDisposable
                     catch (SocketException ex)
                     {
                         Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
+
+                        if (ex.SocketErrorCode == SocketError.ConnectionAborted)
+                            break;
                     }
                     catch (ObjectDisposedException ex)
                     {

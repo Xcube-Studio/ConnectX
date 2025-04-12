@@ -231,6 +231,9 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             return false;
         }
 
+        session.Socket!.LingerState = new LingerOption(true, 10);
+        session.Socket!.NoDelay = true;
+
         session.BindTo(dispatcher);
 
         session.StartAsync(_linkCt).Forget();
