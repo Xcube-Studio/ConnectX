@@ -1,5 +1,4 @@
-﻿using System;
-using System.Buffers;
+﻿using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using CommunityToolkit.HighPerformance;
@@ -13,7 +12,6 @@ using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
 using Microsoft.Extensions.Logging;
-using Serilog.Core;
 
 namespace ConnectX.Relay.Managers;
 
@@ -104,9 +102,10 @@ public class RelayManager
         _workerSessionRouteMapping.AddOrUpdate(session.Id, _ => (userId, relayTo), (_, _) => (userId, relayTo));
         _workerSessionMapping.AddOrUpdate((userId, relayTo), _ => session, (_, _) => session);
 
+        session.OnMessageReceived -= _dispatcher.Dispatch;
         session.OnMessageReceived += SessionOnOnRawStreamReceived;
 
-        _logger.LogRelayLinkAttached(session.Id, userId);
+        _logger.LogRelayWorkerLinkAttached(session.Id, userId);
     }
 
     private void SessionOnOnRawStreamReceived(ISession session, ReadOnlySequence<byte> buffer)
@@ -235,6 +234,9 @@ internal static partial class RelayManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay link attached, session [{sessionId}] with user [{userId}]")]
     public static partial void LogRelayLinkAttached(this ILogger logger, SessionId sessionId, Guid userId);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay worker link attached, session [{sessionId}] with user [{userId}]")]
+    public static partial void LogRelayWorkerLinkAttached(this ILogger logger, SessionId sessionId, Guid userId);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay info update unauthorized from session [{sessionId}] {address}")]
     public static partial void LogRelayInfoUpdateUnauthorized(this ILogger logger, SessionId sessionId, IPAddress address);
