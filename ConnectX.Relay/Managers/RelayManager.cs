@@ -120,7 +120,7 @@ public class RelayManager
         }
 
         using var ms = buffer.AsStream();
-        toSession.SendAsync(ms).Forget();
+        toSession.TrySendAsync(ms).Forget();
 
         _logger.LogRelayDatagramSent(session.Id, routingInfo.To);
     }
