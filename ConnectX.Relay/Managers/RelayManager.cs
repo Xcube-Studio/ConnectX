@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using CommunityToolkit.HighPerformance;
@@ -12,6 +13,7 @@ using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
 using Microsoft.Extensions.Logging;
+using Serilog.Core;
 
 namespace ConnectX.Relay.Managers;
 
@@ -109,6 +111,8 @@ public class RelayManager
 
     private void SessionOnOnRawStreamReceived(ISession session, ReadOnlySequence<byte> buffer)
     {
+        _logger.LogCritical(buffer.Length.ToString());
+
         if (!_workerSessionRouteMapping.TryGetValue(session.Id, out var routingInfo) ||
             !_workerSessionMapping.TryGetValue((routingInfo.To, routingInfo.From), out var toSession))
         {
