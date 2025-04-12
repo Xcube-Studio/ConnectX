@@ -401,7 +401,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        using var stream = data.AsStream();
+        var stream = data.AsStream();
         _relayServerWorkerLink?.TrySendAsync(stream, _linkCt).Forget();
     }
 }

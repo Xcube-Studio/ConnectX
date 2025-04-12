@@ -99,19 +99,19 @@ public class RelayManager
             return;
         }
 
-        _workerSessionRouteMapping.AddOrUpdate(session.Id, _ => (userId, relayTo), (_, _) => (userId, relayTo));
-        _workerSessionMapping.AddOrUpdate((userId, relayTo), _ => session, (_, _) => session);
+        var pair = (userId, relayTo);
+
+        _workerSessionRouteMapping.AddOrUpdate(session.Id, _ => pair, (_, _) => pair);
+        _workerSessionMapping.AddOrUpdate(pair, _ => session, (_, _) => session);
 
         session.OnMessageReceived -= _dispatcher.Dispatch;
-        session.OnMessageReceived += SessionOnOnRawStreamReceived;
+        session.OnMessageReceived += SessionOnDataReceived;
 
-        _logger.LogRelayWorkerLinkAttached(session.Id, userId);
+        _logger.LogRelayWorkerLinkAttached(session.Id, userId, relayTo, userId);
     }
 
-    private void SessionOnOnRawStreamReceived(ISession session, ReadOnlySequence<byte> buffer)
+    private void SessionOnDataReceived(ISession session, ReadOnlySequence<byte> buffer)
     {
-        _logger.LogCritical(buffer.Length.ToString());
-
         if (!_workerSessionRouteMapping.TryGetValue(session.Id, out var routingInfo) ||
             !_workerSessionMapping.TryGetValue((routingInfo.To, routingInfo.From), out var toSession))
         {
@@ -119,10 +119,11 @@ public class RelayManager
             return;
         }
 
-        using var ms = buffer.AsStream();
+        var ms = buffer.AsStream();
         toSession.TrySendAsync(ms).Forget();
 
-        _logger.LogRelayDatagramSent(session.Id, routingInfo.To);
+        _logger.LogCritical(buffer.Length.ToString());
+        _logger.LogRelayWorkerSent(session.Id, routingInfo.To);
     }
 
     private void OnUpdateRelayUserRoomMappingMessageReceived(MessageContext<UpdateRelayUserRoomMappingMessage> ctx)
@@ -232,11 +233,14 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Debug, "[RELAY_MANAGER] Relay datagram sent from session [{fromSessionId}] to user [{toUserId}]")]
     public static partial void LogRelayDatagramSent(this ILogger logger, SessionId fromSessionId, Guid toUserId);
 
+    [LoggerMessage(LogLevel.Debug, "[RELAY_MANAGER] Relay worker sent stream from session [{fromSessionId}] to user [{toUserId}]")]
+    public static partial void LogRelayWorkerSent(this ILogger logger, SessionId fromSessionId, Guid toUserId);
+
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay link attached, session [{sessionId}] with user [{userId}]")]
     public static partial void LogRelayLinkAttached(this ILogger logger, SessionId sessionId, Guid userId);
 
-    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay worker link attached, session [{sessionId}] with user [{userId}]")]
-    public static partial void LogRelayWorkerLinkAttached(this ILogger logger, SessionId sessionId, Guid userId);
+    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay worker link attached, session [{sessionId}] {from} -> {to} with user [{userId}]")]
+    public static partial void LogRelayWorkerLinkAttached(this ILogger logger, SessionId sessionId, Guid from, Guid to, Guid userId);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay info update unauthorized from session [{sessionId}] {address}")]
     public static partial void LogRelayInfoUpdateUnauthorized(this ILogger logger, SessionId sessionId, IPAddress address);
