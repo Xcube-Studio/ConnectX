@@ -119,7 +119,8 @@ public class RelayManager
             return;
         }
 
-        var ms = buffer.AsStream();
+        var ms = new MemoryStream(buffer.ToArray());
+        //var ms = buffer.AsStream();
         toSession.TrySendAsync(ms).Forget();
 
         _logger.LogRelayWorkerSent(session.Id, routingInfo.To);

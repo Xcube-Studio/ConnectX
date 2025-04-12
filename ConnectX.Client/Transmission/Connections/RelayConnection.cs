@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -405,8 +406,9 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        var stream = data.AsStream();
-        _relayServerWorkerLink?.TrySendAsync(stream, _linkCt).Forget();
+        var ms = new MemoryStream(data.ToArray());
+        //var ms = buffer.AsStream();
+        _relayServerWorkerLink?.TrySendAsync(ms, _linkCt).Forget();
     }
 }
 
