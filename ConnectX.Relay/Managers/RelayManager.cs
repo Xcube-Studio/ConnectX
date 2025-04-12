@@ -110,7 +110,7 @@ public class RelayManager
         _logger.LogRelayWorkerLinkAttached(session.Id, userId, relayTo, userId);
     }
 
-    private async void SessionOnDataReceived(ISession session, ReadOnlySequence<byte> buffer)
+    private void SessionOnDataReceived(ISession session, ReadOnlySequence<byte> buffer)
     {
         if (!_workerSessionRouteMapping.TryGetValue(session.Id, out var routingInfo) ||
             !_workerSessionMapping.TryGetValue((routingInfo.To, routingInfo.From), out var toSession))
@@ -120,9 +120,8 @@ public class RelayManager
         }
 
         var ms = buffer.AsStream();
-        await toSession.TrySendAsync(ms);
+        toSession.TrySendAsync(ms).Forget();
 
-        _logger.LogCritical("{id}: {length}", session.Id, buffer.Length);
         _logger.LogRelayWorkerSent(session.Id, routingInfo.To);
     }
 

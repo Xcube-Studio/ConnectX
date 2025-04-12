@@ -261,8 +261,6 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     private void SessionOnOnMessageReceived(ISession session, ReadOnlySequence<byte> buffer)
     {
-        Logger.LogCritical(buffer.Length.ToString());
-
         if (_relayServerDataLink == null)
             return;
 
