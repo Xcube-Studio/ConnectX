@@ -354,6 +354,8 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
     {
         base.Disconnect();
 
+        _relayServerWorkerLink?.Close();
+
         if (!ConnectionRefCount.TryGetValue(_relayEndPoint, out var count)) return;
         if (!ConnectionRefCount.TryUpdate(_relayEndPoint, count - 1, count))
         {

@@ -17,13 +17,15 @@ namespace ConnectX.Relay.Managers;
 
 public class RelayManager
 {
-    private readonly ConcurrentDictionary<SessionId, Guid> _sessionRelayToMapping = new();
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionUserIdMapping = new();
     private readonly ConcurrentDictionary<Guid, Guid> _userIdToRoomMapping = new();
     private readonly ConcurrentDictionary<Guid, Guid> _roomOwnerRecords = new();
 
+    private readonly ConcurrentDictionary<SessionId, Guid> _workerSessionRelayToMapping = new();
+    private readonly ConcurrentDictionary<Guid, SessionId> _relayToWorkerSessionMapping = new();
+
     private readonly ConcurrentDictionary<Guid, ISession> _userIdDataSessionMapping = new();
-    private readonly ConcurrentDictionary<(Guid From, Guid To), ISession> _userIdWorkerSessionMapping = new();
+    private readonly ConcurrentDictionary<(SessionId, Guid), ISession> _userIdWorkerSessionMapping = new();
 
     private readonly ClientManager _clientManager;
     private readonly IServerLinkHolder _serverLinkHolder;
@@ -98,8 +100,9 @@ public class RelayManager
             return;
         }
 
-        _sessionRelayToMapping.AddOrUpdate(session.Id, _ => relayTo, (_, _) => relayTo);
-        _userIdWorkerSessionMapping.AddOrUpdate((userId, relayTo), _ => session, (_, _) => session);
+        _relayToWorkerSessionMapping.AddOrUpdate(relayTo, _ => session.Id, (_, _) => session.Id);
+        _workerSessionRelayToMapping.AddOrUpdate(session.Id, _ => relayTo, (_, _) => relayTo);
+        _userIdWorkerSessionMapping.AddOrUpdate((session.Id, relayTo), _ => session, (_, _) => session);
 
         session.OnRawStreamReceived += SessionOnOnRawStreamReceived;
         session.StreamMode = true;
@@ -109,11 +112,11 @@ public class RelayManager
 
     private void SessionOnOnRawStreamReceived(ISession session, ReadOnlySequence<byte> buffer)
     {
-        if (!_sessionUserIdMapping.TryGetValue(session.Id, out var userId) ||
-            !_sessionRelayToMapping.TryGetValue(session.Id, out var relayToId) ||
-            !_userIdWorkerSessionMapping.TryGetValue((userId, relayToId), out var toSession))
+        if (!_workerSessionRelayToMapping.TryGetValue(session.Id, out var relayToId) ||
+            !_relayToWorkerSessionMapping.TryGetValue(relayToId, out var workerSessionId) ||
+            !_userIdWorkerSessionMapping.TryGetValue((workerSessionId, relayToId), out var toSession))
         {
-            _logger.LogRelayWorkerDestinationNotFound(session.Id, userId);
+            _logger.LogRelayWorkerDestinationNotFound(session.Id, relayToId);
             return;
         }
 
@@ -201,10 +204,15 @@ public class RelayManager
 
         session.Close();
 
-        foreach (var (_, workerSession) in _userIdWorkerSessionMapping.Where(p => p.Key.From == userId))
-        {
-            workerSession.Close();
-        }
+        if (!_workerSessionRelayToMapping.TryRemove(sessionId, out var workerId))
+            return;
+        if (!_userIdWorkerSessionMapping.TryRemove((sessionId, workerId), out var workerSession))
+            return;
+
+        workerSession.Close();
+
+        if (!_relayToWorkerSessionMapping.TryRemove(workerId, out _))
+            return;
     }
 }
 
