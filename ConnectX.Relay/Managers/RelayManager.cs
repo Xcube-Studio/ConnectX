@@ -1,5 +1,7 @@
-﻿using System.Collections.Concurrent;
+﻿using System.Buffers;
+using System.Collections.Concurrent;
 using System.Net;
+using CommunityToolkit.HighPerformance;
 using ConnectX.Relay.Helpers;
 using ConnectX.Relay.Interfaces;
 using ConnectX.Shared.Helpers;
@@ -16,9 +18,13 @@ namespace ConnectX.Relay.Managers;
 public class RelayManager
 {
     private readonly ConcurrentDictionary<SessionId, Guid> _sessionUserIdMapping = new();
-    private readonly ConcurrentDictionary<Guid, ISession> _userIdSessionMapping = new();
     private readonly ConcurrentDictionary<Guid, Guid> _userIdToRoomMapping = new();
     private readonly ConcurrentDictionary<Guid, Guid> _roomOwnerRecords = new();
+
+    private readonly ConcurrentDictionary<Guid, ISession> _userIdDataSessionMapping = new();
+
+    private readonly ConcurrentDictionary<SessionId, (Guid From, Guid To)> _workerSessionRouteMapping = new();
+    private readonly ConcurrentDictionary<(Guid From, Guid To), ISession> _workerSessionMapping = new();
 
     private readonly ClientManager _clientManager;
     private readonly IServerLinkHolder _serverLinkHolder;
@@ -42,7 +48,7 @@ public class RelayManager
         dispatcher.AddHandler<UpdateRelayUserRoomMappingMessage>(OnUpdateRelayUserRoomMappingMessageReceived);
     }
 
-    public void AttachSession(
+    public void AttachDataSession(
         ISession session,
         Guid userId,
         Guid roomId)
@@ -65,10 +71,59 @@ public class RelayManager
             return;
         }
 
+        _userIdDataSessionMapping.AddOrUpdate(userId, _ => session, (_, _) => session);
         _sessionUserIdMapping.AddOrUpdate(session.Id, _ => userId, (_, _) => userId);
-        _userIdSessionMapping.AddOrUpdate(userId, _ => session, (_, _) => session);
+    }
 
-        _logger.LogRelayLinkAttached(session.Id, userId);
+    public void AttachWorkerSession(
+        ISession session,
+        Guid userId,
+        Guid relayTo,
+        Guid roomId)
+    {
+        if (!_userIdToRoomMapping.TryGetValue(userId, out var registeredRoomId))
+        {
+            _logger.LogCanNotFindCorrespondingRoomForUser(session.Id, userId, session.RemoteEndPoint?.Address ?? IPAddress.None);
+            return;
+        }
+
+        if (registeredRoomId != roomId)
+        {
+            _logger.LogUserRoomDoesNotMatchTheRecord(session.Id, session.RemoteEndPoint?.Address ?? IPAddress.None);
+            return;
+        }
+
+        if (session.RemoteEndPoint == null)
+        {
+            _logger.LogSessionRemoteEndPointIsNull(session.Id);
+            return;
+        }
+
+        var pair = (userId, relayTo);
+
+        _workerSessionRouteMapping.AddOrUpdate(session.Id, _ => pair, (_, _) => pair);
+        _workerSessionMapping.AddOrUpdate(pair, _ => session, (_, _) => session);
+
+        session.OnMessageReceived -= _dispatcher.Dispatch;
+        session.OnMessageReceived += SessionOnDataReceived;
+
+        _logger.LogRelayWorkerLinkAttached(session.Id, userId, relayTo, userId);
+    }
+
+    private void SessionOnDataReceived(ISession session, ReadOnlySequence<byte> buffer)
+    {
+        if (!_workerSessionRouteMapping.TryGetValue(session.Id, out var routingInfo) ||
+            !_workerSessionMapping.TryGetValue((routingInfo.To, routingInfo.From), out var toSession))
+        {
+            _logger.LogRelayWorkerDestinationNotFound(session.Id, routingInfo.From, routingInfo.To);
+            return;
+        }
+
+        var ms = new MemoryStream(buffer.ToArray());
+        //var ms = buffer.AsStream();
+        toSession.TrySendAsync(ms).Forget();
+
+        _logger.LogRelayWorkerSent(session.Id, routingInfo.To);
     }
 
     private void OnUpdateRelayUserRoomMappingMessageReceived(MessageContext<UpdateRelayUserRoomMappingMessage> ctx)
@@ -119,7 +174,7 @@ public class RelayManager
     {
         var message = ctx.Message;
 
-        if (!_userIdSessionMapping.TryGetValue(message.To, out var session))
+        if (!_userIdDataSessionMapping.TryGetValue(message.To, out var session))
         {
             _logger.LogRelayDestinationNotFound(ctx.FromSession.Id, message.From, message.To);
             return;
@@ -135,7 +190,7 @@ public class RelayManager
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
-        if (!_userIdSessionMapping.TryRemove(userId, out var session)) return;
+        if (!_userIdDataSessionMapping.TryRemove(userId, out var session)) return;
         if (!_roomOwnerRecords.TryGetValue(userId, out _))
         {
             if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
@@ -145,9 +200,16 @@ public class RelayManager
 
         // Because the session is already disconnected, we just recycle the link with it.
         // No need to ask the client's current ref count
-        if (_userIdSessionMapping.Any(p => p.Value == session)) return;
+        if (_userIdDataSessionMapping.Any(p => p.Value == session)) return;
 
         session.Close();
+
+        if (!_workerSessionRouteMapping.TryRemove(session.Id, out var routingInfo))
+            return;
+        if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession))
+            return;
+
+        workerSession.Close();
     }
 }
 
@@ -162,14 +224,23 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay info added, user [{userId}], room [{roomId}], is room owner [{isRoomOwner}], registered mapping count: {mappingCount}")]
     public static partial void LogRelayInfoAdded(this ILogger logger, Guid userId, Guid roomId, int mappingCount, bool isRoomOwner);
 
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay worker not found [{sessionId}] {from} -> {to}, possible bug or wrong sender!")]
+    public static partial void LogRelayWorkerDestinationNotFound(this ILogger logger, SessionId sessionId, Guid? from, Guid? to);
+
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay not found [{sessionId}] {from} -> {to}, possible bug or wrong sender!")]
     public static partial void LogRelayDestinationNotFound(this ILogger logger, SessionId sessionId, Guid? from, Guid? to);
 
     [LoggerMessage(LogLevel.Debug, "[RELAY_MANAGER] Relay datagram sent from session [{fromSessionId}] to user [{toUserId}]")]
     public static partial void LogRelayDatagramSent(this ILogger logger, SessionId fromSessionId, Guid toUserId);
 
+    [LoggerMessage(LogLevel.Debug, "[RELAY_MANAGER] Relay worker sent stream from session [{fromSessionId}] to user [{toUserId}]")]
+    public static partial void LogRelayWorkerSent(this ILogger logger, SessionId fromSessionId, Guid toUserId);
+
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay link attached, session [{sessionId}] with user [{userId}]")]
     public static partial void LogRelayLinkAttached(this ILogger logger, SessionId sessionId, Guid userId);
+
+    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay worker link attached, session [{sessionId}] {from} -> {to} with user [{userId}]")]
+    public static partial void LogRelayWorkerLinkAttached(this ILogger logger, SessionId sessionId, Guid from, Guid to, Guid userId);
 
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay info update unauthorized from session [{sessionId}] {address}")]
     public static partial void LogRelayInfoUpdateUnauthorized(this ILogger logger, SessionId sessionId, IPAddress address);

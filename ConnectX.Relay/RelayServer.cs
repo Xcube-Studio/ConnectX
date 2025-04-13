@@ -55,7 +55,9 @@ public class RelayServer : BackgroundService
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
         _acceptor.BindTo(_dispatcher);
-        _dispatcher.AddHandler<CreateRelayLinkMessage>(OnCreateRelayLinkMessageReceived);
+
+        _dispatcher.AddHandler<CreateRelayDataLinkMessage>(OnCreateRelayDataLinkMessageReceived);
+        _dispatcher.AddHandler<CreateRelayWorkerLinkMessage>(OnCreateRelayWorkerLinkMessageReceived);
     }
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
@@ -119,7 +121,7 @@ public class RelayServer : BackgroundService
         _logger.LogNewSessionJoined(session.RemoteEndPoint!, id);
     }
 
-    private void OnCreateRelayLinkMessageReceived(MessageContext<CreateRelayLinkMessage> ctx)
+    private void OnCreateRelayDataLinkMessageReceived(MessageContext<CreateRelayDataLinkMessage> ctx)
     {
         var session = ctx.FromSession;
 
@@ -132,9 +134,21 @@ public class RelayServer : BackgroundService
         _logger.LogRelayLinkCreateMessageReceived(session.RemoteEndPoint!, session.Id);
 
         _clientManager.AttachSession(session.Id, session);
-        _relayManager.AttachSession(session, ctx.Message.UserId, ctx.Message.RoomId);
+        _relayManager.AttachDataSession(session, ctx.Message.UserId, ctx.Message.RoomId);
 
-        _dispatcher.SendAsync(session, new RelayLinkCreatedMessage()).Forget();
+        _dispatcher.SendAsync(session, new RelayDataLinkCreatedMessage()).Forget();
+    }
+
+    private void OnCreateRelayWorkerLinkMessageReceived(MessageContext<CreateRelayWorkerLinkMessage> ctx)
+    {
+        var session = ctx.FromSession;
+
+        // Remove temp session mapping
+        _tempSessionMapping.TryRemove(session.Id, out _);
+
+        _relayManager.AttachWorkerSession(session, ctx.Message.UserId, ctx.Message.RelayTo, ctx.Message.RoomId);
+
+        _dispatcher.SendAsync(session, new RelayWorkerLinkCreatedMessage()).Forget();
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
