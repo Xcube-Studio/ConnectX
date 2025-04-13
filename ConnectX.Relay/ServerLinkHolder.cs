@@ -10,7 +10,6 @@ using ConnectX.Shared.Helpers;
 using System.Net;
 using ConnectX.Relay.Helpers;
 using ConnectX.Shared.Messages.Relay;
-using Microsoft.Extensions.Hosting.Internal;
 
 namespace ConnectX.Relay;
 
@@ -87,6 +86,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         if (session == null)
         {
             _logger.LogFailedToConnectToServer(endPoint);
+            _applicationLifetime.StopApplication();
             return;
         }
 
