@@ -92,5 +92,4 @@ jobs:
         host: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service, matrix.server)] }}
         username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service, matrix.server)] }}
         password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service, matrix.server)] }}
-        script: sudo supervisorctl start connectx-${{ matrix.service }}-serviceoUpper(matrix.server))] }}
         script: sudo supervisorctl start connectx-${{ matrix.service }}-service
