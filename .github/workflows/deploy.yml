@@ -1,4 +1,4 @@
-name: .NET Core
+name: Deploy ConnectX
 
 on:
   workflow_run:
@@ -6,15 +6,14 @@ on:
     types:
       - completed
   workflow_dispatch:
+
 jobs:
   publish:
     if: github.event.workflow_run.conclusion == 'success'
     strategy:
       matrix:
         configuration: [Relay, Server]
-
     runs-on: ubuntu-latest  
-                          
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -41,7 +40,6 @@ jobs:
       env:
         Configuration: ${{ matrix.configuration }}
 
-    
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -52,41 +50,46 @@ jobs:
     needs: publish
     strategy:
       matrix:
-        configuration: [Relay, Server]
+        service: [Relay, Server]                # 服务类型
+        server: [hangzhou,ningbo]     # 多服务器配置
     runs-on: ubuntu-latest
     steps:
+    - name: Filter Deployment by Server and Service
+      if: (matrix.service == 'Relay' && (matrix.server == 'hangzhou' || matrix.server == 'ningbo')) || 
+          (matrix.service == 'Server' && (matrix.server == 'hangzhou' || matrix.server == 'ningbo'))
+      run: echo "Deploying ${{ matrix.service }} to ${{ matrix.server }}"
+
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ${{ matrix.configuration }}-Release-linux-x64
+        name: ${{ matrix.service }}-Release-linux-x64
         path: ./deploy-package
         
     - name: Remove excluded files
       run: |
-            find ./deploy-package -name "appsettings*.json" -delete
+        find ./deploy-package -name "appsettings*.json" -delete
 
-    - name: Executing remote stop service
+    - name: Stop remote service
       uses: appleboy/ssh-action@v1
       with: 
-        host: ${{ secrets[format('{0}_SSH_HOST', matrix.configuration)] }}
-        username: ${{ secrets[format('{0}_SSH_USERNAME', matrix.configuration)] }}
-        password: ${{ secrets[format('{0}_SSH_KEY', matrix.configuration)] }}
-        script: sudo supervisorctl stop connectx-${{ matrix.configuration }}-service
+        host: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service | toUpper, matrix.server | toUpper)] }}
+        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service | toUpper, matrix.server | toUpper)] }}
+        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service | toUpper, matrix.server | toUpper)] }}
+        script: sudo supervisorctl stop connectx-${{ matrix.service }}-service
           
-    - name: SFTP Deployment
+    - name: Deploy via SFTP
       uses: wlixcc/SFTP-Deploy-Action@v1.2.5
       with:
-        server: ${{ secrets[format('{0}_SSH_HOST', matrix.configuration)] }}
-        username: ${{ secrets[format('{0}_SSH_USERNAME', matrix.configuration)] }}
-        password: ${{ secrets[format('{0}_SSH_KEY', matrix.configuration)] }}
+        server: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service | toUpper, matrix.server | toUpper)] }}
+        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service | toUpper, matrix.server | toUpper)] }}
+        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service | toUpper, matrix.server | toUpper)] }}
         local_path: './deploy-package/*'
-        remote_path: '/www/connectx/${{ matrix.configuration }}'
+        remote_path: '/www/connectx/${{ matrix.service }}'
         
-    - name: Executing remote start service
+    - name: Start remote service
       uses: appleboy/ssh-action@v1
       with: 
-        host: ${{ secrets[format('{0}_SSH_HOST', matrix.configuration)] }}
-        username: ${{ secrets[format('{0}_SSH_USERNAME', matrix.configuration)] }}
-        password: ${{ secrets[format('{0}_SSH_KEY', matrix.configuration)] }}
-        script: sudo supervisorctl start connectx-${{ matrix.configuration }}-service
-
+        host: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service | toUpper, matrix.server | toUpper)] }}
+        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service | toUpper, matrix.server | toUpper)] }}
+        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service | toUpper, matrix.server | toUpper)] }}
+        script: sudo supervisorctl start connectx-${{ matrix.service }}-service
