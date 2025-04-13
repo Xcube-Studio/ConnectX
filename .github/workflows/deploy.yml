@@ -72,24 +72,25 @@ jobs:
     - name: Stop remote service
       uses: appleboy/ssh-action@v1
       with: 
-        host: ${{ secrets[format('{0}_{1}_SSH_HOST', toUpper(matrix.service), toUpper(matrix.server))] }}
-        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', toUpper(matrix.service), toUpper(matrix.server))] }}
-        password: ${{ secrets[format('{0}_{1}_SSH_KEY', toUpper(matrix.service), toUpper(matrix.server))] }}
+        host: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service, matrix.server)] }}
+        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service, matrix.server)] }}
+        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service, matrix.server)] }}
         script: sudo supervisorctl stop connectx-${{ matrix.service }}-service
           
     - name: Deploy via SFTP
       uses: wlixcc/SFTP-Deploy-Action@v1.2.5
       with:
-        server: ${{ secrets[format('{0}_{1}_SSH_HOST', toUpper(matrix.service), toUpper(matrix.server))] }}
-        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', toUpper(matrix.service), toUpper(matrix.server))] }}
-        password: ${{ secrets[format('{0}_{1}_SSH_KEY', toUpper(matrix.service), toUpper(matrix.server))] }}
+        server: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service, matrix.server)] }}
+        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service, matrix.server)] }}
+        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service, matrix.server)] }}
         local_path: './deploy-package/*'
         remote_path: '/www/connectx/${{ matrix.service }}'
         
     - name: Start remote service
       uses: appleboy/ssh-action@v1
       with: 
-        host: ${{ secrets[format('{0}_{1}_SSH_HOST', toUpper(matrix.service), toUpper(matrix.server))] }}
-        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', toUpper(matrix.service), toUpper(matrix.server))] }}
-        password: ${{ secrets[format('{0}_{1}_SSH_KEY', toUpper(matrix.service), toUpper(matrix.server))] }}
+        host: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service, matrix.server)] }}
+        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service, matrix.server)] }}
+        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service, matrix.server)] }}
+        script: sudo supervisorctl start connectx-${{ matrix.service }}-serviceoUpper(matrix.server))] }}
         script: sudo supervisorctl start connectx-${{ matrix.service }}-service
