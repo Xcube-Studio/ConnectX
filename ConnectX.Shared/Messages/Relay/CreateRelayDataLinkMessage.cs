@@ -5,7 +5,7 @@ namespace ConnectX.Shared.Messages.Relay;
 
 [MessageDefine]
 [MemoryPackable]
-public partial class CreateRelayLinkMessage
+public partial class CreateRelayDataLinkMessage
 {
     public Guid UserId { get; init; }
     public Guid RoomId { get; init; }
