@@ -30,9 +30,11 @@ Proudly powered by another of our open-source projects: [Hive.Framework](https:/
 |`Server`: Client/Room management         |:white_check_mark:|
 |`Server`: Relay Server management        |:white_check_mark:|
 |`Relay`: Relay Server impl based on Hive |:white_check_mark:|
+|`Relay`: Ultra low latency relay impl    |:white_check_mark:|
 |`Client`: ZT based P2P connection        |:white_check_mark:|
 |`Client`: ZT based Relay connection      |:white_check_mark:|
 |`Client`: ConnectX based Relay connection|:white_check_mark:|
+|Dual Stack Socket Support                |:white_check_mark:|
 
 ## Quick Start!
 
