@@ -84,8 +84,6 @@ public class RoomInfoManager(
 
                 var updateInfo = new UpdateRoomMemberNetworkInfo
                 {
-                    RoomId = CurrentGroupInfo.RoomId,
-                    UserId = serverLinkHolder.UserId,
                     NetworkNodeId = zeroTierNodeLinkHolder.Node!.IdString,
                     NetworkIpAddresses = zeroTierNodeLinkHolder.GetIpAddresses()
                 };
@@ -158,11 +156,7 @@ public class RoomInfoManager(
         if (!serverLinkHolder.IsConnected) return null;
         if (!serverLinkHolder.IsSignedIn) return null;
 
-        var message = new AcquireGroupInfo
-        {
-            GroupId = groupId,
-            UserId = serverLinkHolder.UserId
-        };
+        var message = new AcquireGroupInfo();
         var groupInfo =
             await dispatcher.SendAndListenOnce<AcquireGroupInfo, GroupInfo>(
                 serverLinkHolder.ServerSession!,

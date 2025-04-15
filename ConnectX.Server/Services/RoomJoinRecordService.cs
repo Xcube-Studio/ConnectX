@@ -13,19 +13,24 @@ namespace ConnectX.Server.Services;
 
 public class RoomJoinRecordService : BackgroundService
 {
-    private readonly ConcurrentDictionary<Guid, DateTime> _lastRefreshTimes = new();
-    private readonly ConcurrentQueue<UpdateRoomMemberNetworkInfo> _roomInfoUpdateQueue = [];
+    private record FetchedRoomInfo(Guid UserId, Guid RoomId, UpdateRoomMemberNetworkInfo Info);
 
+    private readonly ConcurrentDictionary<Guid, DateTime> _lastRefreshTimes = new();
+    private readonly ConcurrentQueue<FetchedRoomInfo> _roomInfoUpdateQueue = [];
+
+    private readonly GroupManager _groupManager;
     private readonly PeerInfoService _peerInfoService;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger<RoomJoinRecordService> _logger;
 
     public RoomJoinRecordService(
+        GroupManager groupManager,
         PeerInfoService peerInfoService,
         IDispatcher dispatcher,
         IServiceScopeFactory serviceScopeFactory,
         ILogger<RoomJoinRecordService> logger)
     {
+        _groupManager = groupManager;
         _peerInfoService = peerInfoService;
         _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
@@ -36,12 +41,16 @@ public class RoomJoinRecordService : BackgroundService
     private void OnReceivedRoomInfoUpdate(MessageContext<UpdateRoomMemberNetworkInfo> ctx)
     {
         if (string.IsNullOrEmpty(ctx.Message.NetworkNodeId)) return;
-        if (_lastRefreshTimes.TryGetValue(ctx.Message.UserId, out var time) &&
+        if (!_groupManager.TryGetUserId(ctx.FromSession.Id, out var userId)) return;
+        if (!_groupManager.TryGetUserRoomId(userId, out var roomId)) return;
+        if (_lastRefreshTimes.TryGetValue(userId, out var time) &&
             (DateTime.UtcNow - time).TotalSeconds < 5)
             return;
 
-        _lastRefreshTimes[ctx.Message.UserId] = DateTime.UtcNow;
-        _roomInfoUpdateQueue.Enqueue(ctx.Message);
+        var roomInfo = new FetchedRoomInfo(userId, roomId, ctx.Message);
+
+        _lastRefreshTimes[userId] = DateTime.UtcNow;
+        _roomInfoUpdateQueue.Enqueue(roomInfo);
     }
 
     private void RefreshTimeCleanup()
@@ -89,11 +98,11 @@ public class RoomJoinRecordService : BackgroundService
             }
 
             var peerInfo = _peerInfoService.NetworkPeers
-                .FirstOrDefault(x => x.Address.Equals(update.NetworkNodeId, StringComparison.OrdinalIgnoreCase));
+                .FirstOrDefault(x => x.Address.Equals(update.Info.NetworkNodeId, StringComparison.OrdinalIgnoreCase));
 
             if (peerInfo?.Paths == null || peerInfo.Paths.Length == 0)
             {
-                _logger.LogPeerInfoNotFound(update.NetworkNodeId);
+                _logger.LogPeerInfoNotFound(update.Info.NetworkNodeId);
                 _roomInfoUpdateQueue.Enqueue(update);
 
                 await Task.Delay(5000, stoppingToken);
@@ -109,7 +118,7 @@ public class RoomJoinRecordService : BackgroundService
 
             if (addresses.Count == 0)
             {
-                _logger.LogPeerAddressNotReady(update.NetworkNodeId);
+                _logger.LogPeerAddressNotReady(update.Info.NetworkNodeId);
                 _roomInfoUpdateQueue.Enqueue(update);
 
                 await Task.Delay(5000, stoppingToken);
@@ -121,7 +130,7 @@ public class RoomJoinRecordService : BackgroundService
                 UserId = update.UserId,
                 RoomId = update.RoomId,
                 LogTime = DateTime.UtcNow,
-                NetworkNodeId = update.NetworkNodeId,
+                NetworkNodeId = update.Info.NetworkNodeId,
                 RoomName = group.RoomName,
                 UserPhysicalAddress = string.Join(',', addresses)
             };
@@ -129,7 +138,7 @@ public class RoomJoinRecordService : BackgroundService
             dbContext.RoomJoinHistories.Add(joinHistory);
             await dbContext.SaveChangesAsync(stoppingToken);
 
-            _logger.LogRoomJoinRecordAdded(update.UserId, update.RoomId, update.NetworkNodeId, joinHistory.UserPhysicalAddress);
+            _logger.LogRoomJoinRecordAdded(update.UserId, update.RoomId, update.Info.NetworkNodeId, joinHistory.UserPhysicalAddress);
         }
     }
 }

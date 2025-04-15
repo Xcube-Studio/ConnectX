@@ -2,7 +2,6 @@
 using ConnectX.Client.Managers;
 using ConnectX.Client.Route;
 using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Interfaces;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Models;
@@ -70,7 +69,7 @@ public class Client
         _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo.RoomId).Forget();
     }
 
-    private async Task<GroupOpResult?> PerformGroupOpAsync<T>(T message) where T : IRequireAssignedUserId
+    private async Task<GroupOpResult?> PerformGroupOpAsync<T>(T message)
     {
         var result =
             await _dispatcher.SendAndListenOnce<T, GroupOpResult>(
@@ -114,7 +113,6 @@ public class Client
     }
 
     private async Task<(GroupInfo?, GroupCreationStatus, string?)> PerformOpAndGetRoomInfoAsync<T>(T message, CancellationToken ct)
-        where T : IRequireAssignedUserId
     {
         var createResult = await PerformGroupOpAsync(message);
 
@@ -142,17 +140,9 @@ public class Client
 
             await TaskHelper.WaitUntilAsync(_zeroTierNodeLinkHolder.IsNodeOnline, ct);
 
-            var userId = message switch
-            {
-                JoinGroup joinGroup => joinGroup.UserId,
-                CreateGroup createGroup => createGroup.UserId,
-                _ => throw new ArgumentOutOfRangeException(nameof(message))
-            };
             var nodeId = _zeroTierNodeLinkHolder.Node!.IdString;
             var updateInfo = new UpdateRoomMemberNetworkInfo
             {
-                RoomId = createResult.RoomId,
-                UserId = userId,
                 NetworkNodeId = nodeId,
                 NetworkIpAddresses = _zeroTierNodeLinkHolder.GetIpAddresses()
             };
