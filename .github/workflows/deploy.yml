@@ -35,10 +35,8 @@ jobs:
       
     - name: Build the application
       run: |
-        cd ./ConnectX.$Configuration
+        cd ./ConnectX.${{ matrix.configuration }}
         dotnet publish -f net9.0 -c Release -r linux-x64 --self-contained true /p:PublishSingleFile=true
-      env:
-        Configuration: ${{ matrix.configuration }}
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -46,23 +44,17 @@ jobs:
         name: ${{ matrix.configuration }}-Release-linux-x64 
         path: ./ConnectX.${{ matrix.configuration }}/bin/Release/net9.0/linux-x64/publish/
     
-  deploy:
+  deploy-server:
     needs: publish
     strategy:
       matrix:
-        service: [Relay, Server]                # 服务类型
-        server: [hangzhou,ningbo]     # 多服务器配置
+        server: [hangzhou, ningbo]
     runs-on: ubuntu-latest
     steps:
-    - name: Filter Deployment by Server and Service
-      if: (matrix.service == 'Relay' && (matrix.server == 'hangzhou' || matrix.server == 'ningbo')) || 
-          (matrix.service == 'Server' && (matrix.server == 'hangzhou' || matrix.server == 'ningbo'))
-      run: echo "Deploying ${{ matrix.service }} to ${{ matrix.server }}"
-
     - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
-        name: ${{ matrix.service }}-Release-linux-x64
+        name: Server-Release-linux-x64
         path: ./deploy-package
         
     - name: Remove excluded files
@@ -72,24 +64,66 @@ jobs:
     - name: Stop remote service
       uses: appleboy/ssh-action@v1
       with: 
-        host: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service, matrix.server)] }}
-        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service, matrix.server)] }}
-        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service, matrix.server)] }}
-        script: sudo supervisorctl stop connectx-${{ matrix.service }}-service
+        host: ${{ secrets[format('Server_{0}_SSH_HOST', matrix.server)] }}
+        username: ${{ secrets[format('Server_{0}_SSH_USERNAME', matrix.server)] }}
+        password: ${{ secrets[format('Server_{0}_SSH_KEY', matrix.server)] }}
+        script: sudo supervisorctl stop connectx-Server-service
           
     - name: Deploy via SFTP
       uses: wlixcc/SFTP-Deploy-Action@v1.2.5
       with:
-        server: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service, matrix.server)] }}
-        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service, matrix.server)] }}
-        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service, matrix.server)] }}
+        server: ${{ secrets[format('Server_{0}_SSH_HOST', matrix.server)] }}
+        username: ${{ secrets[format('Server_{0}_SSH_USERNAME', matrix.server)] }}
+        password: ${{ secrets[format('Server_{0}_SSH_KEY', matrix.server)] }}
         local_path: './deploy-package/*'
-        remote_path: '/www/connectx/${{ matrix.service }}'
+        remote_path: '/www/connectx/Server'
         
     - name: Start remote service
       uses: appleboy/ssh-action@v1
       with: 
-        host: ${{ secrets[format('{0}_{1}_SSH_HOST', matrix.service, matrix.server)] }}
-        username: ${{ secrets[format('{0}_{1}_SSH_USERNAME', matrix.service, matrix.server)] }}
-        password: ${{ secrets[format('{0}_{1}_SSH_KEY', matrix.service, matrix.server)] }}
-        script: sudo supervisorctl start connectx-${{ matrix.service }}-service
+        host: ${{ secrets[format('Server_{0}_SSH_HOST', matrix.server)] }}
+        username: ${{ secrets[format('Server_{0}_SSH_USERNAME', matrix.server)] }}
+        password: ${{ secrets[format('Server_{0}_SSH_KEY', matrix.server)] }}
+        script: sudo supervisorctl start connectx-Server-service
+
+  deploy-relay:
+    needs: deploy-server
+    strategy:
+      matrix:
+        server: [hangzhou, ningbo, shiyan]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: Relay-Release-linux-x64
+        path: ./deploy-package
+        
+    - name: Remove excluded files
+      run: |
+        find ./deploy-package -name "appsettings*.json" -delete
+
+    - name: Stop remote service
+      uses: appleboy/ssh-action@v1
+      with: 
+        host: ${{ secrets[format('Relay_{0}_SSH_HOST', matrix.server)] }}
+        username: ${{ secrets[format('Relay_{0}_SSH_USERNAME', matrix.server)] }}
+        password: ${{ secrets[format('Relay_{0}_SSH_KEY', matrix.server)] }}
+        script: sudo supervisorctl stop connectx-Relay-service
+          
+    - name: Deploy via SFTP
+      uses: wlixcc/SFTP-Deploy-Action@v1.2.5
+      with:
+        server: ${{ secrets[format('Relay_{0}_SSH_HOST', matrix.server)] }}
+        username: ${{ secrets[format('Relay_{0}_SSH_USERNAME', matrix.server)] }}
+        password: ${{ secrets[format('Relay_{0}_SSH_KEY', matrix.server)] }}
+        local_path: './deploy-package/*'
+        remote_path: '/www/connectx/Relay'
+        
+    - name: Start remote service
+      uses: appleboy/ssh-action@v1
+      with: 
+        host: ${{ secrets[format('Relay_{0}_SSH_HOST', matrix.server)] }}
+        username: ${{ secrets[format('Relay_{0}_SSH_USERNAME', matrix.server)] }}
+        password: ${{ secrets[format('Relay_{0}_SSH_KEY', matrix.server)] }}
+        script: sudo supervisorctl start connectx-Relay-service
