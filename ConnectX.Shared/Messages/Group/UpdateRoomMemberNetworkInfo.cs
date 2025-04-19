@@ -8,10 +8,6 @@ namespace ConnectX.Shared.Messages.Group;
 [MemoryPackable]
 public partial class UpdateRoomMemberNetworkInfo
 {
-    public required Guid UserId { get; init; }
-
-    public required Guid RoomId { get; init; }
-
     public required string NetworkNodeId { get; init; }
 
     public required IPAddress[] NetworkIpAddresses { get; init; }

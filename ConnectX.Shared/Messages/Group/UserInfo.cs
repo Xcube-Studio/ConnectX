@@ -1,5 +1,4 @@
 ﻿using System.Net;
-using ConnectX.Shared.Interfaces;
 using Hive.Codec.Shared;
 using MemoryPack;
 
@@ -7,7 +6,7 @@ namespace ConnectX.Shared.Messages.Group;
 
 [MessageDefine]
 [MemoryPackable]
-public partial class UserInfo : IRequireAssignedUserId, IEquatable<UserInfo>
+public partial class UserInfo : IEquatable<UserInfo>
 {
     public required bool JoinP2PNetwork { get; init; }
     public required string DisplayName { get; init; }

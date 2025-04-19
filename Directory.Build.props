@@ -1,0 +1,15 @@
+<Project>
+
+  <PropertyGroup>
+    <VersionMajor>$([System.DateTime]::UtcNow.Year)</VersionMajor>
+    <VersionMinor>$([System.DateTime]::UtcNow.Subtract($([System.DateTime]::new(2023,1,1))).TotalDays.ToString("0"))</VersionMinor>
+    <VersionPatch>$([System.DateTime]::UtcNow.DayOfYear)</VersionPatch>
+    <AssemblyVersion>$(VersionMajor).$(VersionMinor).$(VersionPatch)</AssemblyVersion>
+  </PropertyGroup>
+  
+  <PropertyGroup>
+    <FileVersion>$(AssemblyVersion)</FileVersion>
+    <Version>$(AssemblyVersion)</Version>
+  </PropertyGroup>
+
+</Project>

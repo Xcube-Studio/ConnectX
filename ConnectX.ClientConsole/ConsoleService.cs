@@ -1,7 +1,6 @@
 ﻿using Microsoft.Extensions.Hosting;
 using System.CommandLine;
 using System.CommandLine.Invocation;
-using ConnectX.Client.Interfaces;
 using ConnectX.ClientConsole.Helpers;
 using ConnectX.Shared.Messages.Group;
 using Microsoft.Extensions.Logging;
@@ -47,7 +46,6 @@ internal static class Commands
 
 public class ConsoleService(
     Client.Client client,
-    IServerLinkHolder serverLinkHolder,
     ILogger<ConsoleService> logger)
     : BackgroundService
 {
@@ -113,11 +111,7 @@ public class ConsoleService(
             return;
         }
 
-        var (status, error) = await client.LeaveGroupAsync(new LeaveGroup
-        {
-            GroupId = _lastGroupInfo.RoomId,
-            UserId = serverLinkHolder.UserId
-        });
+        var (status, error) = await client.LeaveGroupAsync(new LeaveGroup());
 
         logger.LogInformation("Room left, {status:G}, {error}", status, error);
     }
@@ -140,7 +134,6 @@ public class ConsoleService(
             GroupId = roomId ?? Guid.Empty,
             RoomShortId = roomShortId,
             RoomPassword = password,
-            UserId = serverLinkHolder.UserId,
             UseRelayServer = useRelayServer
         };
 
@@ -167,7 +160,6 @@ public class ConsoleService(
             RoomDescription = description,
             RoomPassword = password,
             MaxUserCount = maxUser,
-            UserId = serverLinkHolder.UserId,
             UseRelayServer = useRelayServer
         };
 

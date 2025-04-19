@@ -236,17 +236,37 @@ public class GroupManager
         _logger.LogGroupHasBeenDismissedBy(group.RoomId, sessionId);
     }
 
+    public bool TryGetUserId(SessionId sessionId, out Guid userId)
+    {
+        return _sessionIdMapping.TryGetValue(sessionId, out userId);
+    }
+
+    public bool TryGetUserRoomId(Guid userId, out Guid roomId)
+    {
+        var user = _groupMappings.Values
+            .FirstOrDefault(g => g.Users.Any(u => u.UserId == userId));
+
+        if (user == null)
+        {
+            roomId = Guid.Empty;
+            return false;
+        }
+
+        roomId = user.RoomId;
+        return true;
+    }
+
     private void OnUpdateRoomMemberNetworkInfoReceived(MessageContext<UpdateRoomMemberNetworkInfo> ctx)
     {
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
-        if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
-
-        var groupId = ctx.Message.RoomId;
+        if (!TryGetUserId(ctx.FromSession.Id, out var userId)) return;
+        if (!HasUserMapping(userId, ctx.Dispatcher, ctx.FromSession)) return;
+        if (!TryGetUserRoomId(userId, out var groupId)) return;
 
         if (!TryGetGroup(groupId, ctx.Dispatcher, ctx.FromSession, out var group)) return;
 
-        var user = group.Users.FirstOrDefault(u => u.UserId == ctx.Message.UserId);
+        var user = group.Users.FirstOrDefault(u => u.UserId == userId);
 
         if (user == null)
         {
@@ -267,7 +287,7 @@ public class GroupManager
         var result = new GroupOpResult(GroupCreationStatus.Succeeded);
         ctx.Dispatcher.SendAsync(ctx.FromSession, result).Forget();
 
-        _logger.LogMemberInfoUpdated(ctx.Message.UserId, ctx.Message);
+        _logger.LogMemberInfoUpdated(userId, ctx.Message);
 
         NotifyGroupMembersAsync(group, new RoomMemberInfoUpdated { UserInfo = user }).Forget();
     }
@@ -276,10 +296,8 @@ public class GroupManager
     {
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
-        if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
-
-        var userId = _sessionIdMapping[ctx.FromSession.Id];
-
+        if (!TryGetUserId(ctx.FromSession.Id, out var userId)) return;
+        if (!HasUserMapping(userId, ctx.Dispatcher, ctx.FromSession)) return;
         if (IsAlreadyInGroup(userId, ctx.Dispatcher, ctx.FromSession)) return;
 
         CreateRoomAsync(userId, ctx).Forget();
@@ -428,7 +446,8 @@ public class GroupManager
     {
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
-        if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
+        if (!TryGetUserId(ctx.FromSession.Id, out var userId)) return;
+        if (!HasUserMapping(userId, ctx.Dispatcher, ctx.FromSession)) return;
         if (IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession)) return;
 
         var message = ctx.Message;
@@ -461,9 +480,9 @@ public class GroupManager
             return;
         }
 
-        var user = _userMapping[message.UserId];
+        var user = _userMapping[userId];
         var assignedRelayServerAddress =
-            ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(message.UserId, ctx) : null;
+            ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(userId, ctx) : null;
         var info = new UserSessionInfo(user, assignedRelayServerAddress);
 
         group.Users.Add(info);
@@ -543,27 +562,28 @@ public class GroupManager
     {
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
-        if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
+        if (!TryGetUserId(ctx.FromSession.Id, out var userId)) return;
+        if (!TryGetUserRoomId(userId, out var groupId)) return;
+        if (!HasUserMapping(userId, ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession, false)) return;
 
-        var message = ctx.Message;
-        var group = _groupMappings.Values.First(g => g.Users.Any(u => u.UserId == message.UserId));
-
+        var group = _groupMappings.Values.First(g => g.Users.Any(u => u.UserId == userId));
         var success = new GroupOpResult(GroupCreationStatus.Succeeded);
+
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 
-        if (group.RoomOwner.UserId == message.UserId)
+        if (group.RoomOwner.UserId == userId)
         {
             _groupMappings.TryRemove(group.RoomId, out _);
             DeleteGroupNetworkAsync(group).Forget();
             NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, null)).Forget();
 
-            _logger.LogGroupHasBeenDismissedBy(message.GroupId, ctx.FromSession.Id);
+            _logger.LogGroupHasBeenDismissedBy(groupId, ctx.FromSession.Id);
 
             return;
         }
 
-        RemoveUser(message.GroupId, message.UserId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Left);
+        RemoveUser(groupId, userId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Left);
 
         _logger.LogUserLeftGroup(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
     }
@@ -572,20 +592,31 @@ public class GroupManager
     {
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsGroupSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
-        if (!HasUserMapping(ctx.Message.UserId, ctx.Dispatcher, ctx.FromSession)) return;
+        if (!TryGetUserId(ctx.FromSession.Id, out var userId)) return;
+        if (!TryGetUserRoomId(userId, out var groupId)) return;
+        if (!HasUserMapping(userId, ctx.Dispatcher, ctx.FromSession)) return;
         if (!IsAlreadyInGroup(_sessionIdMapping[ctx.FromSession.Id], ctx.Dispatcher, ctx.FromSession, false)) return;
 
         var message = ctx.Message;
-        var group = _groupMappings[message.GroupId];
+        var group = _groupMappings[groupId];
 
-        if (group.RoomOwner.UserId != message.UserId)
+        if (group.RoomOwner.UserId != userId)
         {
-            _logger.LogCanNotKickWithoutPermission(ctx.FromSession.Id.Id, message.UserId, message.GroupId);
+            _logger.LogCanNotKickWithoutPermission(ctx.FromSession.Id.Id, userId, groupId);
+            return;
+        }
+
+        if (group.RoomOwner.UserId == message.UserToKick)
+        {
+            _logger.LogRoomOwnerTryingToKickSelf(ctx.FromSession.Id.Id, userId, groupId);
+
+            var error = new GroupOpResult(GroupCreationStatus.Other, "You can not kick yourself!");
+            ctx.Dispatcher.SendAsync(ctx.FromSession, error).Forget();
 
             return;
         }
 
-        RemoveUser(message.GroupId, message.UserToKick, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Kicked);
+        RemoveUser(groupId, message.UserToKick, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Kicked);
 
         var success = new GroupOpResult(GroupCreationStatus.Succeeded);
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
@@ -600,7 +631,8 @@ public class GroupManager
         if (!_clientManager.IsSessionAttached(session.Id) ||
             !_sessionIdMapping.TryGetValue(session.Id, out var userId) ||
             !_userMapping.ContainsKey(userId) ||
-            !_groupMappings.TryGetValue(ctx.Message.GroupId, out var group))
+            !TryGetUserRoomId(userId, out var groupId) ||
+            !_groupMappings.TryGetValue(groupId, out var group))
         {
             ctx.Dispatcher.SendAsync(session, GroupInfo.Invalid).Forget();
             return;
@@ -684,7 +716,8 @@ internal static partial class GroupManagerLoggers
 
     [LoggerMessage(LogLevel.Error,
         "[GROUP_MANAGER] Failed to attach session, session id: {sessionId}, failed to add user.")]
-    public static partial void LogGroupManagerFailedToAddSessionToSessionMapping(this ILogger logger,
+    public static partial void LogGroupManagerFailedToAddSessionToSessionMapping(
+        this ILogger logger,
         SessionId sessionId);
 
     [LoggerMessage(LogLevel.Information,
@@ -707,7 +740,9 @@ internal static partial class GroupManagerLoggers
 
     [LoggerMessage(LogLevel.Information,
         "[GROUP_MANAGER] User [{userId}] has been removed from group [{groupId}] because of disconnection.")]
-    public static partial void LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(this ILogger logger, Guid userId,
+    public static partial void LogUserHasBeenRemovedFromGroupBecauseOfDisconnection(
+        this ILogger logger,
+        Guid userId,
         Guid groupId);
 
     [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] New network created, id: 0x{id}.")]
@@ -745,24 +780,36 @@ internal static partial class GroupManagerLoggers
     public static partial void LogWrongPassword(this ILogger logger, SessionId sessionId, Guid groupId);
 
     [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{SessionId}] joined group [{groupName}]({shortId})")]
-    public static partial void LogUserJoinedGroup(this ILogger logger, SessionId sessionId, string groupName,
+    public static partial void LogUserJoinedGroup(
+        this ILogger logger,
+        SessionId sessionId,
+        string groupName,
         string shortId);
 
     [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] Group [{groupId}] has been dismissed by [{SessionId}]")]
     public static partial void LogGroupHasBeenDismissedBy(this ILogger logger, Guid groupId, SessionId sessionId);
 
     [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{SessionId}] left group [{groupName}]({shortId})")]
-    public static partial void LogUserLeftGroup(this ILogger logger, SessionId sessionId, string groupName,
+    public static partial void LogUserLeftGroup(
+        this ILogger logger,
+        SessionId sessionId,
+        string groupName,
         string shortId);
 
     [LoggerMessage(LogLevel.Warning,
         "[GROUP_MANAGER] User [{SessionId}] tried to kick user [{userId}] from group [{groupId}], but the user is not the owner.")]
-    public static partial void LogCanNotKickWithoutPermission(this ILogger logger, SessionId sessionId, Guid userId,
+    public static partial void LogCanNotKickWithoutPermission(
+        this ILogger logger,
+        SessionId sessionId,
+        Guid userId,
         Guid groupId);
 
     [LoggerMessage(LogLevel.Information,
         "[GROUP_MANAGER] User [{SessionId}] has been kicked from group [{groupName}]({shortId})")]
-    public static partial void LogUserHasBeenKickedFromGroup(this ILogger logger, SessionId sessionId, string groupName,
+    public static partial void LogUserHasBeenKickedFromGroup(
+        this ILogger logger,
+        SessionId sessionId,
+        string groupName,
         string shortId);
 
     [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Session [{id}] Failed to modify display name because user not found.")]
@@ -779,4 +826,11 @@ internal static partial class GroupManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] Relay server address assigned to user [{userId}], address: {address}")]
     public static partial void LogRelayServerAddressAssigned(this ILogger logger, Guid userId, IPEndPoint address);
+
+    [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] User [{SessionId}] tried to kick self [{userId}] from group [{groupId}], but the user is not the owner.")]
+    public static partial void LogRoomOwnerTryingToKickSelf(
+        this ILogger logger,
+        SessionId sessionId,
+        Guid userId,
+        Guid groupId);
 }
