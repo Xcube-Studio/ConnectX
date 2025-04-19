@@ -89,6 +89,7 @@ jobs:
   deploy-relay:
     needs: deploy-server
     strategy:
+      fail-fast: false
       matrix:
         server: [hangzhou, ningbo, shiyan]
     runs-on: ubuntu-latest
