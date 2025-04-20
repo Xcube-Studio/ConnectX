@@ -124,7 +124,7 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
             await _dispatcher.SendAsync(session, new SigninMessage
             {
                 JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
-                DisplayName = session.RemoteEndPoint?.ToString() ?? Guid.CreateVersion7().ToString("N")
+                DisplayName = $"User-{Guid.CreateVersion7().ToString("N")[^6..]}"
             }, cancellationToken);
 
             await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
