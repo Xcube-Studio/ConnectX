@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using ConnectX.Server.Interfaces;
@@ -508,6 +509,9 @@ public class GroupManager
         if (user == null) return;
 
         group.Users.Remove(user);
+
+        if (state == GroupUserStates.Kicked) // 通知被踢客户端
+            _dispatcher.SendAsync(user.Session, new GroupUserStateChanged(state, user)).Forget();
 
         DeleteGroupNetworkMemberAsync(group, user).Forget();
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(state, user)).Forget();

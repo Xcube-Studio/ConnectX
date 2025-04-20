@@ -104,9 +104,18 @@ public class Client
         var state = ctx.Message.State;
         var userInfo = ctx.Message.UserInfo;
 
-        if (state == GroupUserStates.Dismissed)
+        switch (state)
         {
-            ResetRoomState().Forget();
+            case GroupUserStates.Left:
+            case GroupUserStates.Disconnected:
+            case GroupUserStates.Kicked:
+                if (userInfo?.UserId == _serverLinkHolder.UserId)
+                    ResetRoomState().Forget();
+                else _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
+                break;
+            case GroupUserStates.Dismissed:
+                ResetRoomState().Forget();
+                break;
         }
 
         OnGroupStateChanged?.Invoke(state, userInfo);
