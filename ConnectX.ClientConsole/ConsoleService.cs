@@ -41,6 +41,11 @@ internal static class Commands
 
             public static readonly Option RoomShortIdOption = new Option<string?>(["--room_short_id", "-sid"], "The short ID of the room");
         }
+
+        public static class Kick
+        {
+            public static readonly Option UserIdToKick = new Option<Guid?>(["--user_id", "-id"], "The ID of the user to kick");
+        }
     }
 }
 
@@ -96,11 +101,34 @@ public class ConsoleService(
         var leaveCommand = new Command("leave", "Leave the room.");
         leaveCommand.SetHandler(HandleRoomLeaveAsync);
 
+        var kickCommand = new Command("kick", "Kick a user")
+        {
+            Commands.Room.Kick.UserIdToKick
+        };
+
+        kickCommand.SetHandler(HandleRoomKickAsync);
+
         room.AddCommand(createCommand);
         room.AddCommand(joinCommand);
         room.AddCommand(leaveCommand);
+        room.AddCommand(kickCommand);
 
         return room;
+    }
+
+    private async Task HandleRoomKickAsync(InvocationContext obj)
+    {
+        var userIdToKick = (Guid)obj.ParseResult.GetValueForOption(Commands.Room.Kick.UserIdToKick)!;
+
+        if (_lastGroupInfo == null)
+        {
+            logger.LogError("You are not in any room");
+            return;
+        }
+
+        var (status, error) = await client.KickUserAsync(new KickUser() { UserToKick = userIdToKick });
+
+        logger.LogInformation("User kicked, {status:G}, {error}", status, error);
     }
 
     private async Task HandleRoomLeaveAsync(InvocationContext obj)
@@ -166,6 +194,8 @@ public class ConsoleService(
         var (groupInfo, status, error) = await client.CreateGroupAsync(message, CancellationToken.None);
         
         logger.LogInformation("Room created, {@info}, {status:G}, {error}", groupInfo, status, error);
+
+        _lastGroupInfo = groupInfo;
     }
 
     private RootCommand BuildCommand()
