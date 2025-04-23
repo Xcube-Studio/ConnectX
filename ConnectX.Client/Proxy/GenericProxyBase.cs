@@ -67,24 +67,31 @@ public abstract class GenericProxyBase : IDisposable
 
         _disposed = true;
 
-        _internalTokenSource.Cancel();
-        _combinedTokenSource.Dispose();
-        _internalTokenSource.Dispose();
+        try
+        {
+            _internalTokenSource.Cancel();
+            _combinedTokenSource.Dispose();
+            _internalTokenSource.Dispose();
 
-        InwardBuffersQueue?.Writer.Complete();
-        OutwardBuffersQueue?.Writer.Complete();
+            InwardBuffersQueue?.Writer.Complete();
+            OutwardBuffersQueue?.Writer.Complete();
 
-        InwardBuffersQueue = null;
-        OutwardBuffersQueue = null;
+            InwardBuffersQueue = null;
+            OutwardBuffersQueue = null;
 
-        OutwardSenders.Clear();
+            OutwardSenders.Clear();
 
-        _innerSocket?.Shutdown(SocketShutdown.Both);
-        _innerSocket?.Close();
-        _innerSocket?.Dispose();
-        _innerSocket = null;
+            _innerSocket?.Shutdown(SocketShutdown.Both);
+            _innerSocket?.Close();
+            _innerSocket?.Dispose();
+            _innerSocket = null;
 
-        Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
+            Logger.LogProxyDisposed(GetProxyInfoForLog(), LocalServerPort);
+        }
+        catch (Exception e)
+        {
+            Logger.LogProxyDisposeEx(e, GetProxyInfoForLog());
+        }
     }
 
     public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerConnected;
@@ -369,6 +376,9 @@ internal static partial class GenericProxyBaseLoggers
 
     [LoggerMessage(LogLevel.Information, "[{ProxyInfo}] Proxy disposed, local port: {LocalPort}")]
     public static partial void LogProxyDisposed(this ILogger logger, object proxyInfo, ushort localPort);
+
+    [LoggerMessage(LogLevel.Warning, "[{ProxyInfo}] Proxy dispose throws an exception")]
+    public static partial void LogProxyDisposeEx(this ILogger logger, Exception ex, object proxyInfo);
 
     [LoggerMessage(LogLevel.Warning, "[{ProxyInfo}] Failed to send McPacketCarrier, self port [{selfRealPort}], target port [{targetRealPort}], last try time: {LastTryTime}, maybe is because proxy is disposed.")]
     public static partial void LogFailedToSendMcPacketCarrier(
