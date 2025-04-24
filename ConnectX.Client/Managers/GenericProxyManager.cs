@@ -1,7 +1,9 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Client.Proxy;
+using ConnectX.Client.Transmission.Connections;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
@@ -113,7 +115,11 @@ public abstract class GenericProxyManager : BackgroundService
         // 在真实服务端一侧，创建一个客户端代理，serverRealMcPort是localRealPort, clientRealPort是remoteRealPort
         var key = new TunnelIdentifier(partnerId, serverRealMcPort, clientRealPort);
 
-        if (_proxies.Remove(key, out var prevProxy)) prevProxy.Dispose();
+        if (_proxies.Remove(key, out var prevProxy))
+        {
+            Logger.LogErrorProxyPairWithSameKey(partnerId, clientRealPort, serverRealMcPort);
+            prevProxy.Dispose();
+        }
 
         var proxy = ActivatorUtilities.CreateInstance<GenericProxyClient>(
             _serviceProvider,
