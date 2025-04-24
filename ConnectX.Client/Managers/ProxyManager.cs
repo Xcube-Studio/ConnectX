@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Client.Proxy;
 using ConnectX.Client.Transmission;
@@ -65,7 +66,8 @@ public sealed class ProxyManager : GenericProxyManager
         _registeredHandlers.Add((partner.Connection.Dispatcher, id));
     }
 
-    public GenericProxyAcceptor? GetOrCreateAcceptor(Guid partnerId,
+    public GenericProxyAcceptor? GetOrCreateAcceptor(
+        Guid partnerId,
         ushort remoteRealMcServerPort)
     {
         if (!_partnerManager.Partners.TryGetValue(partnerId, out var value))

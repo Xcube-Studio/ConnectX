@@ -55,7 +55,7 @@ public abstract class GenericProxyBase : IDisposable
 
         OutwardBuffersQueue?.Writer.Complete();
         OutwardBuffersQueue = Channel.CreateUnbounded<ForwardPacketCarrier>(new UnboundedChannelOptions
-        {
+        { 
             SingleReader = true,
             SingleWriter = false
         });
@@ -92,6 +92,8 @@ public abstract class GenericProxyBase : IDisposable
         {
             Logger.LogProxyDisposeEx(e, GetProxyInfoForLog());
         }
+
+        GC.SuppressFinalize(this);
     }
 
     public event Action<TunnelIdentifier, GenericProxyBase>? OnRealServerConnected;
@@ -198,8 +200,8 @@ public abstract class GenericProxyBase : IDisposable
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            if (InwardBuffersQueue == null) break;
             if (!CheckSocketValid()) continue;
+            if (InwardBuffersQueue == null) break;
 
             var reader = InwardBuffersQueue.Reader;
 
