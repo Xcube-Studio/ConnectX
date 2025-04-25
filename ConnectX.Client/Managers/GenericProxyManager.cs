@@ -1,9 +1,7 @@
 ﻿using System.Net;
 using System.Net.Sockets;
-using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Client.Proxy;
-using ConnectX.Client.Transmission.Connections;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;

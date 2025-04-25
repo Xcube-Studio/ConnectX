@@ -28,7 +28,7 @@ public class Router : BackgroundService
 
     private readonly IServerLinkHolder _serverLinkHolder;
     private readonly IServiceProvider _serviceProvider;
-    private int _currentPeerCount;
+    private long _currentPeerCount;
 
     public Router(
         IServerLinkHolder serverLinkHolder,
@@ -77,7 +77,7 @@ public class Router : BackgroundService
 
     private void OnPeerAdded(Guid id, Peer peer)
     {
-        Interlocked.Increment(ref _currentPeerCount);
+        var addedCount = Interlocked.Increment(ref _currentPeerCount);
 
         peer.DirectLink.Dispatcher.AddHandler<P2PPacket>(OnP2PPacketReceived);
         peer.DirectLink.Dispatcher.AddHandler<LinkStatePacket>(OnLinkStatePacketReceived);
@@ -95,14 +95,14 @@ public class Router : BackgroundService
         if (RouteTable.GetForwardInterface(id) == Guid.Empty)
             RouteTable.ForceAdd(id, id);
 
-        _logger.LogPeerAdded(peer.Id, _currentPeerCount);
+        _logger.LogPeerAdded(peer.Id, addedCount);
 
         CheckLinkStateAsync().CatchException();
     }
 
     private void OnPeerRemoved(Guid id, Peer peer)
     {
-        Interlocked.Decrement(ref _currentPeerCount);
+        var decreasedCount = Interlocked.Decrement(ref _currentPeerCount);
 
         peer.DirectLink.Dispatcher.RemoveHandler<P2PPacket>(OnP2PPacketReceived);
         peer.DirectLink.Dispatcher.RemoveHandler<LinkStatePacket>(OnLinkStatePacketReceived);
@@ -110,7 +110,7 @@ public class Router : BackgroundService
 
         _pingCheckers.TryRemove(peer.Id, out _);
 
-        _logger.LogPeerRemoved(peer.Id, _currentPeerCount);
+        _logger.LogPeerRemoved(peer.Id, decreasedCount);
 
         var selfLinkState = RouteTable.GetSelfLinkState();
         if (selfLinkState != null)
@@ -255,7 +255,7 @@ public class Router : BackgroundService
 
     private async Task CheckLinkStateAsync()
     {
-        _logger.LogCheckLinkState(_currentPeerCount);
+        _logger.LogCheckLinkState(Interlocked.Read(ref _currentPeerCount));
 
         var interfaces = new List<Guid>();
         var states = new List<int>();
@@ -303,7 +303,7 @@ public class Router : BackgroundService
 
     private void BroadcastLinkState(LinkStatePacket linkStatePacket)
     {
-        _logger.LogBroadcastLinkState(_currentPeerCount);
+        _logger.LogBroadcastLinkState(Interlocked.Read(ref _currentPeerCount));
 
         foreach (var (_, peer) in _peerManager)
         {
@@ -335,7 +335,7 @@ public class Router : BackgroundService
     public void RemoveAllPeers()
     {
         _pingCheckers.Clear();
-        _currentPeerCount = 0;
+        Interlocked.Exchange(ref _currentPeerCount, 0);
         RouteTable.RemoveAllEntries();
 
         _logger.LogPeerCleared();
@@ -366,11 +366,11 @@ internal static partial class RouterLoggers
     [LoggerMessage(LogLevel.Information, "[ROUTER] Router stopped")]
     public static partial void LogRouterStopped(this ILogger logger);
 
-    [LoggerMessage(LogLevel.Information, "[ROUTER] Peer {PeerId} added, current peer count: {PearCount}")]
-    public static partial void LogPeerAdded(this ILogger logger, Guid peerId, int pearCount);
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Peer {PeerId} added, current peer count: {PeerCount}")]
+    public static partial void LogPeerAdded(this ILogger logger, Guid peerId, long peerCount);
 
-    [LoggerMessage(LogLevel.Information, "[ROUTER] Peer {PeerId} removed, current peer count: {PearCount}")]
-    public static partial void LogPeerRemoved(this ILogger logger, Guid peerId, int pearCount);
+    [LoggerMessage(LogLevel.Information, "[ROUTER] Peer {PeerId} removed, current peer count: {PeerCount}")]
+    public static partial void LogPeerRemoved(this ILogger logger, Guid peerId, long peerCount);
 
     [LoggerMessage(LogLevel.Warning,
         "[ROUTER] P2P transmit error: {Error}, from {From}, to {To}, original to {OriginalTo}")]
@@ -399,7 +399,7 @@ internal static partial class RouterLoggers
     public static partial void LogLinkIsNotReachable(this ILogger logger, Guid linkId);
 
     [LoggerMessage(LogLevel.Information, "[ROUTER] Check link state, current peer count: {PeerCount}")]
-    public static partial void LogCheckLinkState(this ILogger logger, int peerCount);
+    public static partial void LogCheckLinkState(this ILogger logger, long peerCount);
 
     [LoggerMessage(LogLevel.Trace, "[ROUTER] Check link state to {RemoteEndPoint}")]
     public static partial void LogCheckLinkStateTo(this ILogger logger, IPEndPoint? remoteEndPoint);
@@ -411,7 +411,7 @@ internal static partial class RouterLoggers
     public static partial void LogLinkStateCheckingDone(this ILogger logger);
 
     [LoggerMessage(LogLevel.Information, "[ROUTER] Broadcast link state to all peers, current peer count: {PeerCount}")]
-    public static partial void LogBroadcastLinkState(this ILogger logger, int peerCount);
+    public static partial void LogBroadcastLinkState(this ILogger logger, long peerCount);
 
     [LoggerMessage(LogLevel.Trace, "[ROUTER] Broadcast link state to {RemoteEndPoint}")]
     public static partial void LogBroadcastLinkStateTo(this ILogger logger, IPEndPoint? remoteEndPoint);

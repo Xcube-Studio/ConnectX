@@ -1,4 +1,5 @@
-﻿using Hive.Network.Shared;
+﻿using System.Buffers;
+using Hive.Network.Shared;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Sockets;
@@ -12,7 +13,6 @@ public sealed class ZtTcpSession : AbstractSession
 {
     private bool _closed;
     private readonly bool _isAcceptedSocket;
-    private readonly byte[] _receiveBuffer = new byte[NetworkSettings.DefaultBufferSize];
 
     public ZtTcpSession(
         int sessionId,
@@ -64,21 +64,30 @@ public sealed class ZtTcpSession : AbstractSession
                 continue;
             }
 
-            var receiveLen = await ReceiveOnce(ArraySegment<byte>.Empty, token);
+            var buffer = ArrayPool<byte>.Shared.Rent(NetworkSettings.DefaultBufferSize);
 
-            if (receiveLen is 0 or -1) break;
+            try
+            {
+                var receiveLen = await ReceiveOnce(buffer, token);
 
-            var memory = writer.GetMemory(NetworkSettings.DefaultBufferSize);
+                if (receiveLen is 0 or -1) break;
 
-            _receiveBuffer.AsSpan(0, receiveLen).CopyTo(memory.Span);
+                var memory = writer.GetMemory(NetworkSettings.DefaultBufferSize);
 
-            Logger.LogDataReceived(RemoteEndPoint!, receiveLen);
+                buffer.AsSpan(0, receiveLen).CopyTo(memory.Span);
 
-            writer.Advance(receiveLen);
+                Logger.LogDataReceived(RemoteEndPoint!, receiveLen);
 
-            var flushResult = await writer.FlushAsync(token);
+                writer.Advance(receiveLen);
 
-            if (flushResult.IsCompleted) break;
+                var flushResult = await writer.FlushAsync(token);
+
+                if (flushResult.IsCompleted) break;
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
+            }
         }
     }
 
@@ -86,7 +95,7 @@ public sealed class ZtTcpSession : AbstractSession
     {
         ArgumentNullException.ThrowIfNull(Socket);
 
-        var len = Socket.Receive(_receiveBuffer);
+        var len = Socket.Receive(buffer.Array);
 
         return ValueTask.FromResult(len);
     }
