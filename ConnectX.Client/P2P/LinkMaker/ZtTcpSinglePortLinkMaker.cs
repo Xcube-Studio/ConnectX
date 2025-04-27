@@ -15,7 +15,7 @@ namespace ConnectX.Client.P2P.LinkMaker;
 /// 如果是主动方，那么就是接受远端；如果是被动方，那么就是连接远端
 /// </summary>
 /// <returns></returns>
-public class ZtTcpSinglePortLinkMaker(
+public sealed class ZtTcpSinglePortLinkMaker(
     bool isInitiator,
     long startTimeTick,
     Guid partnerId,

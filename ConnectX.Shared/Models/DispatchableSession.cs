@@ -1,5 +1,4 @@
-﻿using ConnectX.Shared.Helpers;
-using ConnectX.Shared.Interfaces;
+﻿using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
 
@@ -16,7 +15,8 @@ public class DispatchableSession : IDispatchableSession
         Dispatcher = dispatcher;
 
         Session.BindTo(Dispatcher);
-        Session.StartAsync(cancellationToken).Forget();
+
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => Session.StartAsync(cancellationToken));
     }
 
     public ISession Session { get; }
@@ -25,5 +25,6 @@ public class DispatchableSession : IDispatchableSession
     public void Dispose()
     {
         Session.OnMessageReceived -= Dispatcher.Dispatch;
+        GC.SuppressFinalize(this);
     }
 }
