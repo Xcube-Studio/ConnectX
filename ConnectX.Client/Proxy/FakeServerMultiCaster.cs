@@ -120,37 +120,50 @@ public class FakeServerMultiCaster : BackgroundService
         {
             if (_roomInfoManager.CurrentGroupInfo == null)
             {
-                // We are not in a room, so we don't need to listen to multicast
                 await Task.Delay(3000, stoppingToken);
                 continue;
             }
 
-            using var multicastSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
-            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
-            
-            multicastSocket.SetSocketOption(
-                SocketOptionLevel.IP,
-                SocketOptionName.AddMembership,
-                multicastOption);
+            using var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
-            multicastSocket.SetSocketOption(
-                SocketOptionLevel.Socket,
-                SocketOptionName.ReuseAddress,
-                true);
+            // Allow multiple sockets to bind to same address (important for Linux/macOS)
+            multicastSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
+            // Bind to ANY address but the multicast port
             multicastSocket.Bind(new IPEndPoint(IPAddress.Any, MulticastPort));
-            
-            var receiveFromResult = await multicastSocket.ReceiveFromAsync(buffer, MulticastIpe);
-            var message = Encoding.UTF8.GetString(buffer, 0, receiveFromResult.ReceivedBytes);
-            var serverName = message["[MOTD]".Length..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
-            var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
-            var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
-            var port = ushort.Parse(message[portStart..portEnd]);
 
-            if (!serverName.StartsWith($"[{Prefix}]")) //如果[ConnectX]开头，则是自己发出的，忽略
-                ListenedLanServer(serverName, port);
+            // Join multicast group
+            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
+            multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
 
-            multicastSocket.Close();
+            try
+            {
+                var receiveFromResult = await multicastSocket.ReceiveFromAsync(buffer, SocketFlags.None,
+                    new IPEndPoint(IPAddress.Any, 0), stoppingToken);
+                var message = Encoding.UTF8.GetString(buffer, 0, receiveFromResult.ReceivedBytes);
+
+                var serverName = message["[MOTD]".Length..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
+                var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
+                var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
+                var port = ushort.Parse(message[portStart..portEnd]);
+
+                if (!serverName.StartsWith($"[{Prefix}]"))
+                {
+                    ListenedLanServer(serverName, port);
+                }
+            }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.Interrupted)
+            {
+                // Expected during shutdown
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error receiving multicast message");
+            }
+            finally
+            {
+                multicastSocket.Close();
+            }
 
             await Task.Delay(3000, stoppingToken);
         }
