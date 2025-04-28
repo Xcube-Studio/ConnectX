@@ -122,6 +122,13 @@ public class RoomInfoManager(
                 if (user.UserId == serverLinkHolder.UserId)
                     continue;
 
+                if (user.RelayServerAddress != null)
+                {
+                    _possiblePeers.Add(user.UserId);
+                    possibleUsers.Add(user);
+                    continue;
+                }
+
                 if (user.NetworkIpAddresses == null ||
                     user.NetworkIpAddresses.Length == 0)
                 {
