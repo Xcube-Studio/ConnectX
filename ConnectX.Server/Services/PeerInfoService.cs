@@ -43,6 +43,16 @@ public class PeerInfoService : BackgroundService
                 var status = await zeroTierApiService.GetNetworkPeersAsync(stoppingToken);
                 peers = status?.ToImmutableList();
             }
+            catch (TaskCanceledException e)
+            {
+                if (stoppingToken.IsCancellationRequested)
+                    throw;
+
+                _logger.LogFailedToGetNetworkPeers(e);
+
+                await Task.Delay(1000, stoppingToken);
+                continue;
+            }
             catch (HttpRequestException e)
             {
                 _logger.LogFailedToGetNetworkPeers(e);
