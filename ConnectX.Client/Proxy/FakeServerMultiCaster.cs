@@ -47,6 +47,27 @@ public class FakeServerMultiCaster : BackgroundService
     }
 
     public event Action<string, int>? OnListenedLanServer;
+    
+    private static IPAddress GetLocalIpAddress()
+    {
+        var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+            .Where(ni => ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up 
+                         && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback);
+
+        foreach (var ni in networkInterfaces)
+        {
+            var ipProps = ni.GetIPProperties();
+            foreach (var addr in ipProps.UnicastAddresses)
+            {
+                if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    return addr.Address;
+                }
+            }
+        }
+
+        throw new Exception("No network adapters with an IPv4 address in the system!");
+    }
 
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
     {
@@ -59,18 +80,38 @@ public class FakeServerMultiCaster : BackgroundService
             return;
         }
 
-        var multicastSocket = new Socket(SocketType.Dgram, ProtocolType.Udp);
-        var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
+        Socket? socket = null;
 
-        multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
+        if (OperatingSystem.IsWindows())
+        {
+            socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            
+            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
+        }
 
-        //传递给客户端的是另一个端口，并非源端口。客户端连接此端口通过P2P.NET和源端口通信
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        {
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+
+            var localIp = GetLocalIpAddress();
+
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
+            socket.Bind(new IPEndPoint(localIp, 0));
+        }
+        
+        ArgumentNullException.ThrowIfNull(socket);
+
+        using var multicastSocket = socket;
+
         var mess = $"[MOTD]{message.Name}[/MOTD][AD]{proxy.LocalMappingPort}[/AD]";
         var buf = Encoding.Default.GetBytes(mess);
 
         multicastSocket.SendTo(buf, MulticastIpe);
         _logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
+
 
     private void ListenedLanServer(string serverName, ushort port)
     {
