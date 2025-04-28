@@ -88,7 +88,11 @@ public class Client
         _isInGroup = false;
 
         // Clear and reset all manager
-        await _zeroTierNodeLinkHolder.LeaveNetworkAsync(ct);
+        if (OperatingSystem.IsWindows())
+        {
+            await _zeroTierNodeLinkHolder.LeaveNetworkAsync(ct);
+        }
+
         _router.RemoveAllPeers();
         _roomInfoManager.ClearRoomInfo();
         _partnerManager.RemoveAllPartners();
@@ -135,7 +139,8 @@ public class Client
         if (groupInfo == null)
             return (null, GroupCreationStatus.Other, "Failed to acquire group info");
 
-        if (message is JoinGroup or CreateGroup)
+        if (OperatingSystem.IsWindows() &&
+            message is JoinGroup or CreateGroup)
         {
             if (createResult.Status != GroupCreationStatus.Succeeded)
                 return (null, createResult.Status, createResult.ErrorMessage);
@@ -162,17 +167,20 @@ public class Client
 
             if (result is not { Status: GroupCreationStatus.Succeeded })
                 return (null, result?.Status ?? GroupCreationStatus.Other, "Failed to update room member network info");
-
-            _isInGroup = true;
         }
 
+        _isInGroup = true;
         return (groupInfo, GroupCreationStatus.Succeeded, null);
     }
 
     public async Task<(GroupInfo? Info, GroupCreationStatus Status, string? Error)> CreateGroupAsync(CreateGroup createGroup, CancellationToken ct)
     {
-        if (!_serverLinkHolder.IsConnected) return (null, GroupCreationStatus.Other, "Not connected to the server");
-        if (!_serverLinkHolder.IsSignedIn) return (null, GroupCreationStatus.Other, "Not signed in");
+        if (!_serverLinkHolder.IsConnected)
+            return (null, GroupCreationStatus.Other, "Not connected to the server");
+        if (!_serverLinkHolder.IsSignedIn)
+            return (null, GroupCreationStatus.Other, "Not signed in");
+        if (!OperatingSystem.IsWindows() && !createGroup.UseRelayServer)
+            return (null, GroupCreationStatus.Other, "Only Windows platform supports direct connection");
 
         return await PerformOpAndGetRoomInfoAsync(createGroup, ct);
     }
@@ -183,6 +191,8 @@ public class Client
             return (null, GroupCreationStatus.Other, "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn)
             return (null, GroupCreationStatus.Other, "Not signed in");
+        if (!OperatingSystem.IsWindows() && !joinGroup.UseRelayServer)
+            return (null, GroupCreationStatus.Other, "Only Windows platform supports direct connection");
 
         return await PerformOpAndGetRoomInfoAsync(joinGroup, ct);
     }
