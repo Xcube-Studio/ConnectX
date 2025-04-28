@@ -199,11 +199,7 @@ public class FakeServerMultiCaster : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error receiving multicast message");
-            }
-            finally
-            {
-                multicastSocket.Close();
+                _logger.LogFailedToReceiveMulticastMessage(ex);
             }
 
             await Task.Delay(3000, stoppingToken);
@@ -236,4 +232,7 @@ internal static partial class FakeServerMultiCasterLoggers
 
     [LoggerMessage(LogLevel.Information, "Start listening LAN multicast")]
     public static partial void LogStartListeningLanMulticast(this ILogger logger);
+    
+    [LoggerMessage(LogLevel.Error, "Failed to receive multicast message.")]
+    public static partial void LogFailedToReceiveMulticastMessage(this ILogger logger, Exception exception);
 }

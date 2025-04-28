@@ -48,11 +48,13 @@ public class RelayServerManager
         return true;
     }
 
-    public IPEndPoint? GetRandomRelayServerAddress()
+    public IPEndPoint? GetRandomRelayServerAddress(int roomSeed)
     {
         if (_serverAddressMapping.IsEmpty) return null;
 
-        return Random.Shared.GetItems(_serverAddressMapping.Values.ToArray(), 1)[0];
+        var servers = _serverAddressMapping.Values.ToArray();
+
+        return servers[roomSeed % servers.Length];
     }
 
     public bool TryGetRelayServerSession(IPEndPoint endPoint, [NotNullWhen(true)] out ISession? session)
