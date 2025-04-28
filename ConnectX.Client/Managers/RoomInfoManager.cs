@@ -54,8 +54,11 @@ public class RoomInfoManager(
                 continue;
             }
 
-            await TaskHelper.WaitUntilAsync(zeroTierNodeLinkHolder.IsNodeOnline, stoppingToken);
-            await TaskHelper.WaitUntilAsync(zeroTierNodeLinkHolder.IsNetworkReady, stoppingToken);
+            if (OperatingSystem.IsWindows())
+            {
+                await TaskHelper.WaitUntilAsync(zeroTierNodeLinkHolder.IsNodeOnline, stoppingToken);
+                await TaskHelper.WaitUntilAsync(zeroTierNodeLinkHolder.IsNetworkReady, stoppingToken);
+            }
 
             if (needToRefreshRoomInfo)
             {
@@ -74,9 +77,10 @@ public class RoomInfoManager(
                 continue;
             }
 
-            if (self.NetworkIpAddresses == null ||
+            if ((self.NetworkIpAddresses == null ||
                 self.NetworkIpAddresses.Length == 0 ||
-                string.IsNullOrEmpty(self.NetworkNodeId))
+                string.IsNullOrEmpty(self.NetworkNodeId)) &&
+                OperatingSystem.IsWindows())
             {
                 needToRefreshRoomInfo = true;
 
