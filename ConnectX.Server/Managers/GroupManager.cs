@@ -303,9 +303,9 @@ public class GroupManager
         CreateRoomAsync(userId, ctx).Forget();
     }
 
-    private IPEndPoint? TryAssignRelayServerAddress<T>(Guid userId, MessageContext<T> ctx)
+    private IPEndPoint? TryAssignRelayServerAddress<T>(Guid userId, int roomSeed, MessageContext<T> ctx)
     {
-        var relayServerAddress = _relayServerManager.GetRandomRelayServerAddress();
+        var relayServerAddress = _relayServerManager.GetRandomRelayServerAddress(roomSeed);
 
         if (relayServerAddress == null)
         {
@@ -388,7 +388,10 @@ public class GroupManager
 
         var message = ctx.Message;
         var owner = _userMapping[userId];
-        var assignedRelayServerAddress = ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(userId, ctx) : null;
+        var roomSeed = Random.Shared.Next(0, 114514);
+        var assignedRelayServerAddress = ctx.Message.UseRelayServer
+            ? TryAssignRelayServerAddress(userId, roomSeed, ctx)
+            : null;
         var ownerSession = new UserSessionInfo(owner, assignedRelayServerAddress);
 
         var group = new Group(message.RoomName, message.RoomPassword, ownerSession, [ownerSession])
@@ -396,7 +399,8 @@ public class GroupManager
             IsPrivate = message.IsPrivate,
             MaxUserCount = message.MaxUserCount <= 0 ? 10 : message.MaxUserCount,
             RoomDescription = message.RoomDescription,
-            NetworkId = Convert.ToUInt64(networkDetail.Id, 16)
+            NetworkId = Convert.ToUInt64(networkDetail.Id, 16),
+            RelayServerSeed = roomSeed
         };
 
         if (assignedRelayServerAddress != null &&
@@ -482,7 +486,7 @@ public class GroupManager
 
         var user = _userMapping[userId];
         var assignedRelayServerAddress =
-            ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(userId, ctx) : null;
+            ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(userId, group.RelayServerSeed, ctx) : null;
         var info = new UserSessionInfo(user, assignedRelayServerAddress);
 
         group.Users.Add(info);

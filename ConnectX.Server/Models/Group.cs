@@ -10,6 +10,7 @@ public class Group(
     List<UserSessionInfo> users)
 {
     public Guid RoomId { get; } = Guid.CreateVersion7();
+    public required int RelayServerSeed { get; init; }
     public UserSessionInfo RoomOwner { get; } = roomOwner;
     public string RoomShortId { get; } = RandomHelper.GetRandomString();
     public required ulong NetworkId { get; set; }
