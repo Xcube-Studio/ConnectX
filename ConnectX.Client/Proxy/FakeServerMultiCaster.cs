@@ -88,6 +88,8 @@ public class FakeServerMultiCaster : BackgroundService
             
             var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
+            
+            _logger.LogSocketSetupForWindows(MulticastAddress.ToString());
         }
 
         if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
@@ -99,6 +101,8 @@ public class FakeServerMultiCaster : BackgroundService
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
             socket.Bind(new IPEndPoint(localIp, 0));
+            
+            _logger.LogSocketSetupForLinuxMacOS(localIp.ToString());
         }
         
         ArgumentNullException.ThrowIfNull(socket);
@@ -106,9 +110,12 @@ public class FakeServerMultiCaster : BackgroundService
         using var multicastSocket = socket;
 
         var mess = $"[MOTD]{message.Name}[/MOTD][AD]{proxy.LocalMappingPort}[/AD]";
-        var buf = Encoding.Default.GetBytes(mess);
-
-        multicastSocket.SendTo(buf, MulticastIpe);
+        var buf = Encoding.Default.GetBytes(mess).AsSpan();
+        var sentLen = 0;
+        
+        while (sentLen < buf.Length)
+            sentLen += multicastSocket.SendTo(buf[sentLen..], MulticastIpe);
+        
         _logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
 
@@ -235,4 +242,10 @@ internal static partial class FakeServerMultiCasterLoggers
     
     [LoggerMessage(LogLevel.Error, "Failed to receive multicast message.")]
     public static partial void LogFailedToReceiveMulticastMessage(this ILogger logger, Exception exception);
+    
+    [LoggerMessage(LogLevel.Debug, "Socket setup for Windows, multicast address is {MulticastAddress}")]
+    public static partial void LogSocketSetupForWindows(this ILogger logger, string multicastAddress);
+    
+    [LoggerMessage(LogLevel.Debug, "Socket setup for Linux/MacOS, local IP is {LocalIp}")]
+    public static partial void LogSocketSetupForLinuxMacOS(this ILogger logger, string localIp);
 }
