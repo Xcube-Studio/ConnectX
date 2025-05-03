@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using System.Collections.Frozen;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using ConnectX.Client.Interfaces;
@@ -47,12 +48,24 @@ public class FakeServerMultiCaster : BackgroundService
     }
 
     public event Action<string, int>? OnListenedLanServer;
+
+    private static readonly FrozenSet<string> VirtualKeywords = FrozenSet.Create(
+        "virtual", "vmware", "loopback",
+        "pseudo", "tunneling", "tap",
+        "container", "hyper-v", "bluetooth",
+        "docker");
     
     private static IPAddress GetLocalIpAddress()
     {
+        var candidates = new List<IPAddress>();
+
         var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
-            .Where(ni => ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up 
-                         && ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback);
+            .Where(ni =>
+                ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
+                ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback &&
+                !VirtualKeywords.Contains(ni.Description.ToLowerInvariant()) &&
+                !VirtualKeywords.Contains(ni.Name.ToLowerInvariant())
+            );
 
         foreach (var ni in networkInterfaces)
         {
@@ -61,12 +74,19 @@ public class FakeServerMultiCaster : BackgroundService
             {
                 if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
                 {
-                    return addr.Address;
+                    var ip = addr.Address;
+                    if (ip.ToString().StartsWith("192.168."))
+                        return ip;
+
+                    candidates.Add(ip);
                 }
             }
         }
 
-        throw new Exception("No network adapters with an IPv4 address in the system!");
+        if (candidates.Count > 0)
+            return candidates[0];
+
+        throw new Exception("No suitable IPv4 address found.");
     }
 
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
