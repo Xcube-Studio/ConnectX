@@ -125,20 +125,28 @@ public class RoomJoinRecordService : BackgroundService
                 continue;
             }
 
-            var joinHistory = new RoomJoinHistory
+            try
             {
-                UserId = update.UserId,
-                RoomId = update.RoomId,
-                LogTime = DateTime.UtcNow,
-                NetworkNodeId = update.Info.NetworkNodeId,
-                RoomName = group.RoomName,
-                UserPhysicalAddress = string.Join(',', addresses)
-            };
+                var joinHistory = new RoomJoinHistory
+                {
+                    UserId = update.UserId,
+                    RoomId = update.RoomId,
+                    LogTime = DateTime.UtcNow,
+                    NetworkNodeId = update.Info.NetworkNodeId,
+                    RoomName = group.RoomName,
+                    UserPhysicalAddress = string.Join(',', addresses)
+                };
 
-            dbContext.RoomJoinHistories.Add(joinHistory);
-            await dbContext.SaveChangesAsync(stoppingToken);
+                dbContext.RoomJoinHistories.Add(joinHistory);
+                await dbContext.SaveChangesAsync(stoppingToken);
 
-            _logger.LogRoomJoinRecordAdded(update.UserId, update.RoomId, update.Info.NetworkNodeId, joinHistory.UserPhysicalAddress);
+                _logger.LogRoomJoinRecordAdded(update.UserId, update.RoomId, update.Info.NetworkNodeId, joinHistory.UserPhysicalAddress);
+            }
+            catch (Exception e)
+            {
+                _roomInfoUpdateQueue.Enqueue(update);
+                _logger.LogFailedToAddJoinRecordToDatabase(e);
+            }
         }
     }
 }
@@ -156,4 +164,7 @@ internal static partial class RoomOperationRecordServiceLoggers
 
     [LoggerMessage(LogLevel.Information, "[ROOM_JOIN_RECORD_SRV] Room join record added, User [{userId}] Group [{groupId}] Node [{nodeId}] Address [{address}]")]
     public static partial void LogRoomJoinRecordAdded(this ILogger logger, Guid userId, Guid groupId, string nodeId, string address);
+
+    [LoggerMessage(LogLevel.Warning, "[ROOM_JOIN_RECORD_SRV] Failed to add join record to database, retry later...")]
+    public static partial void LogFailedToAddJoinRecordToDatabase(this ILogger logger, Exception ex);
 }

@@ -57,22 +57,31 @@ public class RoomCreationRecordService : BackgroundService
                 continue;
             }
 
-            var history = new RoomCreateHistory
+            try
             {
-                CreatedBy = roomRecord.CreatedBy,
-                CreatedTime = roomRecord.CreatedTime,
-                RoomId = roomRecord.RoomId,
-                RoomName = roomRecord.RoomName,
-                UserDisplayName = roomRecord.UserDisplayName,
-                RoomDescription = roomRecord.RoomDescription,
-                RoomPassword = roomRecord.RoomPassword,
-                MaxUserCount = roomRecord.MaxUserCount
-            };
+                var history = new RoomCreateHistory
+                {
+                    CreatedBy = roomRecord.CreatedBy,
+                    CreatedTime = roomRecord.CreatedTime,
+                    RoomId = roomRecord.RoomId,
+                    RoomName = roomRecord.RoomName,
+                    UserDisplayName = roomRecord.UserDisplayName,
+                    RoomDescription = roomRecord.RoomDescription,
+                    RoomPassword = roomRecord.RoomPassword,
+                    MaxUserCount = roomRecord.MaxUserCount
+                };
 
-            dbContext.RoomCreateHistories.Add(history);
-            await dbContext.SaveChangesAsync(stoppingToken);
+                dbContext.RoomCreateHistories.Add(history);
+                await dbContext.SaveChangesAsync(stoppingToken);
 
-            _logger.LogRoomCreationHistoryCreated(roomRecord.CreatedBy, roomRecord.RoomName, roomRecord.UserDisplayName);
+                _logger.LogRoomCreationHistoryCreated(roomRecord.CreatedBy, roomRecord.RoomName,
+                    roomRecord.UserDisplayName);
+            }
+            catch (Exception e)
+            {
+                _roomRecords.Enqueue(roomRecord);
+                _logger.LogFailedToAddCreationRecordToDatabase(e);
+            }
         }
     }
 }
@@ -81,4 +90,7 @@ internal static partial class RoomCreationRecordServiceLoggers
 {
     [LoggerMessage(LogLevel.Information, "[ROOM_CREATION_RECORD_SRV] Room creation history created. CreatedBy: {CreatedBy}, RoomName: {RoomName}, UserDisplayName: {UserDisplayName}")]
     public static partial void LogRoomCreationHistoryCreated(this ILogger logger, Guid createdBy, string roomName, string userDisplayName);
+
+    [LoggerMessage(LogLevel.Warning, "[ROOM_CREATION_RECORD_SRV] Failed to add room creation record to database, retry later...")]
+    public static partial void LogFailedToAddCreationRecordToDatabase(this ILogger logger, Exception exception);
 }
