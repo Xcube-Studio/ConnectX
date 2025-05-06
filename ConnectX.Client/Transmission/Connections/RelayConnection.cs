@@ -271,15 +271,14 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
             return;
 
         var decompressedBuffer = MemoryPool<byte>.Shared.Rent(NetworkSettings.DefaultSocketBufferSize);
-        var decompressedMemory = decompressedBuffer.Memory;
-        var writer = new MemoryBufferWriter<byte>(decompressedMemory);
-
+        var writer = new MemoryBufferWriter<byte>(decompressedBuffer.Memory);
+        
         Snappy.Decompress(buffer, writer);
 
         var carrier = new ForwardPacketCarrier
         {
             PayloadOwner = decompressedBuffer,
-            Payload = decompressedMemory,
+            Payload = writer.WrittenMemory,
             LastTryTime = 0,
             TryCount = 0
         };
