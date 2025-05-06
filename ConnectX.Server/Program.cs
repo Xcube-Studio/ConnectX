@@ -24,9 +24,13 @@ internal static class Program
         {
             var configuration = ctx.Configuration;
             var connectionString = configuration.GetConnectionString("Default");
+            var useSqlite = bool.Parse(configuration["Server:UseSqlite"] ?? "false");
 
             services.AddDbContext<RoomOpsHistoryContext>(o =>
-                o.UseSqlServer(connectionString, b => b.MigrationsAssembly("ConnectX.Server")));
+            {
+                if (useSqlite) o.UseSqlite(connectionString, b => b.MigrationsAssembly("ConnectX.Server"));
+                else o.UseSqlServer(connectionString, b => b.MigrationsAssembly("ConnectX.Server"));
+            });
 
             services.AddHttpClient<IZeroTierApiService, ZeroTierApiService>(client =>
             {
