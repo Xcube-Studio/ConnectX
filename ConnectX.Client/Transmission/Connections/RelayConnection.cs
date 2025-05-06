@@ -1,9 +1,9 @@
-﻿using System;
-using System.Buffers;
+﻿using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using CommunityToolkit.HighPerformance;
+using CommunityToolkit.HighPerformance.Buffers;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Shared.Helpers;
@@ -14,10 +14,12 @@ using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
+using Hive.Network.Shared;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Snappier;
 
 namespace ConnectX.Client.Transmission.Connections;
 
@@ -268,9 +270,16 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         if (_relayServerDataLink == null)
             return;
 
+        var decompressedBuffer = MemoryPool<byte>.Shared.Rent(NetworkSettings.DefaultSocketBufferSize);
+        var decompressedMemory = decompressedBuffer.Memory;
+        var writer = new MemoryBufferWriter<byte>(decompressedMemory);
+
+        Snappy.Decompress(buffer, writer);
+
         var carrier = new ForwardPacketCarrier
         {
-            Payload = buffer.ToArray(),
+            PayloadOwner = decompressedBuffer,
+            Payload = decompressedMemory,
             LastTryTime = 0,
             TryCount = 0
         };
@@ -409,9 +418,10 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        var ms = new MemoryStream(data.ToArray());
-        //var ms = buffer.AsStream();
-        _relayServerWorkerLink?.TrySendAsync(ms, _linkCt).Forget();
+        var compressed = Snappy.CompressToMemory(data.Span);
+        var stream = compressed.AsStream();
+
+        _relayServerWorkerLink?.TrySendAsync(stream, _linkCt).Forget();
     }
 }
 
