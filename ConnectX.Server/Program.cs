@@ -24,7 +24,7 @@ internal static class Program
         {
             var configuration = ctx.Configuration;
             var connectionString = configuration.GetConnectionString("Default");
-            var useSqlite = bool.Parse(configuration["Server:UseSqlite"] ?? "false");
+            var useSqlite = configuration.GetSection("Server:UseSqlite").Get<bool>();
 
             services.AddDbContext<RoomOpsHistoryContext>(o =>
             {
