@@ -14,7 +14,6 @@ public partial class ForwardPacketCarrier : IDisposable
     [MemoryPackIgnore]
     public IMemoryOwner<byte>? PayloadOwner { get; set; }
 
-    [BrotliFormatter<ReadOnlyMemory<byte>>]
     public ReadOnlyMemory<byte> Payload { get; set; }
 
     [MemoryPackIgnore] public int TryCount { get; set; }
