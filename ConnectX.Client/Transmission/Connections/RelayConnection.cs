@@ -268,11 +268,11 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         if (_relayServerDataLink == null)
             return;
 
-        //var decompressedOwner = Snappy.DecompressToMemory(buffer);
+        var decompressedOwner = Snappy.DecompressToMemory(buffer);
         var carrier = new ForwardPacketCarrier
         {
-            //PayloadOwner = decompressedOwner,
-            Payload = buffer.ToArray(),//decompressedOwner.Memory,
+            PayloadOwner = decompressedOwner,
+            Payload = decompressedOwner.Memory,
             LastTryTime = 0,
             TryCount = 0
         };
@@ -411,13 +411,13 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        //var compressed = Snappy.CompressToMemory(data.Span);
-        //var stream = compressed.AsStream();
+        var compressed = Snappy.CompressToMemory(data.Span);
+        var stream = compressed.AsStream();
 
-        //if (data.Length <= compressed.Memory.Length)
-        //    Logger.LogUnderperformedCompression(data.Length, compressed.Memory.Length);
+        if (data.Length <= compressed.Memory.Length)
+            Logger.LogUnderperformedCompression(data.Length, compressed.Memory.Length);
 
-        _relayServerWorkerLink?.TrySendAsync(data.AsStream(), _linkCt).Forget();
+        _relayServerWorkerLink?.TrySendAsync(stream, _linkCt).Forget();
     }
 }
 
