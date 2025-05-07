@@ -268,16 +268,23 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         if (_relayServerDataLink == null)
             return;
 
-        var decompressedOwner = Snappy.DecompressToMemory(buffer);
-        var carrier = new ForwardPacketCarrier
+        try
         {
-            PayloadOwner = decompressedOwner,
-            Payload = decompressedOwner.Memory,
-            LastTryTime = 0,
-            TryCount = 0
-        };
+            var decompressedOwner = Snappy.DecompressToMemory(buffer);
+            var carrier = new ForwardPacketCarrier
+            {
+                PayloadOwner = decompressedOwner,
+                Payload = decompressedOwner.Memory,
+                LastTryTime = 0,
+                TryCount = 0
+            };
 
-        Dispatcher.Dispatch(session, carrier);
+            Dispatcher.Dispatch(session, carrier);
+        }
+        catch (Exception e)
+        {
+            Logger.LogFailedToDecompressMessage(e, buffer.Length, Source, To);
+        }
     }
 
     public override async Task<bool> ConnectAsync(CancellationToken token)
@@ -479,4 +486,7 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Debug, "[RELAY_CONN] Underperformed compression! Original length [{original} bytes], compressed length [{compressed} bytes].")]
     public static partial void LogUnderperformedCompression(this ILogger logger, int original, int compressed);
+
+    [LoggerMessage(LogLevel.Critical, "[RELAY_CONN] Failed to decompress message [{length} bytes] from [{source}] to [{target}]")]
+    public static partial void LogFailedToDecompressMessage(this ILogger logger, Exception ex, long length, string source, Guid target);
 }
