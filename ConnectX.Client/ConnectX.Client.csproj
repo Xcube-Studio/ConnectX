@@ -26,4 +26,13 @@
     <ProjectReference Include="..\Hive.Framework\Hive.Network.Udp\Hive.Network.Udp.csproj" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Corona-Studio/ConnectX</PackageProjectUrl>
+    <Title>$(AssemblyName)</Title>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
 </Project>
