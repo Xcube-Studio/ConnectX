@@ -221,8 +221,6 @@ public abstract class GenericProxyBase : IDisposable
                                 SocketFlags.None,
                                 CancellationToken);
 
-                        packetCarrier.Dispose();
-
                         Logger.LogSentPacket(GetProxyInfoForLog(), totalLen, LocalServerPort);
                     }
                     catch (SocketException ex)
@@ -236,6 +234,10 @@ public abstract class GenericProxyBase : IDisposable
                     {
                         _innerSocket = null;
                         Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
+                    }
+                    finally
+                    {
+                        packetCarrier.Dispose();
                     }
                 }
             }
