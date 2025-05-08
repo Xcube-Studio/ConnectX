@@ -13,6 +13,7 @@ using Hive.Both.General.Dispatchers;
 using Hive.Codec.Abstractions;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
+using Hive.Network.Shared;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -408,7 +409,9 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        _relayServerWorkerLink?.TrySendAsync(data.AsStream(), _linkCt).Forget();
+        var ms = RecycleMemoryStreamManagerHolder.Shared.GetStream(data.ToArray());
+
+        _relayServerWorkerLink?.TrySendAsync(ms, _linkCt).Forget();
     }
 }
 
