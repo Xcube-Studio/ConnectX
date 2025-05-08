@@ -33,7 +33,7 @@ public sealed class GenericProxyClient : GenericProxyBase
         socket.Connect(new IPEndPoint(IPAddress.Loopback, LocalServerPort));
 
         socket.NoDelay = true;
-        socket.LingerState = new LingerOption(true, 3);
+        //socket.LingerState = new LingerOption(true, 3);
 
         Logger.LogConnectedToMc(LocalServerPort, GetProxyInfoForLog());
 
