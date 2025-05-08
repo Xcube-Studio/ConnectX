@@ -17,7 +17,6 @@ using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Snappier;
 
 namespace ConnectX.Client.Transmission.Connections;
 
@@ -268,23 +267,14 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         if (_relayServerDataLink == null)
             return;
 
-        try
+        var carrier = new ForwardPacketCarrier
         {
-            var decompressedOwner = Snappy.DecompressToMemory(buffer);
-            var carrier = new ForwardPacketCarrier
-            {
-                PayloadOwner = decompressedOwner,
-                Payload = decompressedOwner.Memory,
-                LastTryTime = 0,
-                TryCount = 0
-            };
+            Payload = buffer.ToArray(),
+            LastTryTime = 0,
+            TryCount = 0
+        };
 
-            Dispatcher.Dispatch(session, carrier);
-        }
-        catch (Exception e)
-        {
-            Logger.LogFailedToDecompressMessage(e, buffer.Length, Source, To);
-        }
+        Dispatcher.Dispatch(session, carrier);
     }
 
     public override async Task<bool> ConnectAsync(CancellationToken token)
@@ -418,13 +408,7 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        var compressed = Snappy.CompressToMemory(data.Span);
-        var stream = compressed.AsStream();
-
-        if (data.Length <= compressed.Memory.Length)
-            Logger.LogUnderperformedCompression(data.Length, compressed.Memory.Length);
-
-        _relayServerWorkerLink?.TrySendAsync(stream, _linkCt).Forget();
+        _relayServerWorkerLink?.TrySendAsync(data.AsStream(), _linkCt).Forget();
     }
 }
 
@@ -483,10 +467,4 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Failed to establish worker session [{relayEndPoint}]")]
     public static partial void LogFailedToEstablishingWorkerSession(this ILogger logger, IPEndPoint relayEndPoint);
-
-    [LoggerMessage(LogLevel.Debug, "[RELAY_CONN] Underperformed compression! Original length [{original} bytes], compressed length [{compressed} bytes].")]
-    public static partial void LogUnderperformedCompression(this ILogger logger, int original, int compressed);
-
-    [LoggerMessage(LogLevel.Critical, "[RELAY_CONN] Failed to decompress message [{length} bytes] from [{source}] to [{target}]")]
-    public static partial void LogFailedToDecompressMessage(this ILogger logger, Exception ex, long length, string source, Guid target);
 }
