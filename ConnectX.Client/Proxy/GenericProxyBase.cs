@@ -207,8 +207,14 @@ public abstract class GenericProxyBase : IDisposable
 
             while (await reader.WaitToReadAsync(cancellationToken))
             {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
                 while (reader.TryRead(out var packetCarrier))
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+
                     try
                     {
                         var totalLen = packetCarrier.Payload.Length;
