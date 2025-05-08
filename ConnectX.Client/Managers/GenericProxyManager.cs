@@ -1,7 +1,11 @@
-﻿using System.Net;
+﻿using System.Collections.Concurrent;
+using System.Net;
 using System.Net.Sockets;
 using ConnectX.Client.Messages.Proxy;
+using ConnectX.Client.Models;
 using ConnectX.Client.Proxy;
+using ConnectX.Client.Route;
+using ConnectX.Client.Transmission;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Interfaces;
 using Hive.Both.General.Dispatchers;
@@ -14,15 +18,17 @@ namespace ConnectX.Client.Managers;
 public abstract class GenericProxyManager : BackgroundService
 {
     //使用一个二元组确定一个连接
-    private readonly Dictionary<TunnelIdentifier, GenericProxyPair> _proxies = [];
-    private readonly Dictionary<TunnelIdentifier, Socket> _acceptedSockets = [];
-    private readonly Dictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = [];
+    private readonly ConcurrentDictionary<TunnelIdentifier, GenericProxyPair> _proxies = [];
+    private readonly ConcurrentDictionary<TunnelIdentifier, Socket> _acceptedSockets = [];
+    private readonly ConcurrentDictionary<ValueTuple<Guid, ushort>, GenericProxyAcceptor> _acceptors = [];
 
     private readonly IHostApplicationLifetime _lifetime;
     private readonly IServiceProvider _serviceProvider;
     protected readonly ILogger Logger;
 
     protected GenericProxyManager(
+        RouterPacketDispatcher packetDispatcher,
+        RelayPacketDispatcher relayPacketDispatcher,
         IHostApplicationLifetime lifetime,
         IServiceProvider serviceProvider,
         ILogger logger)
@@ -31,6 +37,9 @@ public abstract class GenericProxyManager : BackgroundService
         _serviceProvider = serviceProvider;
 
         Logger = logger;
+
+        packetDispatcher.OnReceive<ProxyDisconnectReq>(RecycleClientProxy);
+        relayPacketDispatcher.OnReceive<ProxyDisconnectReq>(RecycleClientProxy);
     }
 
     public override void Dispose()
@@ -43,6 +52,20 @@ public abstract class GenericProxyManager : BackgroundService
 
         base.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private void RecycleClientProxy(ProxyDisconnectReq req, PacketContext ctx)
+    {
+        var key = new TunnelIdentifier(req.ClientId, req.ServerRealPort, req.ClientRealPort);
+
+        if (_proxies.TryRemove(key, out var pair))
+        {
+            Logger.LogClientProxyDisconnectedBecauseRequested(key);
+            pair.Dispose();
+            return;
+        }
+
+        Logger.LogFailedToShutdownClientProxyBecauseNotFound(key);
     }
 
     public void ReceivedProxyConnectReq(
@@ -133,7 +156,11 @@ public abstract class GenericProxyManager : BackgroundService
             dispatcher,
             sender);
 
-        _proxies.Add(key, pair);
+        _proxies.AddOrUpdate(key, _ => pair, (_, old) =>
+        {
+            old.Dispose();
+            return pair;
+        });
 
         Logger.LogCreateProxy(key);
 
@@ -164,7 +191,9 @@ public abstract class GenericProxyManager : BackgroundService
             socket,
             key,
             _lifetime.ApplicationStopping);
+
         proxy.OnRealServerDisconnected += OnProxyDisconnected;
+        proxy.OnRealServerDisconnected += NotifyServerProxyDisconnect;
 
         var pair = new GenericProxyPair(
             partnerId,
@@ -174,10 +203,29 @@ public abstract class GenericProxyManager : BackgroundService
             dispatcher,
             sender);
 
-        _proxies.Add(key, pair);
+        _proxies.AddOrUpdate(key, _ => pair, (_, old) =>
+        {
+            old.Dispose();
+            return pair;
+        });
         proxy.Start();
 
         return proxy;
+
+        void NotifyServerProxyDisconnect(TunnelIdentifier id, GenericProxyBase proxy)
+        {
+            proxy.OnRealServerDisconnected -= NotifyServerProxyDisconnect;
+
+            // 真客户端离开了房间或掉线，通知房主回收对应的 proxy
+            sender.SendData(new ProxyDisconnectReq
+            {
+                ClientId = id.PartnerId,
+                ClientRealPort = id.LocalRealPort,
+                ServerRealPort = id.RemoteRealPort
+            });
+
+            Logger.LogNotifyServerProxyNeedToDisconnect(id);
+        }
     }
 
     private void OnProxyDisconnected(TunnelIdentifier id, GenericProxyBase proxy)
@@ -206,11 +254,11 @@ public abstract class GenericProxyManager : BackgroundService
 
         var key = (partnerId, remoteRealServerPort);
 
-        if (_acceptors.Remove(key, out var oldAcceptor))
+        if (_acceptors.TryRemove(key, out var oldAcceptor))
         {
             if (oldAcceptor.IsRunning)
             {
-                _acceptors.Add(key, oldAcceptor);
+                _acceptors.AddOrUpdate((partnerId, remoteRealServerPort), _ => oldAcceptor, (_, _) => oldAcceptor);
                 throw new InvalidOperationException($"There has been a acceptor with same key: {partnerId}-{remoteRealServerPort}");
             }
 
@@ -224,7 +272,7 @@ public abstract class GenericProxyManager : BackgroundService
             localMapPort,
             _lifetime.ApplicationStopping);
 
-        _acceptors.Add((partnerId, remoteRealServerPort), acceptor);
+        _acceptors.AddOrUpdate((partnerId, remoteRealServerPort), _ => acceptor, (_, _) => acceptor);
 
         // 当有真客户端连接的时候，发送一个McConnectReq，当收到回复后启动Proxy（启动的逻辑在OnReceive里）
         acceptor.OnRealClientConnected += (_, socket) =>
@@ -240,7 +288,7 @@ public abstract class GenericProxyManager : BackgroundService
                 (ushort)remoteEndPoint.Port,
                 remoteRealServerPort);
 
-            _acceptedSockets.Add(id, socket);
+            _acceptedSockets.AddOrUpdate(id, _ => socket, (_, _) => socket);
 
             sender.SendData(new ProxyConnectReq
             {
@@ -351,4 +399,13 @@ internal static partial class GenericProxyManagerLoggers
 
     [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Create acceptor {Key}")]
     public static partial void LogCreateAcceptor(this ILogger logger, (Guid, ushort) key);
+
+    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Notify server proxy need to disconnect {Id}")]
+    public static partial void LogNotifyServerProxyNeedToDisconnect(this ILogger logger, TunnelIdentifier id);
+
+    [LoggerMessage(LogLevel.Error, "[GEN_PROXY_MANAGER] Failed to shutdown client proxy because not found {key}")]
+    public static partial void LogFailedToShutdownClientProxyBecauseNotFound(this ILogger logger, TunnelIdentifier key);
+
+    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Client proxy disconnected because requested {key}")]
+    public static partial void LogClientProxyDisconnectedBecauseRequested(this ILogger logger, TunnelIdentifier key);
 }
