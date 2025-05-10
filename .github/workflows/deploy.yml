@@ -6,7 +6,6 @@ on:
 
 jobs:
   publish:
-    if: github.event.workflow_run.conclusion == 'success'
     strategy:
       matrix:
         configuration: [Relay, Server]
