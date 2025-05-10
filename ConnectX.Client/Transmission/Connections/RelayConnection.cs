@@ -1,9 +1,7 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
-using System.Data;
 using System.Net;
 using System.Net.Sockets;
-using CommunityToolkit.HighPerformance;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Shared.Helpers;
@@ -19,8 +17,6 @@ using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Snappier;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ConnectX.Client.Transmission.Connections;
 
