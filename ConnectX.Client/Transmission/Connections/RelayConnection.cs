@@ -2,6 +2,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using CommunityToolkit.HighPerformance;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Shared.Helpers;
@@ -268,20 +269,26 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         if (_relayServerDataLink == null)
             return;
 
-        using var memory = MemoryPool<byte>.Shared.Rent((int) buffer.Length);
-        buffer.CopyTo(memory.Memory.Span);
-
-        var decompressedOwner = Snappy.DecompressToMemory(memory.Memory.Span);
-
-        var carrier = new ForwardPacketCarrier
+        try
         {
-            PayloadOwner = decompressedOwner,
-            Payload = decompressedOwner.Memory,
-            LastTryTime = 0,
-            TryCount = 0
-        };
+            using var memory = MemoryPool<byte>.Shared.Rent((int)buffer.Length);
+            buffer.CopyTo(memory.Memory.Span);
 
-        Dispatcher.Dispatch(session, carrier);
+            var decompressedOwner = Snappy.DecompressToMemory(memory.Memory.Span);
+            var carrier = new ForwardPacketCarrier
+            {
+                PayloadOwner = decompressedOwner,
+                Payload = decompressedOwner.Memory,
+                LastTryTime = 0,
+                TryCount = 0
+            };
+
+            Dispatcher.Dispatch(session, carrier);
+        }
+        catch (Exception e)
+        {
+            Logger.LogFailedToDecompressMessage(e, buffer.Length, Source, To);
+        }
     }
 
     public override async Task<bool> ConnectAsync(CancellationToken token)
@@ -416,16 +423,12 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
         using var memory = MemoryPool<byte>.Shared.Rent(data.Length);
-        data.Span.CopyTo(memory.Memory.Span);
+        data.CopyTo(memory.Memory);
 
-        var ms = RecycleMemoryStreamManagerHolder.Shared.GetStream();
-
-        Snappy.Compress(new ReadOnlySequence<byte>(memory.Memory), ms);
+        var ms = Snappy.CompressToMemory(memory.Memory.Span).AsStream();
 
         if (data.Length <= ms.Length)
             Logger.LogUnderperformedCompression(data.Length, (int) ms.Length);
-
-        ms.Seek(0, SeekOrigin.Begin);
 
         _relayServerWorkerLink?.TrySendAsync(ms, _linkCt).Forget();
     }
