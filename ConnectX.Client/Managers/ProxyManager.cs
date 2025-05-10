@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
-using ConnectX.Client.Interfaces;
 using ConnectX.Client.Messages.Proxy;
 using ConnectX.Client.Proxy;
+using ConnectX.Client.Route;
 using ConnectX.Client.Transmission;
 using ConnectX.Shared.Helpers;
 using Hive.Both.General.Dispatchers;
@@ -16,11 +16,13 @@ public sealed class ProxyManager : GenericProxyManager
     private readonly ConcurrentBag<(IDispatcher, HandlerId)> _registeredHandlers = [];
 
     public ProxyManager(
+        RouterPacketDispatcher packetDispatcher,
+        RelayPacketDispatcher relayPacketDispatcher,
         PartnerManager partnerManager,
         IHostApplicationLifetime lifetime,
         IServiceProvider serviceProvider,
         ILogger<ProxyManager> logger)
-        : base(lifetime, serviceProvider, logger)
+        : base(packetDispatcher, relayPacketDispatcher, lifetime, serviceProvider, logger)
     {
         _partnerManager = partnerManager;
     }

@@ -15,6 +15,8 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
     // If this is not null, then you can assume that you are currently in a room
     public Node? Node { get; private set; }
 
+    public bool IsZeroTierInitialized { get; private set; }
+
     public IPAddress[] GetIpAddresses()
     {
         ArgumentNullException.ThrowIfNull(Node);
@@ -66,23 +68,36 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
         logger.LogStartingZeroTierNodeLinkHolder();
 
-        Node = new Node();
+        try
+        {
+            Node = new Node();
 
-        Node.InitAllowNetworkCaching(false);
-        Node.InitAllowPeerCaching(true);
-        Node.InitSetRandomPortRange(IZeroTierNodeLinkHolder.RandomPortLower, IZeroTierNodeLinkHolder.RandomPortUpper);
-        Node.InitSetEventHandler(OnReceivedZeroTierEvent);
+            Node.InitAllowNetworkCaching(false);
+            Node.InitAllowPeerCaching(true);
+            Node.InitSetRandomPortRange(IZeroTierNodeLinkHolder.RandomPortLower,
+                IZeroTierNodeLinkHolder.RandomPortUpper);
+            Node.InitSetEventHandler(OnReceivedZeroTierEvent);
 
-        Node.Start();
+            Node.Start();
+            IsZeroTierInitialized = true;
+        }
+        catch (Exception e)
+        {
+            IsZeroTierInitialized = false;
+            logger.LogFailedToInitZeroTierSocketConnection(e);
+            return base.StartAsync(cancellationToken);
+        }
 
         return base.StartAsync(cancellationToken);
     }
 
     public async Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken)
     {
-        await TaskHelper.WaitUtil(() => Node!.Online, cancellationToken);
+        if (Node == null) return false;
 
-        Node!.Join(networkId);
+        await TaskHelper.WaitUtil(() => Node.Online, cancellationToken);
+
+        Node.Join(networkId);
 
         await TaskHelper.WaitUtil(() => Node.Networks.Count != 0, cancellationToken);
 
@@ -135,6 +150,12 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
         // Update peers
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (Node == null)
+            {
+                // Node is not initialized because of error
+                break;
+            }
+
             if (!IsNodeOnline() || !_networkId.HasValue)
             {
                 await Task.Delay(1000, stoppingToken);
@@ -188,4 +209,7 @@ internal static partial class ZeroTierNodeLinkHolderLogger
 
     [LoggerMessage(LogLevel.Information, "[ZeroTier] ZeroTier Node Link Holder stopped")]
     public static partial void LogZeroTierNodeLinkHolderStopped(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Critical, "[ZeroTier] Failed to init ZeroTier socket connection.")]
+    public static partial void LogFailedToInitZeroTierSocketConnection(this ILogger logger, Exception exception);
 }

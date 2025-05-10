@@ -207,8 +207,14 @@ public abstract class GenericProxyBase : IDisposable
 
             while (await reader.WaitToReadAsync(cancellationToken))
             {
+                if (cancellationToken.IsCancellationRequested)
+                    break;
+
                 while (reader.TryRead(out var packetCarrier))
                 {
+                    if (cancellationToken.IsCancellationRequested)
+                        break;
+
                     try
                     {
                         var totalLen = packetCarrier.Payload.Length;
@@ -220,8 +226,6 @@ public abstract class GenericProxyBase : IDisposable
                                 buffer[sentLen..],
                                 SocketFlags.None,
                                 CancellationToken);
-
-                        packetCarrier.Dispose();
 
                         Logger.LogSentPacket(GetProxyInfoForLog(), totalLen, LocalServerPort);
                     }
@@ -236,6 +240,10 @@ public abstract class GenericProxyBase : IDisposable
                     {
                         _innerSocket = null;
                         Logger.LogFailedToSendPacket(ex, GetProxyInfoForLog(), LocalServerPort);
+                    }
+                    finally
+                    {
+                        packetCarrier.Dispose();
                     }
                 }
             }

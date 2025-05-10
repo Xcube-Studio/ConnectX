@@ -62,7 +62,7 @@ public class GenericProxyAcceptor : IDisposable
                     var tmp = await _acceptSocket.AcceptAsync(_cancellationToken);
                      
                     tmp.NoDelay = true;
-                    tmp.LingerState = new LingerOption(true, 3);
+                    //tmp.LingerState = new LingerOption(true, 3);
 
                     if (tmp.RemoteEndPoint is not IPEndPoint remoteEndPoint) continue;
 

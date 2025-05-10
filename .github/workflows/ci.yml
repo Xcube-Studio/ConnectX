@@ -1,0 +1,36 @@
+﻿name: Publish ConnectX.Client NuGet Package
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Get current datetime
+        id: currentdatetime
+        uses: Kaven-Universe/github-action-current-date-time@v1
+        with:
+          format: "YYYY.MMDD.HHmmssSSS"
+
+      - name: Restore packages
+        run: dotnet restore ./ConnectX.Client/ConnectX.Client.csproj
+
+      - name: Build solution
+        run: dotnet build ./ConnectX.Client/ConnectX.Client.csproj -c Release --no-restore
+
+      - name: Pack solution
+        run: dotnet pack ./ConnectX.Client/ConnectX.Client.csproj -c Release -p:PackageVersion="${{ steps.currentdatetime.outputs.time }}" --no-build --no-restore -o .
+
+      - name: Publish to NuGet
+        run: dotnet nuget push *.nupkg -k ${{secrets.NUGET_KEY}} -s https://api.nuget.org/v3/index.json

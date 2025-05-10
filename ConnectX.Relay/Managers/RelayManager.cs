@@ -1,7 +1,6 @@
 ﻿using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
-using CommunityToolkit.HighPerformance;
 using ConnectX.Relay.Helpers;
 using ConnectX.Relay.Interfaces;
 using ConnectX.Shared.Helpers;

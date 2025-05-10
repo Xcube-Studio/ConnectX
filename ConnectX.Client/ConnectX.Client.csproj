@@ -10,6 +10,7 @@
     <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
     <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="ConsoleTables" Version="2.6.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.4" />
+    <PackageReference Include="Snappier" Version="1.2.0" />
     <PackageReference Include="ZeroTier.Sockets" Version="1.8.4" />
   </ItemGroup>
 
@@ -24,5 +25,14 @@
     <ProjectReference Include="..\Hive.Framework\Hive.Network.Tcp\Hive.Network.Tcp.csproj" />
     <ProjectReference Include="..\Hive.Framework\Hive.Network.Udp\Hive.Network.Udp.csproj" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Corona-Studio/ConnectX</PackageProjectUrl>
+    <Title>$(AssemblyName)</Title>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
 
 </Project>

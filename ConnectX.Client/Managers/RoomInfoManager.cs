@@ -46,7 +46,7 @@ public class RoomInfoManager(
         {
             if (CurrentGroupInfo == null)
             {
-                // Reset flags to original state
+                // Reset flags to the original state
                 needToRefreshRoomInfo = false;
                 lastRefreshTime = DateTime.MinValue;
 
