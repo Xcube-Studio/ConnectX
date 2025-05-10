@@ -17,6 +17,7 @@ using Hive.Network.Tcp;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Snappier;
 
 namespace ConnectX.Client.Transmission.Connections;
 
@@ -267,14 +268,28 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         if (_relayServerDataLink == null)
             return;
 
-        var carrier = new ForwardPacketCarrier
+        try
         {
-            Payload = buffer.ToArray(),
-            LastTryTime = 0,
-            TryCount = 0
-        };
+            var dataLength = (int)buffer.Length;
 
-        Dispatcher.Dispatch(session, carrier);
+            using var memoryOwner = MemoryPool<byte>.Shared.Rent(dataLength);
+            buffer.CopyTo(memoryOwner.Memory.Span);
+
+            var decompressedOwner = Snappy.DecompressToMemory(memoryOwner.Memory.Span[..dataLength]);
+            var carrier = new ForwardPacketCarrier
+            {
+                PayloadOwner = decompressedOwner,
+                Payload = decompressedOwner.Memory,
+                LastTryTime = 0,
+                TryCount = 0
+            };
+
+            Dispatcher.Dispatch(session, carrier);
+        }
+        catch (Exception e)
+        {
+            Logger.LogFailedToDecompressMessage(e, buffer.Length, Source, To);
+        }
     }
 
     public override async Task<bool> ConnectAsync(CancellationToken token)
@@ -408,7 +423,19 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        var ms = RecycleMemoryStreamManagerHolder.Shared.GetStream(data.ToArray());
+        var dataLength = data.Length;
+
+        using var memoryOwner = MemoryPool<byte>.Shared.Rent(dataLength);
+        data.CopyTo(memoryOwner.Memory);
+
+        var ms = RecycleMemoryStreamManagerHolder.Shared.GetStream();
+        var seq = new ReadOnlySequence<byte>(memoryOwner.Memory[..dataLength]);
+
+        if (data.Length <= ms.Length)
+            Logger.LogUnderperformedCompression(data.Length, (int)ms.Length);
+
+        Snappy.Compress(seq, ms);
+        ms.Seek(0, SeekOrigin.Begin);
 
         _relayServerWorkerLink?.TrySendAsync(ms, _linkCt).Forget();
     }
@@ -469,4 +496,10 @@ internal static partial class RelayConnectionLoggers
 
     [LoggerMessage(LogLevel.Error, "[RELAY_CONN] Failed to establish worker session [{relayEndPoint}]")]
     public static partial void LogFailedToEstablishingWorkerSession(this ILogger logger, IPEndPoint relayEndPoint);
+
+    [LoggerMessage(LogLevel.Debug, "[RELAY_CONN] Underperformed compression! Original length [{original} bytes], compressed length [{compressed} bytes].")]
+    public static partial void LogUnderperformedCompression(this ILogger logger, int original, int compressed);
+
+    [LoggerMessage(LogLevel.Critical, "[RELAY_CONN] Failed to decompress message [{length} bytes] from [{source}] to [{target}]")]
+    public static partial void LogFailedToDecompressMessage(this ILogger logger, Exception ex, long length, string source, Guid target);
 }
