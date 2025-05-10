@@ -1,10 +1,7 @@
 name: Deploy ConnectX
 
 on:
-  workflow_run:
-    workflows: [ "CodeQL Advanced" ]
-    types:
-      - completed
+  push:
   workflow_dispatch:
 
 jobs:
