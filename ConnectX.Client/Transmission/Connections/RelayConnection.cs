@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Snappier;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ConnectX.Client.Transmission.Connections;
 
@@ -269,12 +270,14 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
         if (_relayServerDataLink == null)
             return;
 
+        var dataLen = (int)buffer.Length;
+
         try
         {
-            using var memory = MemoryPool<byte>.Shared.Rent((int)buffer.Length);
+            using var memory = MemoryPool<byte>.Shared.Rent();
             buffer.CopyTo(memory.Memory.Span);
 
-            var decompressedOwner = Snappy.DecompressToMemory(memory.Memory.Span);
+            var decompressedOwner = Snappy.DecompressToMemory(memory.Memory.Span[..dataLen]);
             var carrier = new ForwardPacketCarrier
             {
                 PayloadOwner = decompressedOwner,
@@ -422,13 +425,19 @@ public sealed class RelayConnection : ConnectionBase, IDatagramTransmit<RelayDat
 
     public void SendByWorker(ReadOnlyMemory<byte> data)
     {
-        using var memory = MemoryPool<byte>.Shared.Rent(data.Length);
+        var dataLen = data.Length;
+
+        using var memory = MemoryPool<byte>.Shared.Rent();
         data.CopyTo(memory.Memory);
 
-        var ms = Snappy.CompressToMemory(memory.Memory.Span).AsStream();
+        var ms = RecycleMemoryStreamManagerHolder.Shared.GetStream();
+
+        Snappy.Compress(new ReadOnlySequence<byte>(memory.Memory[..dataLen]), ms);
 
         if (data.Length <= ms.Length)
             Logger.LogUnderperformedCompression(data.Length, (int) ms.Length);
+
+        ms.Seek(0, SeekOrigin.Begin);
 
         _relayServerWorkerLink?.TrySendAsync(ms, _linkCt).Forget();
     }
