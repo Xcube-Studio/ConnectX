@@ -79,7 +79,9 @@ public class Client
         if (result is { Status: GroupCreationStatus.Succeeded })
             return result;
 
-        _logger.LogFailedToCreateGroup(result?.ErrorMessage ?? "-");
+        _logger.LogFailedToPerformGroupOp(
+            typeof(T).Name,
+            result?.ErrorMessage ?? "-");
         return result;
     }
 
@@ -294,6 +296,6 @@ internal static partial class ClientLoggers
     [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to acquire group info, group id: {groupId}")]
     public static partial void LogFailedToAcquireGroupInfo(this ILogger logger, Guid groupId);
 
-    [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to create group, error message: {errorMessage}")]
-    public static partial void LogFailedToCreateGroup(this ILogger logger, string errorMessage);
+    [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to perform group op <{opType}>, error message: {errorMessage}")]
+    public static partial void LogFailedToPerformGroupOp(this ILogger logger, string opType, string errorMessage);
 }

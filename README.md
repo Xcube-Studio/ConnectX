@@ -24,21 +24,21 @@ Proudly powered by another of our open-source projects: [Hive.Framework](https:/
 
 ## Status
 
-|Function                                 |Status            |
-|:----------------------------------------|:----------------:|
-|`Server`: Log Room Ops Info to local DB  |:white_check_mark:|
-|`Server`: Client/Room management         |:white_check_mark:|
-|`Server`: Relay Server management        |:white_check_mark:|
-|`Relay`: Relay Server impl based on Hive |:white_check_mark:|
-|`Relay`: Ultra low latency relay impl    |:white_check_mark:|
-|`Client`: ZT based P2P connection        |:white_check_mark:|
-|`Client`: ZT based Relay connection      |:white_check_mark:|
-|`Client`: ConnectX based Relay connection|:white_check_mark:|
-|Dual Stack Socket Support                |:white_check_mark:|
+| Function                                  |       Status       |
+| :---------------------------------------- | :----------------: |
+| `Server`: Log Room Ops Info to local DB   | :white_check_mark: |
+| `Server`: Client/Room management          | :white_check_mark: |
+| `Server`: Relay Server management         | :white_check_mark: |
+| `Relay`: Relay Server impl based on Hive  | :white_check_mark: |
+| `Relay`: Ultra low latency relay impl     | :white_check_mark: |
+| `Client`: ZT based P2P connection         | :white_check_mark: |
+| `Client`: ZT based Relay connection       | :white_check_mark: |
+| `Client`: ConnectX based Relay connection | :white_check_mark: |
+| Dual Stack Socket Support                 | :white_check_mark: |
 
 ## Quick Start!
 
-We are using the MSDI(Microsoft.Extensions.DependencyInjection) as our DI container. The best practice is to use `.NET Generic Host` for you program. 
+We are using the MSDI(Microsoft.Extensions.DependencyInjection) as our DI container. The best practice is to use `.NET Generic Host` for you program.
 
 First, add the following method for the Server Config. `ConnectXServerIp` will be the Backend address for the ConnectX.Server.
 
@@ -138,6 +138,14 @@ MIT. This means that you can modify or use our code for any purpose, however, co
 
 ConnectX is not affiliated with Mojang or any part of its software.
 
+## License Notice
+
+This project, ConnectX, is licensed under the MIT License.
+
+ConnectX uses ZeroTier, which is licensed under the Apache License 2.0 as of 2025-01-01, following its license change from BSL 1.1. You can find more about ZeroTier's licensing at https://github.com/zerotier/ZeroTierOne.
+
+[See Also](https://github.com/Corona-Studio/ConnectX/blob/main/ZEROTIER_LICENSE.txt)
+
 ## Hall of Shame
 
-Here, we'll list all programs using our code without obeying the  MIT License.
+Here, we'll list all programs using our code without obeying the MIT License.

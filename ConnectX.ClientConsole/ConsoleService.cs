@@ -167,7 +167,7 @@ public class ConsoleService(
 
         var (groupInfo, status, error) = await client.JoinGroupAsync(message, CancellationToken.None);
 
-        logger.LogInformation("Room joined, {@info}, {status:G}, {error}", groupInfo, status, error);
+        logger.LogInformation("Room join result received, {@info}, {status:G}, {error}", groupInfo, status, error);
 
         _lastGroupInfo = groupInfo;
     }

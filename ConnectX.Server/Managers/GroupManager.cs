@@ -1,7 +1,11 @@
 ﻿using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using ConnectX.Server.Interfaces;
+using ConnectX.Server.Messages;
+using ConnectX.Server.Messages.Queries;
 using ConnectX.Server.Models;
 using ConnectX.Server.Models.ZeroTier;
 using ConnectX.Server.Services;
@@ -18,12 +22,16 @@ using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Server.Managers;
 
+[JsonSerializable(typeof(InterconnectServerRegistration))]
+public partial class GroupManagerContexts : JsonSerializerContext;
+
 public class GroupManager
 {
     private readonly IZeroTierNodeInfoService _zeroTierNodeInfoService;
     private readonly RelayServerManager _relayServerManager;
     private readonly ClientManager _clientManager;
     private readonly RoomCreationRecordService _roomCreationRecordService;
+    private readonly InterconnectServerManager _interconnectServerManager;
     private readonly IDispatcher _dispatcher;
     private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger _logger;
@@ -39,6 +47,7 @@ public class GroupManager
         RelayServerManager relayServerManager,
         ClientManager clientManager,
         RoomCreationRecordService roomCreationRecordService,
+        InterconnectServerManager interconnectServerManager,
         IServiceScopeFactory serviceScopeFactory,
         ILogger<GroupManager> logger)
     {
@@ -47,6 +56,7 @@ public class GroupManager
         _relayServerManager = relayServerManager;
         _clientManager = clientManager;
         _roomCreationRecordService = roomCreationRecordService;
+        _interconnectServerManager = interconnectServerManager;
         _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
 
@@ -165,6 +175,19 @@ public class GroupManager
         return true;
     }
 
+    public bool TryQueryGroup(
+        QueryRemoteServerRoomInfo query,
+        [NotNullWhen(true)] out Group? group)
+    {
+        var groupId = string.IsNullOrEmpty(query.JoinGroup.RoomShortId)
+            ? query.JoinGroup.GroupId
+            : _shortIdGroupMappings.TryGetValue(query.JoinGroup.RoomShortId, out var id)
+                ? id
+                : Guid.Empty;
+
+        return _groupMappings.TryGetValue(groupId, out group);
+    }
+
     private bool TryGetGroup(
         Guid groupId,
         IDispatcher? dispatcher,
@@ -180,7 +203,6 @@ public class GroupManager
         _logger.LogGroupDoesNotExist(session.Id);
 
         return false;
-
     }
 
     private async Task NotifyGroupMembersAsync<T>(
@@ -446,6 +468,30 @@ public class GroupManager
         _roomCreationRecordService.CreateRecord(creationRecord);
     }
 
+    private async Task TryGetRoomInfoFromRemoteServerAsync(MessageContext<JoinGroup> ctx)
+    {
+        var fetchRemoteRoomInfo = await _interconnectServerManager.TryFindTargetRemoteServerForRoomAsync(ctx.Message);
+
+        if (fetchRemoteRoomInfo == null)
+        {
+            var err = new GroupOpResult(GroupCreationStatus.GroupNotExists, "Group does not exist.");
+            ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
+
+            _logger.LogGroupDoesNotExist(ctx.FromSession.Id);
+
+            return;
+        }
+
+        var infoJson = JsonSerializer.Serialize(
+            fetchRemoteRoomInfo,
+            GroupManagerContexts.Default.InterconnectServerRegistration);
+        var redirectMsg = new GroupOpResult(GroupCreationStatus.NeedRedirect, infoJson);
+
+        ctx.Dispatcher.SendAsync(ctx.FromSession, redirectMsg).Forget();
+
+        _logger.LogRedirectMessageSent(fetchRemoteRoomInfo);
+    }
+
     private void OnJoinGroupReceived(MessageContext<JoinGroup> ctx)
     {
         if (!IsSessionAttached(ctx.Dispatcher, ctx.FromSession)) return;
@@ -461,7 +507,12 @@ public class GroupManager
                 ? id
                 : Guid.Empty;
 
-        if (!TryGetGroup(groupId, ctx.Dispatcher, ctx.FromSession, out var group)) return;
+        if (!_groupMappings.TryGetValue(groupId, out var group))
+        {
+            TryGetRoomInfoFromRemoteServerAsync(ctx).Forget();
+            return;
+        }
+
         if (group.MaxUserCount != 0 &&
             group.MaxUserCount == group.Users.Count)
         {
@@ -714,7 +765,7 @@ internal static partial class GroupManagerLoggers
     [LoggerMessage(LogLevel.Warning, "[GROUP_MANAGER] Can not find any group related {userId}!")]
     public static partial void LogGroupNotFound(this ILogger logger, Guid userId);
 
-    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{id}] updated its member info: {@info}")]
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] User [{id}] updated its member info: {info}")]
     public static partial void LogMemberInfoUpdated(this ILogger logger, Guid id, UpdateRoomMemberNetworkInfo info);
 
     [LoggerMessage(LogLevel.Error,
@@ -840,4 +891,7 @@ internal static partial class GroupManagerLoggers
         SessionId sessionId,
         Guid userId,
         Guid groupId);
+
+    [LoggerMessage(LogLevel.Information, "[GROUP_MANAGER] Redirect message sent to client! [{redirectMsg}]")]
+    public static partial void LogRedirectMessageSent(this ILogger logger, InterconnectServerRegistration redirectMsg);
 }

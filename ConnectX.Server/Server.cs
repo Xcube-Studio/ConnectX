@@ -2,6 +2,7 @@
 using System.Net;
 using ConnectX.Server.Interfaces;
 using ConnectX.Server.Managers;
+using ConnectX.Server.Messages;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
@@ -24,6 +25,7 @@ public class Server : BackgroundService
     // ReSharper disable once InconsistentNaming
     private readonly P2PManager _p2pManager;
     private readonly RelayServerManager _relayServerManager;
+    private readonly InterconnectServerManager _interconnectServerManager;
 
     private readonly IDispatcher _dispatcher;
     private readonly IHostApplicationLifetime _lifetime;
@@ -44,6 +46,7 @@ public class Server : BackgroundService
         // ReSharper disable once InconsistentNaming
         P2PManager p2pManager,
         RelayServerManager relayServerManager,
+        InterconnectServerManager interconnectServerManager,
         IHostApplicationLifetime lifetime,
         ILogger<Server> logger)
     {
@@ -55,6 +58,7 @@ public class Server : BackgroundService
         _clientManager = clientManager;
         _p2pManager = p2pManager;
         _relayServerManager = relayServerManager;
+        _interconnectServerManager = interconnectServerManager;
 
         _lifetime = lifetime;
         _logger = logger;
@@ -62,7 +66,9 @@ public class Server : BackgroundService
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
 
         _acceptor.BindTo(_dispatcher);
+
         _dispatcher.AddHandler<SigninMessage>(OnSigninMessageReceived);
+        _dispatcher.AddHandler<InterconnectServerRegistration>(OnInterconnectServerRegistrationReceived);
     }
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
@@ -121,6 +127,26 @@ public class Server : BackgroundService
             });
 
         _logger.LogNewSessionJoined(session.RemoteEndPoint!, id);
+    }
+
+    private void OnInterconnectServerRegistrationReceived(MessageContext<InterconnectServerRegistration> ctx)
+    {
+        var session = ctx.FromSession;
+
+        // Remove temp session mapping
+        if (!_tempSessionMapping.TryRemove(session.Id, out _))
+            return;
+
+        var newVal = Interlocked.Increment(ref _currentSessionCount);
+
+        _logger.LogCurrentOnline(newVal);
+        _logger.LogSigninMessageReceived(session.RemoteEndPoint!, session.Id);
+
+        _clientManager.AttachSession(session.Id, session);
+
+        _dispatcher.SendAsync(session, new InterconnectServerRegistrationSucceeded()).Forget();
+
+        _interconnectServerManager.AttachSession(session.Id, session, ctx.Message);
     }
 
     private void OnSigninMessageReceived(MessageContext<SigninMessage> ctx)
