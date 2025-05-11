@@ -39,12 +39,18 @@ internal static class Program
             });
 
             services.AddSingleton<IServerSettingProvider, ConfigSettingProvider>();
+            services.AddSingleton<IInterconnectServerSettingProvider, InterconnectServerSettingProvider>();
+
             services.AddConnectXEssentials();
+            services.RegisterConnectXServerPackets();
 
             services.AddSingleton<ClientManager>();
             services.AddSingleton<GroupManager>();
             services.AddSingleton<P2PManager>();
             services.AddSingleton<RelayServerManager>();
+            services.AddSingleton<InterconnectServerManager>();
+
+            services.AddHostedService<InterconnectServerLinkHolder>();
 
             services.AddSingleton<IZeroTierNodeInfoService, ZeroTierNodeInfoService>();
             services.AddHostedService(sc => sc.GetRequiredService<IZeroTierNodeInfoService>());

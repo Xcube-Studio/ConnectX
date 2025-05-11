@@ -2,17 +2,20 @@
 
 public enum GroupCreationStatus
 {
-    Succeeded,
-    GroupNotExists,
-    UserNotExists,
-    SessionDetached,
-    AlreadyInRoom,
-    GroupIsFull,
-    PasswordIncorrect,
+    Succeeded = 0,
+    GroupNotExists = 1,
+    UserNotExists = 2,
+    SessionDetached = 3,
+    AlreadyInRoom = 4,
+    GroupIsFull = 5,
+    PasswordIncorrect = 6,
 
-    NetworkControllerNotReady,
-    NetworkControllerError,
-    InternalError,
+    NetworkControllerNotReady = 7,
+    NetworkControllerError = 8,
+    InternalError = 9,
 
-    Other
+    Other = 10,
+
+    // This is used to indicate that the client should redirect to another server
+    NeedRedirect = 11
 }

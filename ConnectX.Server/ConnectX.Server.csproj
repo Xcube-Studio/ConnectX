@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+   <ProjectReference Include="..\ConnectX.MessageRegister.SourceGenerator\ConnectX.MessageRegister.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.4" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.4">
       <PrivateAssets>all</PrivateAssets>

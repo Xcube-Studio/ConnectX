@@ -12,6 +12,7 @@ public class ConfigSettingProvider : IServerSettingProvider
         ILogger<ConfigSettingProvider> logger)
     {
         var listenAddressStr = configuration.GetValue<string>("Server:ListenAddress");
+
         if (IPAddress.TryParse(listenAddressStr, out var listenAddress))
         {
             ListenAddress = listenAddress;
@@ -22,12 +23,33 @@ public class ConfigSettingProvider : IServerSettingProvider
             throw new Exception("Can not parse the Server:ListenAddress to IPAddress");
         }
 
+        ServerName = configuration.GetValue<string>("Server:ServerName") ?? listenAddressStr;
+        ServerMotd = configuration.GetValue<string>("Server:ServerMotd") ?? "SERVER_DOSE_NOT_PROVIDE_MOTD";
+
         ServerId = configuration.GetValue<Guid>("Server:ServerId");
         ListenPort = configuration.GetValue<ushort>("Server:ListenPort");
         EndPoint = new IPEndPoint(ListenAddress, ListenPort);
 
+        var publicServerAddress = configuration.GetValue<string>("Server:PublicListenAddress");
+        var publicServerPort = configuration.GetValue<ushort>("Server:PublicListenPort");
+
+        if (IPEndPoint.TryParse($"{publicServerAddress}:{publicServerPort}", out var publicEndPoint))
+        {
+            ServerPublicEndPoint = publicEndPoint;
+        }
+        else
+        {
+            logger.CanNotParseListenAddressToIpAddress();
+            throw new Exception("Can not parse the server public listen address!");
+        }
+
         logger.PreparingToStartServerOnEndpoint(EndPoint);
     }
+
+    public string ServerName { get; }
+    public string ServerMotd { get; }
+
+    public IPEndPoint ServerPublicEndPoint { get; }
 
     public IPEndPoint EndPoint { get; }
     public IPAddress ListenAddress { get; }
