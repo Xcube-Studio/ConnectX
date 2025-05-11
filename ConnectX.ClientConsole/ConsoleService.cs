@@ -1,7 +1,9 @@
 ﻿using Microsoft.Extensions.Hosting;
 using System.CommandLine;
 using System.CommandLine.Invocation;
+using ConnectX.Client.Interfaces;
 using ConnectX.ClientConsole.Helpers;
+using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
 using Microsoft.Extensions.Logging;
 
@@ -50,11 +52,19 @@ internal static class Commands
 }
 
 public class ConsoleService(
+    IServerLinkHolder serverLinkHolder,
     Client.Client client,
     ILogger<ConsoleService> logger)
     : BackgroundService
 {
     private GroupInfo? _lastGroupInfo;
+
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        await serverLinkHolder.ConnectAsync(cancellationToken);
+        await TaskHelper.WaitUntilAsync(() => serverLinkHolder.IsConnected, cancellationToken);
+        await base.StartAsync(cancellationToken);
+    }
 
     private static string[] ParseArguments(string commandLine)
     {

@@ -13,18 +13,9 @@ public class IPEndPointJsonConverter : JsonConverter<IPEndPoint>
             return null;
 
         // Try parse IP:Port format
-        var parts = endpointString.Split(':');
-        if (parts.Length < 2)
-            throw new JsonException($"Invalid IPEndPoint format: {endpointString}");
-
-        if (!int.TryParse(parts[^1], out var port))
-            throw new JsonException($"Invalid port number: {parts[^1]}");
-
-        var ipPart = string.Join(":", parts[..^1]);
-        if (!IPAddress.TryParse(ipPart, out var ip))
-            throw new JsonException($"Invalid IP address: {ipPart}");
-
-        return new IPEndPoint(ip, port);
+        if (IPEndPoint.TryParse(endpointString, out var endpoint))
+            return endpoint;
+        else throw new JsonException($"Invalid IPEndPoint format: {endpointString}");
     }
 
     public override void Write(Utf8JsonWriter writer, IPEndPoint value, JsonSerializerOptions options)

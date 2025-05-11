@@ -42,21 +42,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
     public event Action? OnServerLinkDisconnected;
 
-    public override async Task StartAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogStartingServerLinkHolder();
-
-        await ConnectAsync(cancellationToken);
-        await TaskHelper.WaitUntilAsync(() => IsConnected, cancellationToken);
-        await base.StartAsync(cancellationToken);
-    }
-
-    public override Task StopAsync(CancellationToken cancellationToken)
-    {
-        _logger.LogStoppingServerLinkHolder();
-        return base.StopAsync(cancellationToken);
-    }
-
     private async Task CheckServerLivenessAsync(CancellationToken cancellationToken)
     {
         var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
@@ -204,12 +189,6 @@ internal static partial class ServerLinkHolderLoggers
 {
     [LoggerMessage(LogLevel.Information, "[CLIENT] Successfully logged into server, assigned id: {id}")]
     public static partial void LogSuccessfullyLoggedIn(this ILogger logger, Guid id);
-
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Starting server link holder...")]
-    public static partial void LogStartingServerLinkHolder(this ILogger logger);
-
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Stopping server link holder...")]
-    public static partial void LogStoppingServerLinkHolder(this ILogger logger);
 
     [LoggerMessage(LogLevel.Information, "[CLIENT] Connecting to server...")]
     public static partial void LogConnectingToServer(this ILogger logger);
