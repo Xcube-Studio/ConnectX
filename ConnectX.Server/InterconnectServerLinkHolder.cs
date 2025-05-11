@@ -125,6 +125,9 @@ public class InterconnectServerLinkHolder : BackgroundService
                 {
                     _logger.LogFailedToConnectToRemoteServer(endPoint);
                     _pendingEstablishInterconnectServerLinks.Enqueue(endPoint);
+
+                    await Task.Delay(5000, stoppingToken);
+
                     continue;
                 }
 
