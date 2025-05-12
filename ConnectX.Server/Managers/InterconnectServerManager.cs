@@ -3,12 +3,12 @@ using System.Net;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Abstractions;
 using Microsoft.Extensions.Logging;
-using ConnectX.Server.Messages;
 using ConnectX.Server.Messages.Queries;
 using ConnectX.Shared.Helpers;
 using Hive.Both.General.Dispatchers;
 using ConnectX.Server.Interfaces;
 using ConnectX.Shared.Messages.Group;
+using ConnectX.Shared.Messages.Server;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ConnectX.Server.Managers;
