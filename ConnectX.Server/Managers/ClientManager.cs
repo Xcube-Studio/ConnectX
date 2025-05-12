@@ -4,6 +4,7 @@ using ConnectX.Shared.Messages;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
 using Hive.Network.Abstractions.Session;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -14,14 +15,17 @@ public delegate void SessionDisconnectedHandler(SessionId sessionId);
 public class ClientManager : BackgroundService
 {
     private readonly IDispatcher _dispatcher;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<SessionId, WatchDog> _watchDogMapping = new();
 
     public ClientManager(
         IDispatcher dispatcher,
+        IServiceScopeFactory serviceScopeFactory,
         ILogger<ClientManager> logger)
     {
         _dispatcher = dispatcher;
+        _serviceScopeFactory = serviceScopeFactory;
         _logger = logger;
 
         _dispatcher.AddHandler<ShutdownMessage>(OnReceivedShutdownMessage);
@@ -75,10 +79,18 @@ public class ClientManager : BackgroundService
             ctx.Dispatcher.SendAsync(ctx.FromSession, new ShutdownMessage()).Forget();
             ctx.Dispatcher.RemoveHandler<HeartBeat>(OnReceivedHeartBeat);
             return;
-        }
+        } 
+        
+        watchDog.Received();
+
+        using var scope = _serviceScopeFactory.CreateScope();
+        var interconnectServerManager = scope.ServiceProvider.GetRequiredService<InterconnectServerManager>();
+
+        // if the session is registered for interconnect, we don't need to send heartbeat back
+        if (interconnectServerManager.IsServerRegisteredForInterconnect(ctx.FromSession.Id))
+            return;
 
         ctx.Dispatcher.SendAsync(ctx.FromSession, new HeartBeat()).Forget();
-        watchDog.Received();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

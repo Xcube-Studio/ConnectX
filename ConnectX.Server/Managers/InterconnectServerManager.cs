@@ -43,6 +43,11 @@ public class InterconnectServerManager
         _dispatcher.AddHandler<QueryRemoteServerRoomInfo>(OnQueryRemoteServerRoomInfoReceived);
     }
 
+    public bool IsServerRegisteredForInterconnect(SessionId sessionId)
+    {
+        return _sessionMapping.ContainsKey(sessionId);
+    }
+
     private void OnClientSessionDisconnected(SessionId sessionId)
     {
         if (!_sessionMapping.TryRemove(sessionId, out var session))

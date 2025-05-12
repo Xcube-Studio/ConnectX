@@ -78,7 +78,7 @@ public class InterconnectServerLinkHolder : BackgroundService
                     continue;
                 }
 
-                await _dispatcher.SendAsync(tcpSession, new HeartBeat(), stoppingToken);
+                _dispatcher.SendAsync(tcpSession, new HeartBeat(), stoppingToken).Forget();
             }
 
             foreach (var (endPoint, session) in sessionsNeedToReconnect)
