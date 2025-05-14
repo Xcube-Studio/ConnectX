@@ -16,13 +16,14 @@ namespace ConnectX.Client.Proxy.FakeServerMultiCasters;
 
 public abstract class FakeServerMultiCasterBase : BackgroundService
 {
-    private const string Prefix = "ConnectX";
+    protected const string Prefix = "ConnectX";
 
     private readonly RouterPacketDispatcher _packetDispatcher;
     private readonly PartnerManager _partnerManager;
     private readonly ProxyManager _proxyManager;
-    private readonly IRoomInfoManager _roomInfoManager;
-    private readonly ILogger _logger;
+
+    protected readonly IRoomInfoManager RoomInfoManager;
+    protected readonly ILogger Logger;
 
     protected FakeServerMultiCasterBase(
         PartnerManager partnerManager,
@@ -35,8 +36,8 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         _partnerManager = partnerManager;
         _proxyManager = channelManager;
         _packetDispatcher = packetDispatcher;
-        _roomInfoManager = roomInfoManager;
-        _logger = logger;
+        RoomInfoManager = roomInfoManager;
+        Logger = logger;
 
         relayPacketDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
         _packetDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
@@ -69,11 +70,11 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         foreach (var ni in networkInterfaces)
         {
             var ipProps = ni.GetIPProperties();
-            foreach (var addr in ipProps.UnicastAddresses)
+            foreach (var address in ipProps.UnicastAddresses)
             {
-                if (addr.Address.AddressFamily == AddressFamily.InterNetwork)
+                if (address.Address.AddressFamily == AddressFamily.InterNetwork)
                 {
-                    var ip = addr.Address;
+                    var ip = address.Address;
                     if (ip.ToString().StartsWith("192.168."))
                         return ip;
 
@@ -88,43 +89,63 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         throw new Exception("No suitable IPv4 address found.");
     }
 
+    protected static int GetIpv6MulticastInterfaceIndex()
+    {
+        var interfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+            .Where(ni => ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up);
+
+        foreach (var ni in interfaces)
+        {
+            var props = ni.GetIPProperties();
+            foreach (var address in props.UnicastAddresses)
+            {
+                if (address.Address is { AddressFamily: AddressFamily.InterNetworkV6, IsIPv6LinkLocal: false })
+                {
+                    return props.GetIPv6Properties()?.Index ?? 0;
+                }
+            }
+        }
+
+        return 0;
+    }
+
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
     {
-        _logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
+        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
 
         var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port);
         if (proxy == null)
         {
-            _logger.LogProxyCreationFailed(context.SenderId);
+            Logger.LogProxyCreationFailed(context.SenderId);
             return;
         }
 
-        Socket? socket = null;
+        Socket? socket;
 
-        if (OperatingSystem.IsWindows())
+        if (message.IsIpv6)
         {
-            socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 255);
 
-            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
+            var index = GetIpv6MulticastInterfaceIndex();
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
+            socket.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
 
-            _logger.LogSocketSetupForWindows(MulticastAddress.ToString());
+            Logger.LogSocketSetup("IPV6", $"(Interface Index: {index})");
         }
-
-        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        else
         {
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
 
             var localIp = GetLocalIpAddress();
-
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
             socket.Bind(new IPEndPoint(localIp, 0));
 
-            _logger.LogSocketSetupForLinuxMacOs(localIp.ToString());
+            Logger.LogSocketSetup("IPV4", localIp.ToString());
         }
-
-        ArgumentNullException.ThrowIfNull(socket);
 
         using var multicastSocket = socket;
 
@@ -135,13 +156,13 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         while (sentLen < buf.Length)
             sentLen += multicastSocket.SendTo(buf[sentLen..], MulticastIpe);
 
-        _logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
+        Logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
 
 
-    private void ListenedLanServer(string serverName, ushort port)
+    protected void ListenedLanServer(string serverName, ushort port)
     {
-        _logger.LogLanServerIsListened(serverName, port);
+        Logger.LogLanServerIsListened(serverName, port);
 
         OnListenedLanServer?.Invoke(serverName, port);
 
@@ -150,7 +171,8 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
             var message = new McMulticastMessage
             {
                 Port = port,
-                Name = $"[{Prefix}]{serverName}"
+                Name = $"[{Prefix}]{serverName}",
+                IsIpv6 = MulticastAddress.AddressFamily == AddressFamily.InterNetworkV6
             };
 
             if (partner.Connection is RelayConnection { IsConnected: true })
@@ -158,7 +180,7 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
                 // Partner is connected through relay, send multicast using the relay connection
                 partner.Connection.SendData(message);
 
-                _logger.LogSendLanServerToPartner(serverName, port, id);
+                Logger.LogSendLanServerToPartner(serverName, port, id);
 
                 continue;
             }
@@ -166,70 +188,15 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
             // 对每一个用户组播
             _packetDispatcher.Send(id, message);
 
-            _logger.LogSendLanServerToPartner(serverName, port, id);
+            Logger.LogSendLanServerToPartner(serverName, port, id);
         }
     }
 
     public override Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogStoppingFakeMcServerMultiCaster();
+        Logger.LogStoppingFakeMcServerMultiCaster();
 
         return base.StopAsync(cancellationToken);
-    }
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        _logger.LogStartListeningLanMulticast();
-
-        var buffer = new byte[256];
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            if (_roomInfoManager.CurrentGroupInfo == null)
-            {
-                await Task.Delay(3000, stoppingToken);
-                continue;
-            }
-
-            using var multicastSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-
-            // Allow multiple sockets to bind to same address (important for Linux/macOS)
-            multicastSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-
-            // Bind to ANY address but the multicast port
-            multicastSocket.Bind(new IPEndPoint(IPAddress.Any, MulticastPort));
-
-            // Join multicast group
-            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
-            multicastSocket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
-
-            try
-            {
-                var receiveFromResult = await multicastSocket.ReceiveFromAsync(buffer, SocketFlags.None,
-                    new IPEndPoint(IPAddress.Any, 0), stoppingToken);
-                var message = Encoding.UTF8.GetString(buffer, 0, receiveFromResult.ReceivedBytes);
-
-                var serverName = message["[MOTD]".Length..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
-                var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
-                var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
-                var port = ushort.Parse(message[portStart..portEnd]);
-
-                if (!serverName.StartsWith($"[{Prefix}]"))
-                {
-                    ListenedLanServer(serverName, port);
-                }
-            }
-            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.Interrupted)
-            {
-                // Expected during shutdown
-            }
-            catch (Exception ex)
-            {
-                _logger.LogFailedToReceiveMulticastMessage(ex);
-            }
-
-            await Task.Delay(3000, stoppingToken);
-        }
     }
 }
 
@@ -262,9 +229,6 @@ internal static partial class FakeServerMultiCasterLoggers
     [LoggerMessage(LogLevel.Error, "Failed to receive multicast message.")]
     public static partial void LogFailedToReceiveMulticastMessage(this ILogger logger, Exception exception);
 
-    [LoggerMessage(LogLevel.Debug, "Socket setup for Windows, multicast address is {MulticastAddress}")]
-    public static partial void LogSocketSetupForWindows(this ILogger logger, string multicastAddress);
-
-    [LoggerMessage(LogLevel.Debug, "Socket setup for Linux/MacOS, local IP is {LocalIp}")]
-    public static partial void LogSocketSetupForLinuxMacOs(this ILogger logger, string localIp);
+    [LoggerMessage(LogLevel.Debug, "Socket setup [{mode}], multicast address is {MulticastAddress}")]
+    public static partial void LogSocketSetup(this ILogger logger, string mode, string multicastAddress);
 }
