@@ -1,6 +1,6 @@
 ﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
-using ConnectX.Client.Proxy;
+using ConnectX.Client.Proxy.FakeServerMultiCasters;
 using ConnectX.Client.Route;
 using ConnectX.Client.Transmission;
 using ConnectX.Shared.Helpers;
@@ -41,7 +41,8 @@ public static class ClientFactory
         services.AddSingleton<ProxyManager>();
         services.AddHostedService(sp => sp.GetRequiredService<ProxyManager>());
 
-        services.AddHostedService<FakeServerMultiCaster>();
+        services.AddHostedService<FakeServerMultiCasterV4>();
+        services.AddHostedService<FakeServerMultiCasterV6>();
 
         services.AddSingleton<PartnerManager>();
         

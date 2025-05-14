@@ -12,30 +12,25 @@ using ConnectX.Client.Transmission.Connections;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace ConnectX.Client.Proxy;
+namespace ConnectX.Client.Proxy.FakeServerMultiCasters;
 
-public class FakeServerMultiCaster : BackgroundService
+public abstract class FakeServerMultiCasterBase : BackgroundService
 {
     private const string Prefix = "ConnectX";
-    
+
     private readonly RouterPacketDispatcher _packetDispatcher;
     private readonly PartnerManager _partnerManager;
     private readonly ProxyManager _proxyManager;
-
-    private const int MulticastPort = 4445;
-    private static readonly IPAddress MulticastAddress = IPAddress.Parse("224.0.2.60");
-    private static readonly IPEndPoint MulticastIpe = new (MulticastAddress, MulticastPort);
-
     private readonly IRoomInfoManager _roomInfoManager;
     private readonly ILogger _logger;
 
-    public FakeServerMultiCaster(
+    protected FakeServerMultiCasterBase(
         PartnerManager partnerManager,
         ProxyManager channelManager,
         RouterPacketDispatcher packetDispatcher,
         RelayPacketDispatcher relayPacketDispatcher,
         IRoomInfoManager roomInfoManager,
-        ILogger<FakeServerMultiCaster> logger)
+        ILogger logger)
     {
         _partnerManager = partnerManager;
         _proxyManager = channelManager;
@@ -49,12 +44,16 @@ public class FakeServerMultiCaster : BackgroundService
 
     public event Action<string, int>? OnListenedLanServer;
 
+    protected abstract IPAddress MulticastAddress { get; }
+    protected abstract int MulticastPort { get; }
+    protected IPEndPoint MulticastIpe => new(MulticastAddress, MulticastPort);
+
     private static readonly FrozenSet<string> VirtualKeywords = FrozenSet.Create(
         "virtual", "vmware", "loopback",
         "pseudo", "tunneling", "tap",
         "container", "hyper-v", "bluetooth",
         "docker");
-    
+
     private static IPAddress GetLocalIpAddress()
     {
         var candidates = new List<IPAddress>();
@@ -105,10 +104,10 @@ public class FakeServerMultiCaster : BackgroundService
         if (OperatingSystem.IsWindows())
         {
             socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
-            
+
             var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
-            
+
             _logger.LogSocketSetupForWindows(MulticastAddress.ToString());
         }
 
@@ -121,10 +120,10 @@ public class FakeServerMultiCaster : BackgroundService
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
             socket.Bind(new IPEndPoint(localIp, 0));
-            
-            _logger.LogSocketSetupForLinuxMacOS(localIp.ToString());
+
+            _logger.LogSocketSetupForLinuxMacOs(localIp.ToString());
         }
-        
+
         ArgumentNullException.ThrowIfNull(socket);
 
         using var multicastSocket = socket;
@@ -132,10 +131,10 @@ public class FakeServerMultiCaster : BackgroundService
         var mess = $"[MOTD]{message.Name}[/MOTD][AD]{proxy.LocalMappingPort}[/AD]";
         var buf = Encoding.Default.GetBytes(mess).AsSpan();
         var sentLen = 0;
-        
+
         while (sentLen < buf.Length)
             sentLen += multicastSocket.SendTo(buf[sentLen..], MulticastIpe);
-        
+
         _logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
 
@@ -154,7 +153,7 @@ public class FakeServerMultiCaster : BackgroundService
                 Name = $"[{Prefix}]{serverName}"
             };
 
-            if (partner.Connection is RelayConnection {IsConnected: true})
+            if (partner.Connection is RelayConnection { IsConnected: true })
             {
                 // Partner is connected through relay, send multicast using the relay connection
                 partner.Connection.SendData(message);
@@ -259,13 +258,13 @@ internal static partial class FakeServerMultiCasterLoggers
 
     [LoggerMessage(LogLevel.Information, "Start listening LAN multicast")]
     public static partial void LogStartListeningLanMulticast(this ILogger logger);
-    
+
     [LoggerMessage(LogLevel.Error, "Failed to receive multicast message.")]
     public static partial void LogFailedToReceiveMulticastMessage(this ILogger logger, Exception exception);
-    
+
     [LoggerMessage(LogLevel.Debug, "Socket setup for Windows, multicast address is {MulticastAddress}")]
     public static partial void LogSocketSetupForWindows(this ILogger logger, string multicastAddress);
-    
+
     [LoggerMessage(LogLevel.Debug, "Socket setup for Linux/MacOS, local IP is {LocalIp}")]
-    public static partial void LogSocketSetupForLinuxMacOS(this ILogger logger, string localIp);
+    public static partial void LogSocketSetupForLinuxMacOs(this ILogger logger, string localIp);
 }
