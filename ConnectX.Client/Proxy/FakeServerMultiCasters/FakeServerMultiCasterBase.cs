@@ -111,7 +111,7 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
     {
-        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
+        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name, message.IsIpv6);
 
         var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port);
         if (proxy == null)
@@ -202,10 +202,10 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
 internal static partial class FakeServerMultiCasterLoggers
 {
-    [LoggerMessage(LogLevel.Debug,
-        "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}")]
+    [LoggerMessage(LogLevel.Information,
+        "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}, Is IPV6: {isIpv6}")]
     public static partial void
-        LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name);
+        LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name, bool isIpv6);
 
     [LoggerMessage(LogLevel.Error, "Proxy creation failed, sender ID: {SenderId}")]
     public static partial void LogProxyCreationFailed(this ILogger logger, Guid senderId);
@@ -231,4 +231,7 @@ internal static partial class FakeServerMultiCasterLoggers
 
     [LoggerMessage(LogLevel.Debug, "Socket setup [{mode}], multicast address is {MulticastAddress}")]
     public static partial void LogSocketSetup(this ILogger logger, string mode, string multicastAddress);
+
+    [LoggerMessage(LogLevel.Information, "Local game discovered, name [{name}], port [{port}]")]
+    public static partial void LogLocalGameDiscovered(this ILogger logger, string name, ushort port);
 }

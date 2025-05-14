@@ -63,6 +63,7 @@ public sealed class FakeServerMultiCasterV4(
                 if (!serverName.StartsWith($"[{Prefix}]"))
                 {
                     ListenedLanServer(serverName, port);
+                    Logger.LogLocalGameDiscovered(serverName, port);
                 }
             }
             catch (SocketException ex) when (ex.SocketErrorCode == SocketError.Interrupted)
