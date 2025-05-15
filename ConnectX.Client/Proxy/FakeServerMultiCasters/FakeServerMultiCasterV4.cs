@@ -5,7 +5,6 @@ using ConnectX.Client.Models;
 using ConnectX.Client.Route;
 using ConnectX.Client.Transmission;
 using Microsoft.Extensions.Logging;
-using System.Collections.Frozen;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -27,46 +26,6 @@ public sealed class FakeServerMultiCasterV4(
     protected override IPAddress MulticastAddress => IPAddress.Parse("224.0.2.60");
     protected override int MulticastPort => 4445;
     protected override IPEndPoint MulticastPacketReceiveAddress => new(IPAddress.Any, 0);
-
-    private static readonly FrozenSet<string> VirtualKeywords = FrozenSet.Create(
-        "virtual", "vmware", "loopback",
-        "pseudo", "tunneling", "tap",
-        "container", "hyper-v", "bluetooth",
-        "docker");
-
-    private static IPAddress GetLocalIpAddress()
-    {
-        var candidates = new List<IPAddress>();
-
-        var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
-            .Where(ni =>
-                ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
-                ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback &&
-                !VirtualKeywords.Contains(ni.Description.ToLowerInvariant()) &&
-                !VirtualKeywords.Contains(ni.Name.ToLowerInvariant())
-            );
-
-        foreach (var ni in networkInterfaces)
-        {
-            var ipProps = ni.GetIPProperties();
-            foreach (var address in ipProps.UnicastAddresses)
-            {
-                if (address.Address.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    var ip = address.Address;
-                    if (ip.ToString().StartsWith("192.168."))
-                        return ip;
-
-                    candidates.Add(ip);
-                }
-            }
-        }
-
-        if (candidates.Count > 0)
-            return candidates[0];
-
-        throw new Exception("No suitable IPv4 address found.");
-    }
 
     protected override void OnReceiveMcMulticastMessage(McMulticastMessageV4 message, PacketContext context)
     {

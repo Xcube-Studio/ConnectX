@@ -1,7 +1,4 @@
-﻿using System.Net;
-using System.Net.Sockets;
-using System.Text;
-using ConnectX.Client.Interfaces;
+﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route;
@@ -9,6 +6,10 @@ using ConnectX.Client.Transmission;
 using ConnectX.Client.Transmission.Connections;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Collections.Frozen;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 
 namespace ConnectX.Client.Proxy.FakeServerMultiCasters;
 
@@ -48,6 +49,46 @@ public abstract class FakeServerMultiCasterBase<TMultiCastPacket> : BackgroundSe
     protected abstract IPEndPoint MulticastPacketReceiveAddress { get; }
 
     protected IPEndPoint MulticastIpe => new(MulticastAddress, MulticastPort);
+
+    private static readonly FrozenSet<string> VirtualKeywords = FrozenSet.Create(
+        "virtual", "vmware", "loopback",
+        "pseudo", "tunneling", "tap",
+        "container", "hyper-v", "bluetooth",
+        "docker");
+
+    protected static IPAddress GetLocalIpAddress()
+    {
+        var candidates = new List<IPAddress>();
+
+        var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+            .Where(ni =>
+                ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
+                ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback &&
+                !VirtualKeywords.Contains(ni.Description.ToLowerInvariant()) &&
+                !VirtualKeywords.Contains(ni.Name.ToLowerInvariant())
+            );
+
+        foreach (var ni in networkInterfaces)
+        {
+            var ipProps = ni.GetIPProperties();
+            foreach (var address in ipProps.UnicastAddresses)
+            {
+                if (address.Address.AddressFamily == AddressFamily.InterNetwork)
+                {
+                    var ip = address.Address;
+                    if (ip.ToString().StartsWith("192.168."))
+                        return ip;
+
+                    candidates.Add(ip);
+                }
+            }
+        }
+
+        if (candidates.Count > 0)
+            return candidates[0];
+
+        throw new Exception("No suitable IPv4 address found.");
+    }
 
     protected static int GetIpv6MulticastInterfaceIndex()
     {
