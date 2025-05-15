@@ -1,10 +1,8 @@
-﻿using System.Collections.Frozen;
-using System.Net;
+﻿using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
-using ConnectX.Client.Messages.Proxy;
 using ConnectX.Client.Models;
 using ConnectX.Client.Route;
 using ConnectX.Client.Transmission;
@@ -14,15 +12,15 @@ using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Client.Proxy.FakeServerMultiCasters;
 
-public abstract class FakeServerMultiCasterBase : BackgroundService
+public abstract class FakeServerMultiCasterBase<TMultiCastPacket> : BackgroundService
 {
     protected const string Prefix = "ConnectX";
 
     private readonly RouterPacketDispatcher _packetDispatcher;
     private readonly PartnerManager _partnerManager;
-    private readonly ProxyManager _proxyManager;
+    private readonly IRoomInfoManager _roomInfoManager;
 
-    protected readonly IRoomInfoManager RoomInfoManager;
+    protected readonly ProxyManager ProxyManager;
     protected readonly ILogger Logger;
 
     protected FakeServerMultiCasterBase(
@@ -34,13 +32,13 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         ILogger logger)
     {
         _partnerManager = partnerManager;
-        _proxyManager = channelManager;
+        ProxyManager = channelManager;
         _packetDispatcher = packetDispatcher;
-        RoomInfoManager = roomInfoManager;
+        _roomInfoManager = roomInfoManager;
         Logger = logger;
 
-        relayPacketDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
-        _packetDispatcher.OnReceive<McMulticastMessage>(OnReceiveMcMulticastMessage);
+        relayPacketDispatcher.OnReceive<TMultiCastPacket>(OnReceiveMcMulticastMessage);
+        _packetDispatcher.OnReceive<TMultiCastPacket>(OnReceiveMcMulticastMessage);
     }
 
     public event Action<string, int>? OnListenedLanServer;
@@ -50,46 +48,6 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
     protected abstract IPEndPoint MulticastPacketReceiveAddress { get; }
 
     protected IPEndPoint MulticastIpe => new(MulticastAddress, MulticastPort);
-
-    private static readonly FrozenSet<string> VirtualKeywords = FrozenSet.Create(
-        "virtual", "vmware", "loopback",
-        "pseudo", "tunneling", "tap",
-        "container", "hyper-v", "bluetooth",
-        "docker");
-
-    private static IPAddress GetLocalIpAddress()
-    {
-        var candidates = new List<IPAddress>();
-
-        var networkInterfaces = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
-            .Where(ni =>
-                ni.OperationalStatus == System.Net.NetworkInformation.OperationalStatus.Up &&
-                ni.NetworkInterfaceType != System.Net.NetworkInformation.NetworkInterfaceType.Loopback &&
-                !VirtualKeywords.Contains(ni.Description.ToLowerInvariant()) &&
-                !VirtualKeywords.Contains(ni.Name.ToLowerInvariant())
-            );
-
-        foreach (var ni in networkInterfaces)
-        {
-            var ipProps = ni.GetIPProperties();
-            foreach (var address in ipProps.UnicastAddresses)
-            {
-                if (address.Address.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    var ip = address.Address;
-                    if (ip.ToString().StartsWith("192.168."))
-                        return ip;
-
-                    candidates.Add(ip);
-                }
-            }
-        }
-
-        if (candidates.Count > 0)
-            return candidates[0];
-
-        throw new Exception("No suitable IPv4 address found.");
-    }
 
     protected static int GetIpv6MulticastInterfaceIndex()
     {
@@ -103,7 +61,7 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
             {
                 if (address.Address is { AddressFamily: AddressFamily.InterNetworkV6, IsIPv6LinkLocal: false })
                 {
-                    return props.GetIPv6Properties()?.Index ?? 0;
+                    return props.GetIPv6Properties().Index;
                 }
             }
         }
@@ -111,82 +69,9 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         return 0;
     }
 
-    private Socket CreateMultiCastNotifySocket(bool isIpv6)
-    {
-        Socket? socket = null;
+    protected abstract void OnReceiveMcMulticastMessage(TMultiCastPacket message, PacketContext context);
 
-        var type = isIpv6 ? "IPV6" : "IPV4";
-        var socketOptionLevel = isIpv6 ? SocketOptionLevel.IPv6 : SocketOptionLevel.IP;
-
-        if (OperatingSystem.IsWindows())
-        {
-            socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
-
-            object multicastOption = isIpv6
-                ? new IPv6MulticastOption(MulticastAddress, GetIpv6MulticastInterfaceIndex())
-                : new MulticastOption(MulticastAddress, IPAddress.Any);
-
-            socket.SetSocketOption(socketOptionLevel, SocketOptionName.AddMembership, multicastOption);
-
-            Logger.LogSocketSetupForWindows(type, MulticastAddress.ToString());
-        }
-
-        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
-        {
-            var addressFamily = isIpv6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
-            socket = new Socket(addressFamily, SocketType.Dgram, ProtocolType.Udp);
-
-            if (isIpv6)
-            {
-                var index = GetIpv6MulticastInterfaceIndex();
-                socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
-                socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 128);
-                socket.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
-
-                Logger.LogSocketSetupForLinuxMacOs(type, $"IPv6 (Interface Index: {index})");
-            }
-            else
-            {
-                var localIp = GetLocalIpAddress();
-                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
-                socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 128);
-                socket.Bind(new IPEndPoint(localIp, 0));
-
-                Logger.LogSocketSetupForLinuxMacOs(type, localIp.ToString());
-            }
-        }
-
-        return socket!;
-    }
-
-    private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
-    {
-        var isIpv6 = message.IsIpv6 && Socket.OSSupportsIPv6;
-
-        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name, isIpv6);
-
-        var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port, message.IsIpv6);
-
-        if (proxy == null)
-        {
-            Logger.LogProxyCreationFailed(context.SenderId);
-            return;
-        }
-
-        using var multicastSocket = CreateMultiCastNotifySocket(isIpv6);
-
-        var mess = $"[MOTD]{message.Name}[/MOTD][AD]{proxy.LocalMappingPort}[/AD]";
-        var buf = Encoding.Default.GetBytes(mess).AsSpan();
-        var sentLen = 0;
-
-        while (sentLen < buf.Length)
-            sentLen += multicastSocket.SendTo(buf[sentLen..], MulticastIpe);
-
-        Logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
-    }
-
-
-    protected void ListenedLanServer(string serverName, ushort port)
+    private void ListenedLanServer(string serverName, ushort port)
     {
         Logger.LogLanServerIsListened(serverName, port);
 
@@ -213,7 +98,7 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         }
     }
 
-    protected abstract McMulticastMessage CreateMcMulticastMessage(string serverName, ushort port);
+    protected abstract TMultiCastPacket CreateMcMulticastMessage(string serverName, ushort port);
 
     protected abstract Socket? CreateMultiCastDiscoverySocket();
 
@@ -224,7 +109,7 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (RoomInfoManager.CurrentGroupInfo == null)
+            if (_roomInfoManager.CurrentGroupInfo == null)
             {
                 await Task.Delay(3000, stoppingToken);
                 continue;
