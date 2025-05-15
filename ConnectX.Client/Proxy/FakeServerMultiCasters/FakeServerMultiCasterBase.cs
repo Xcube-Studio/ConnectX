@@ -47,6 +47,8 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
     protected abstract IPAddress MulticastAddress { get; }
     protected abstract int MulticastPort { get; }
+    protected abstract IPEndPoint MulticastPacketReceiveAddress { get; }
+
     protected IPEndPoint MulticastIpe => new(MulticastAddress, MulticastPort);
 
     private static readonly FrozenSet<string> VirtualKeywords = FrozenSet.Create(
@@ -111,41 +113,25 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
     {
-        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name, message.IsIpv6);
+        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
 
-        var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port);
+        var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port, message.IsIpv6);
+
         if (proxy == null)
         {
             Logger.LogProxyCreationFailed(context.SenderId);
             return;
         }
 
-        Socket? socket;
+        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 128);
 
-        if (message.IsIpv6)
-        {
-            socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
-            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 255);
+        var localIp = GetLocalIpAddress();
+        socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
+        socket.Bind(new IPEndPoint(localIp, 0));
 
-            var index = GetIpv6MulticastInterfaceIndex();
-            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
-            socket.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
-
-            Logger.LogSocketSetup("IPV6", $"(Interface Index: {index})");
-        }
-        else
-        {
-            socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
-
-            var localIp = GetLocalIpAddress();
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
-            socket.Bind(new IPEndPoint(localIp, 0));
-
-            Logger.LogSocketSetup("IPV4", localIp.ToString());
-        }
+        Logger.LogSocketSetup("IPV4", localIp.ToString());
 
         using var multicastSocket = socket;
 
@@ -168,12 +154,7 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
         foreach (var (id, partner) in _partnerManager.Partners)
         {
-            var message = new McMulticastMessage
-            {
-                Port = port,
-                Name = $"[{Prefix}]{serverName}",
-                IsIpv6 = MulticastAddress.AddressFamily == AddressFamily.InterNetworkV6
-            };
+            var message = CreateMcMulticastMessage(serverName, port);
 
             if (partner.Connection is RelayConnection { IsConnected: true })
             {
@@ -192,6 +173,61 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         }
     }
 
+    protected abstract McMulticastMessage CreateMcMulticastMessage(string serverName, ushort port);
+
+    protected abstract Socket? CreateMultiCastDiscoverySocket();
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        Logger.LogStartListeningLanMulticast();
+        var buffer = new byte[256];
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            if (RoomInfoManager.CurrentGroupInfo == null)
+            {
+                await Task.Delay(3000, stoppingToken);
+                continue;
+            }
+
+            using var multicastSocket = CreateMultiCastDiscoverySocket();
+
+            if (multicastSocket == null)
+                break;
+
+            try
+            {
+                var receiveFromResult = await multicastSocket.ReceiveFromAsync(
+                    buffer,
+                    SocketFlags.None,
+                    MulticastPacketReceiveAddress,
+                    stoppingToken);
+
+                var message = Encoding.UTF8.GetString(buffer, 0, receiveFromResult.ReceivedBytes);
+                var serverName = message["[MOTD]".Length..message.IndexOf("[/MOTD]", StringComparison.Ordinal)];
+                var portStart = message.IndexOf("[AD]", StringComparison.Ordinal) + 4;
+                var portEnd = message.IndexOf("[/AD]", StringComparison.Ordinal);
+                var port = ushort.Parse(message[portStart..portEnd]);
+
+                if (!serverName.StartsWith($"[{Prefix}]"))
+                {
+                    ListenedLanServer(serverName, port);
+                    Logger.LogLocalGameDiscovered(serverName, port);
+                }
+            }
+            catch (SocketException ex) when (ex.SocketErrorCode == SocketError.Interrupted)
+            {
+                // Shutdown
+            }
+            catch (Exception ex)
+            {
+                Logger.LogFailedToReceiveMulticastMessage(ex);
+            }
+
+            await Task.Delay(3000, stoppingToken);
+        }
+    }
+
     public override Task StopAsync(CancellationToken cancellationToken)
     {
         Logger.LogStoppingFakeMcServerMultiCaster();
@@ -203,9 +239,8 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 internal static partial class FakeServerMultiCasterLoggers
 {
     [LoggerMessage(LogLevel.Information,
-        "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}, Is IPV6: {isIpv6}")]
-    public static partial void
-        LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name, bool isIpv6);
+        "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}")]
+    public static partial void LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name);
 
     [LoggerMessage(LogLevel.Error, "Proxy creation failed, sender ID: {SenderId}")]
     public static partial void LogProxyCreationFailed(this ILogger logger, Guid senderId);
