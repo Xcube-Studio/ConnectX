@@ -1,9 +1,8 @@
 ﻿using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
-using ConnectX.Client.Proxy;
+using ConnectX.Client.Proxy.FakeServerMultiCasters;
 using ConnectX.Client.Route;
 using ConnectX.Client.Transmission;
-using ConnectX.Shared;
 using ConnectX.Shared.Helpers;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,9 +12,9 @@ public static class ClientFactory
 {
     public static void UseConnectX(
         this IServiceCollection services,
-        Func<IClientSettingProvider> settingGetter)
+        Func<IServiceProvider, IClientSettingProvider> settingGetter)
     {
-        services.AddSingleton(_ => settingGetter());
+        services.AddSingleton(settingGetter);
 
         services.RegisterConnectXClientPackets();
         services.AddConnectXEssentials();
@@ -42,7 +41,8 @@ public static class ClientFactory
         services.AddSingleton<ProxyManager>();
         services.AddHostedService(sp => sp.GetRequiredService<ProxyManager>());
 
-        services.AddHostedService<FakeServerMultiCaster>();
+        services.AddHostedService<FakeServerMultiCasterV4>();
+        services.AddHostedService<FakeServerMultiCasterV6>();
 
         services.AddSingleton<PartnerManager>();
         

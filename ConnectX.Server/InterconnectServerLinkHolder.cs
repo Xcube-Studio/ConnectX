@@ -4,6 +4,7 @@ using ConnectX.Server.Interfaces;
 using ConnectX.Server.Messages;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
+using ConnectX.Shared.Messages.Server;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;

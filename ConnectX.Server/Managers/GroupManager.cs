@@ -13,6 +13,7 @@ using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
 using ConnectX.Shared.Messages.Identity;
 using ConnectX.Shared.Messages.Relay;
+using ConnectX.Shared.Messages.Server;
 using ConnectX.Shared.Models;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions;
@@ -21,9 +22,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Server.Managers;
-
-[JsonSerializable(typeof(InterconnectServerRegistration))]
-public partial class GroupManagerContexts : JsonSerializerContext;
 
 public class GroupManager
 {
@@ -484,7 +482,7 @@ public class GroupManager
 
         var infoJson = JsonSerializer.Serialize(
             fetchRemoteRoomInfo,
-            GroupManagerContexts.Default.InterconnectServerRegistration);
+            InterconnectServerRegistrationContexts.Default.InterconnectServerRegistration);
         var redirectMsg = new GroupOpResult(GroupCreationStatus.NeedRedirect, infoJson);
 
         ctx.Dispatcher.SendAsync(ctx.FromSession, redirectMsg).Forget();

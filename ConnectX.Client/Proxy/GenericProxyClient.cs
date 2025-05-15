@@ -1,17 +1,21 @@
-﻿using System.Net;
+﻿using Microsoft.Extensions.Logging;
+using System.Net;
 using System.Net.Sockets;
-using Microsoft.Extensions.Logging;
 
 namespace ConnectX.Client.Proxy;
 
 public sealed class GenericProxyClient : GenericProxyBase
 {
+    private readonly bool _isIpv6;
+
     public GenericProxyClient(
         TunnelIdentifier tunnelIdentifier,
+        bool isIpv6,
         CancellationToken cancellationToken,
         ILogger<GenericProxyClient> logger)
         : base(tunnelIdentifier, cancellationToken, logger)
     {
+        _isIpv6 = isIpv6;
     }
 
     private ushort LocalServerPort => TunnelIdentifier.LocalRealPort;
@@ -22,15 +26,17 @@ public sealed class GenericProxyClient : GenericProxyBase
         return new
         {
             Type = "Client",
-            LocalMcPort = LocalServerPort
+            LocalMcPort = LocalServerPort,
+            IsIpv6 = _isIpv6
         };
     }
 
     protected override Socket CreateSocket()
     {
         var socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+        var address = _isIpv6 ? IPAddress.IPv6Loopback : IPAddress.Loopback;
 
-        socket.Connect(new IPEndPoint(IPAddress.Loopback, LocalServerPort));
+        socket.Connect(new IPEndPoint(address, LocalServerPort));
 
         socket.NoDelay = true;
         //socket.LingerState = new LingerOption(true, 3);

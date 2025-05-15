@@ -1,10 +1,10 @@
-﻿using ConnectX.Server.JsonConverters;
-using Hive.Codec.Shared;
+﻿using Hive.Codec.Shared;
 using MemoryPack;
 using System.Net;
 using System.Text.Json.Serialization;
+using ConnectX.Shared.JsonConverters;
 
-namespace ConnectX.Server.Messages;
+namespace ConnectX.Shared.Messages.Server;
 
 [MessageDefine]
 [MemoryPackable]
@@ -18,3 +18,6 @@ public partial class InterconnectServerRegistration
 
     public required string ServerMotd { get; init; }
 }
+
+[JsonSerializable(typeof(InterconnectServerRegistration))]
+public partial class InterconnectServerRegistrationContexts : JsonSerializerContext;

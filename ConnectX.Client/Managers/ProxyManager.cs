@@ -70,7 +70,8 @@ public sealed class ProxyManager : GenericProxyManager
 
     public GenericProxyAcceptor? GetOrCreateAcceptor(
         Guid partnerId,
-        ushort remoteRealMcServerPort)
+        ushort remoteRealMcServerPort,
+        bool isIpv6)
     {
         if (!_partnerManager.Partners.TryGetValue(partnerId, out var value))
         {
@@ -83,6 +84,7 @@ public sealed class ProxyManager : GenericProxyManager
 
         return GetOrCreateAcceptor(
             partnerId,
+            isIpv6,
             NetworkHelper.GetAvailablePrivatePort,
             remoteRealMcServerPort,
             con);

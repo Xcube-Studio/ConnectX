@@ -2,7 +2,7 @@
 using System.Text.Json.Serialization;
 using System.Text.Json;
 
-namespace ConnectX.Server.JsonConverters;
+namespace ConnectX.Shared.JsonConverters;
 
 public class IPEndPointJsonConverter : JsonConverter<IPEndPoint>
 {

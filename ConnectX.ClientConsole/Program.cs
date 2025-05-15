@@ -36,7 +36,7 @@ internal static class Program
         builder.ConfigureServices((ctx, services) =>
         {
             services.AddHostedService<ConsoleService>();
-            services.UseConnectX(() => GetSettings(ctx.Configuration));
+            services.UseConnectX(_ => GetSettings(ctx.Configuration));
         });
 
         var app = builder.Build();
