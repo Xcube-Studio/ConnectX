@@ -42,10 +42,11 @@ public sealed class FakeServerMultiCasterV6(
         {
             socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
 
-            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
+            var address = IPAddress.Parse("224.0.2.60");
+            var multicastOption = new MulticastOption(address, IPAddress.Any);
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
 
-            Logger.LogSocketSetupForWindows("IPV4", MulticastAddress.ToString());
+            Logger.LogSocketSetupForWindows("IPV4", address.ToString());
         }
 
         if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
