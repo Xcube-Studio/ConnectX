@@ -116,22 +116,38 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
         Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
 
         var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port, message.IsIpv6);
-
         if (proxy == null)
         {
             Logger.LogProxyCreationFailed(context.SenderId);
             return;
         }
 
-        var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 128);
+        Socket? socket = null;
 
-        var localIp = GetLocalIpAddress();
-        socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
-        socket.Bind(new IPEndPoint(localIp, 0));
+        if (OperatingSystem.IsWindows())
+        {
+            socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
 
-        Logger.LogSocketSetup("IPV4", localIp.ToString());
+            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
+
+            Logger.LogSocketSetupForWindows(MulticastAddress.ToString());
+        }
+
+        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        {
+            socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+
+            var localIp = GetLocalIpAddress();
+
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
+            socket.Bind(new IPEndPoint(localIp, 0));
+
+            Logger.LogSocketSetupForLinuxMacOs(localIp.ToString());
+        }
+
+        ArgumentNullException.ThrowIfNull(socket);
 
         using var multicastSocket = socket;
 
@@ -144,7 +160,6 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
         Logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
-
 
     protected void ListenedLanServer(string serverName, ushort port)
     {
@@ -269,4 +284,10 @@ internal static partial class FakeServerMultiCasterLoggers
 
     [LoggerMessage(LogLevel.Information, "Local game discovered, name [{name}], port [{port}]")]
     public static partial void LogLocalGameDiscovered(this ILogger logger, string name, ushort port);
+
+    [LoggerMessage(LogLevel.Debug, "Socket setup for Windows, multicast address is {MulticastAddress}")]
+    public static partial void LogSocketSetupForWindows(this ILogger logger, string multicastAddress);
+
+    [LoggerMessage(LogLevel.Debug, "Socket setup for Linux/MacOS, local IP is {LocalIp}")]
+    public static partial void LogSocketSetupForLinuxMacOs(this ILogger logger, string localIp);
 }
