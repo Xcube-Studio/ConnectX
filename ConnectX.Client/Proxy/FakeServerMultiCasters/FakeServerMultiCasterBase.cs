@@ -236,9 +236,9 @@ internal static partial class FakeServerMultiCasterLoggers
     [LoggerMessage(LogLevel.Information, "Local game discovered, name [{name}], port [{port}]")]
     public static partial void LogLocalGameDiscovered(this ILogger logger, string name, ushort port);
 
-    [LoggerMessage(LogLevel.Information, "[{type}] Socket setup for Windows, multicast address is {MulticastAddress}")]
+    [LoggerMessage(LogLevel.Debug, "[{type}] Socket setup for Windows, multicast address is {MulticastAddress}")]
     public static partial void LogSocketSetupForWindows(this ILogger logger, string type, string multicastAddress);
 
-    [LoggerMessage(LogLevel.Information, "[{type}] Socket setup for Linux/MacOS, local IP is {LocalIp}")]
+    [LoggerMessage(LogLevel.Debug, "[{type}] Socket setup for Linux/MacOS, local IP is {LocalIp}")]
     public static partial void LogSocketSetupForLinuxMacOs(this ILogger logger, string type, string localIp);
 }

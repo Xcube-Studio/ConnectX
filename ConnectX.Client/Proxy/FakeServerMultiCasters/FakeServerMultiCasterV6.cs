@@ -66,9 +66,9 @@ public sealed class FakeServerMultiCasterV6(
 
     protected override void OnReceiveMcMulticastMessage(McMulticastMessageV6 message, PacketContext context)
     {
-        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name, false);
+        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name, Socket.OSSupportsIPv6);
 
-        var proxy = ProxyManager.GetOrCreateAcceptor(context.SenderId, message.Port, Socket.OSSupportsIPv6);
+        var proxy = ProxyManager.GetOrCreateAcceptor(context.SenderId, message.Port, true);
         if (proxy == null)
         {
             Logger.LogProxyCreationFailed(context.SenderId);

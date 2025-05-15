@@ -52,7 +52,11 @@ public class GenericProxyAcceptor : IDisposable
         {
             try
             {
-                _acceptSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+                var addressFamily = _isIpv6
+                    ? AddressFamily.InterNetworkV6
+                    : AddressFamily.InterNetwork;
+
+                _acceptSocket = new Socket(addressFamily, SocketType.Stream, ProtocolType.Tcp);
 
                 var address = _isIpv6 ? IPAddress.IPv6Any : IPAddress.Any;
                 var ipe = new IPEndPoint(address, LocalMappingPort);

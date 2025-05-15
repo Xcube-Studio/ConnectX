@@ -306,7 +306,7 @@ public abstract class GenericProxyManager : BackgroundService
             });
         };
 
-        Logger.LogCreateAcceptor(key);
+        Logger.LogCreateAcceptor(key, isIpv6 && Socket.OSSupportsIPv6, localMapPort);
 
         Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(acceptor.StartAcceptAsync);
 
@@ -405,8 +405,8 @@ internal static partial class GenericProxyManagerLoggers
     [LoggerMessage(LogLevel.Error, "[GEN_PROXY_MANAGER] Can not get remote endpoint")]
     public static partial void LogErrorCanNotGetRemoteEndPoint(this ILogger logger);
 
-    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Create acceptor {Key}")]
-    public static partial void LogCreateAcceptor(this ILogger logger, (Guid, ushort) key);
+    [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Create acceptor {Key}, is IPV6 [{isIpv6}], local map port [{localMapPort}]")]
+    public static partial void LogCreateAcceptor(this ILogger logger, (Guid, ushort) key, bool isIpv6, ushort localMapPort);
 
     [LoggerMessage(LogLevel.Information, "[GEN_PROXY_MANAGER] Notify server proxy need to disconnect {Id}")]
     public static partial void LogNotifyServerProxyNeedToDisconnect(this ILogger logger, TunnelIdentifier id);
