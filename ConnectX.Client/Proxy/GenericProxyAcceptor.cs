@@ -8,6 +8,7 @@ public class GenericProxyAcceptor : IDisposable
 {
     private readonly CancellationToken _cancellationToken;
     private readonly Guid _id;
+    private readonly bool _isIpv6;
     private readonly ILogger _logger;
 
     private Socket? _acceptSocket;
@@ -17,6 +18,7 @@ public class GenericProxyAcceptor : IDisposable
 
     public GenericProxyAcceptor(
         Guid id,
+        bool isIpv6,
         ushort remoteRealPort,
         ushort fakePort,
         CancellationToken cancellationToken,
@@ -24,6 +26,7 @@ public class GenericProxyAcceptor : IDisposable
     {
         _logger = logger;
         _id = id;
+        _isIpv6 = isIpv6 && Socket.OSSupportsIPv6;
         RemoteRealPort = remoteRealPort;
         LocalMappingPort = fakePort;
         _cancellationToken = cancellationToken;
@@ -51,7 +54,8 @@ public class GenericProxyAcceptor : IDisposable
             {
                 _acceptSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
-                var ipe = new IPEndPoint(IPAddress.Any, LocalMappingPort);
+                var address = _isIpv6 ? IPAddress.IPv6Any : IPAddress.Any;
+                var ipe = new IPEndPoint(address, LocalMappingPort);
 
                 _acceptSocket.Bind(ipe);
                 _acceptSocket.Listen(1000);

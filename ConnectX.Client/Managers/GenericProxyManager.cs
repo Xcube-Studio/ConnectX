@@ -273,6 +273,7 @@ public abstract class GenericProxyManager : BackgroundService
         var acceptor = ActivatorUtilities.CreateInstance<GenericProxyAcceptor>(
             _serviceProvider,
             partnerId,
+            isIpv6,
             remoteRealServerPort,
             localMapPort,
             _lifetime.ApplicationStopping);

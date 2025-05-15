@@ -113,41 +113,44 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
     private void OnReceiveMcMulticastMessage(McMulticastMessage message, PacketContext context)
     {
-        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name);
+        var isIpv6 = message.IsIpv6 && Socket.OSSupportsIPv6;
+
+        Logger.LogReceivedMulticastMessage(context.SenderId, message.Port, message.Name, isIpv6);
 
         var proxy = _proxyManager.GetOrCreateAcceptor(context.SenderId, message.Port, message.IsIpv6);
+
         if (proxy == null)
         {
             Logger.LogProxyCreationFailed(context.SenderId);
             return;
         }
 
-        Socket? socket = null;
+        Socket socket;
 
-        if (OperatingSystem.IsWindows())
+        if (isIpv6)
         {
-            socket = new Socket(SocketType.Dgram, ProtocolType.Udp);
+            socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Dgram, ProtocolType.Udp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastTimeToLive, 255);
 
-            var multicastOption = new MulticastOption(MulticastAddress, IPAddress.Any);
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, multicastOption);
+            var index = GetIpv6MulticastInterfaceIndex();
+            socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.MulticastInterface, index);
+            socket.Bind(new IPEndPoint(IPAddress.IPv6Any, 0));
 
-            Logger.LogSocketSetupForWindows(MulticastAddress.ToString());
+            Logger.LogSocketSetup("IPV6", $"INTERFACE-{index}");
         }
-
-        if (OperatingSystem.IsMacOS() || OperatingSystem.IsLinux())
+        else
         {
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 128);
 
             var localIp = GetLocalIpAddress();
-
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastInterface, localIp.GetAddressBytes());
-            socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 255);
             socket.Bind(new IPEndPoint(localIp, 0));
 
-            Logger.LogSocketSetupForLinuxMacOs(localIp.ToString());
+            Logger.LogSocketSetup("IPV4", localIp.ToString());
         }
-
-        ArgumentNullException.ThrowIfNull(socket);
 
         using var multicastSocket = socket;
 
@@ -160,6 +163,7 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 
         Logger.LogMulticastMessageToClient(proxy.LocalMappingPort, message.Name);
     }
+
 
     protected void ListenedLanServer(string serverName, ushort port)
     {
@@ -254,8 +258,8 @@ public abstract class FakeServerMultiCasterBase : BackgroundService
 internal static partial class FakeServerMultiCasterLoggers
 {
     [LoggerMessage(LogLevel.Information,
-        "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}")]
-    public static partial void LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name);
+        "[MC_MULTI_CASTER] Received multicast message from {SenderId}, remote real port is {Port}, name is {Name}, is IPV6 [{isIpv6}]")]
+    public static partial void LogReceivedMulticastMessage(this ILogger logger, Guid senderId, ushort port, string name, bool isIpv6);
 
     [LoggerMessage(LogLevel.Error, "Proxy creation failed, sender ID: {SenderId}")]
     public static partial void LogProxyCreationFailed(this ILogger logger, Guid senderId);
@@ -284,10 +288,4 @@ internal static partial class FakeServerMultiCasterLoggers
 
     [LoggerMessage(LogLevel.Information, "Local game discovered, name [{name}], port [{port}]")]
     public static partial void LogLocalGameDiscovered(this ILogger logger, string name, ushort port);
-
-    [LoggerMessage(LogLevel.Debug, "Socket setup for Windows, multicast address is {MulticastAddress}")]
-    public static partial void LogSocketSetupForWindows(this ILogger logger, string multicastAddress);
-
-    [LoggerMessage(LogLevel.Debug, "Socket setup for Linux/MacOS, local IP is {LocalIp}")]
-    public static partial void LogSocketSetupForLinuxMacOs(this ILogger logger, string localIp);
 }
