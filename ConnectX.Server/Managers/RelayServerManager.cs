@@ -62,6 +62,14 @@ public class RelayServerManager
         return _relayAddressSessionMapping.TryGetValue(endPoint, out session);
     }
 
+    public bool TryGetRelayServerAddress(SessionId sessionId, [NotNullWhen(true)] out IPEndPoint? iPEndPoint)
+    {
+        iPEndPoint = null;
+
+        if (!_sessionIdMapping.TryGetValue(sessionId, out var userId)) return false;
+        return _serverAddressMapping.TryGetValue(userId, out iPEndPoint);
+    }
+
     /// <summary>
     ///     Attach the session to the manager
     /// </summary>

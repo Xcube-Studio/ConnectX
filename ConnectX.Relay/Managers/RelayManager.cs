@@ -27,6 +27,7 @@ public class RelayManager
 
     private readonly ClientManager _clientManager;
     private readonly IServerLinkHolder _serverLinkHolder;
+    private readonly IServerSettingProvider _serverSettingProvider;
     private readonly IDispatcher _dispatcher;
     private readonly ILogger _logger;
 
@@ -34,10 +35,12 @@ public class RelayManager
         ClientManager clientManager,
         IServerLinkHolder serverLinkHolder,
         IDispatcher dispatcher,
+        IServerSettingProvider serverSettingProvider,
         ILogger<RelayManager> logger)
     {
         _clientManager = clientManager;
         _serverLinkHolder = serverLinkHolder;
+        _serverSettingProvider = serverSettingProvider;
         _dispatcher = dispatcher;
         _logger = logger;
 
@@ -107,6 +110,16 @@ public class RelayManager
         session.OnMessageReceived += SessionOnDataReceived;
 
         _logger.LogRelayWorkerLinkAttached(session.Id, userId, relayTo, userId);
+    }
+
+    public RelayServerLoadInfoMessage GetRelayServerLoad()
+    {
+        return new RelayServerLoadInfoMessage
+        {
+            CurrentConnectionCount = _workerSessionRouteMapping.Count,
+            MaxReferenceConnectionCount = _serverSettingProvider.MaxReferenceConnectionCount,
+            Priority = _serverSettingProvider.ServerPriority
+        };
     }
 
     private void SessionOnDataReceived(ISession session, ReadOnlySequence<byte> buffer)
