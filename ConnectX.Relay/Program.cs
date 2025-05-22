@@ -62,7 +62,7 @@ namespace ConnectX.Relay
             builder.ConfigureServices((ctx, services) =>
             {
                 services.AddConnectXEssentials();
-                services.AddSingleton(_ => GetSettings(ctx.Configuration));
+                services.AddSingleton<IServerSettingProvider>(_ => GetSettings(ctx.Configuration));
 
                 services.AddSingleton<IServerLinkHolder, ServerLinkHolder>();
                 services.AddHostedService(sP => sP.GetRequiredService<IServerLinkHolder>());
