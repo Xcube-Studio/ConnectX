@@ -54,7 +54,7 @@ public class RelayLoadManager
         if (!_relayAvailabilityMapping.TryAdd(ctx.FromSession.Id, availability))
             _relayAvailabilityMapping[ctx.FromSession.Id] = availability;
 
-        _logger.LogRelayServerLoadReceviced(default, availability);
+        _logger.LogRelayServerLoadReceviced(ctx.FromSession.Id, availability);
     }
 
     private static double CalculateRelayServerAvailability(RelayServerLoadInfoMessage relayServerLoad)
