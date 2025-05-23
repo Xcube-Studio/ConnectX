@@ -45,6 +45,7 @@ public class RelayManager
         _logger = logger;
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
+        _clientManager.OnSessionDisconnected += HandleWorkerOnSessionDisconnected;
 
         dispatcher.AddHandler<RelayDatagram>(OnRelayDatagramReceived);
         dispatcher.AddHandler<UpdateRelayUserRoomMappingMessage>(OnUpdateRelayUserRoomMappingMessageReceived);
@@ -163,12 +164,6 @@ public class RelayManager
                 _userIdToRoomMapping.AddOrUpdate(message.UserId, message.RoomId, (_, _) => message.RoomId);
                 _logger.LogRelayInfoAdded(message.UserId, message.RoomId, _userIdToRoomMapping.Count, message.IsGroupOwner);
                 break;
-            case GroupUserStates.Dismissed:
-            case GroupUserStates.Left:
-            case GroupUserStates.Kicked:
-            case GroupUserStates.Disconnected:
-                TryDestroyRelayWorkerSession(message.UserId);
-                break;
         }
     }
 
@@ -192,36 +187,21 @@ public class RelayManager
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
-        TryDestroyRelayWorkerSession(userId);
-
         if (!_userIdDataSessionMapping.TryRemove(userId, out var session)) return;
+
+        if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
+        if (_roomOwnerRecords.ContainsKey(userId))
+            if (!_roomOwnerRecords.TryRemove(userId, out _)) return;
+
         session.Close();
+
+        _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
     }
 
-    private void TryDestroyRelayWorkerSession(Guid userId)
+    private void HandleWorkerOnSessionDisconnected(SessionId sessionId)
     {
-        bool relayDestroyed = false;
-
-        try
-        {
-            if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
-            if (_roomOwnerRecords.ContainsKey(userId))
-                if (!_roomOwnerRecords.TryRemove(userId, out _)) return;
-
-            if (!_userIdDataSessionMapping.TryGetValue(userId, out var session)) return; //session.Close();
-            if (!_workerSessionRouteMapping.TryRemove(session.Id, out var routingInfo)) return;
-            if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession)) return;
-
-            workerSession.Close();
-
-            relayDestroyed = true;
-            _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
-        }
-        finally
-        {
-            if (!relayDestroyed)
-                _logger.LogRelayDestroyFailed(userId);
-        }
+        if (!_workerSessionRouteMapping.TryGetValue(sessionId, out var routingInfo)) return;
+        if (!_workerSessionMapping.TryRemove(routingInfo, out var _)) return;
     }
 }
 
