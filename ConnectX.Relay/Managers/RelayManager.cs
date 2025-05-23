@@ -201,7 +201,11 @@ public class RelayManager
     private void HandleWorkerOnSessionDisconnected(SessionId sessionId)
     {
         if (!_workerSessionRouteMapping.TryGetValue(sessionId, out var routingInfo)) return;
-        if (!_workerSessionMapping.TryRemove(routingInfo, out var _)) return;
+        if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession)) return;
+
+        workerSession.Close();
+
+        _logger.LogRelayWorkerDestroyed(sessionId);
     }
 }
 
@@ -210,11 +214,11 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] RelayTo is empty from session [{sessionId}], possible bug or wrong sender!")]
     public static partial void LogRelayToEmpty(this ILogger logger, SessionId sessionId);
 
-    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay worker session destroyed, room [{roomId}], user [{userId}], state [{state}]")]
+    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay destroyed, room [{roomId}], user [{userId}], state [{state}]")]
     public static partial void LogRelayDestroyed(this ILogger logger, Guid roomId, Guid userId, GroupUserStates state);
 
-    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay worker session could not be destroyed, user [{userId}]]")]
-    public static partial void LogRelayDestroyFailed(this ILogger logger, Guid userId);
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay worker destroyed, SessionId [{sessionId}]]")]
+    public static partial void LogRelayWorkerDestroyed(this ILogger logger, SessionId sessionId);
 
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay info added, user [{userId}], room [{roomId}], is room owner [{isRoomOwner}], registered mapping count: {mappingCount}")]
     public static partial void LogRelayInfoAdded(this ILogger logger, Guid userId, Guid roomId, int mappingCount, bool isRoomOwner);
