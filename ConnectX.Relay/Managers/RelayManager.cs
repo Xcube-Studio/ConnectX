@@ -156,28 +156,18 @@ public class RelayManager
 
         switch (message.State)
         {
-            case GroupUserStates.Joined when message.IsGroupOwner:
-                _roomOwnerRecords.AddOrUpdate(message.UserId, message.UserId, (_, _) => message.UserId);
-                _userIdToRoomMapping.AddOrUpdate(message.UserId, message.RoomId, (_, _) => message.RoomId);
-                _logger.LogRelayInfoAdded(message.UserId, message.RoomId, _userIdToRoomMapping.Count, message.IsGroupOwner);
-                break;
             case GroupUserStates.Joined:
+                if (message.IsGroupOwner)
+                    _roomOwnerRecords.AddOrUpdate(message.UserId, message.UserId, (_, _) => message.UserId);
+
                 _userIdToRoomMapping.AddOrUpdate(message.UserId, message.RoomId, (_, _) => message.RoomId);
                 _logger.LogRelayInfoAdded(message.UserId, message.RoomId, _userIdToRoomMapping.Count, message.IsGroupOwner);
                 break;
             case GroupUserStates.Dismissed:
-                _roomOwnerRecords.TryRemove(message.UserId, out _);
-                _userIdToRoomMapping.TryRemove(message.UserId, out _);
-                break;
             case GroupUserStates.Left:
             case GroupUserStates.Kicked:
             case GroupUserStates.Disconnected:
-                if (!_roomOwnerRecords.TryGetValue(message.UserId, out _))
-                {
-                    _userIdToRoomMapping.TryRemove(message.UserId, out _);
-                    _logger.LogRelayDestroyed(message.RoomId, message.UserId, message.State);
-                }
-                
+                TryDestroyRelayWorkerSession(message.UserId);
                 break;
         }
     }
@@ -202,26 +192,36 @@ public class RelayManager
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
+        TryDestroyRelayWorkerSession(userId);
+
         if (!_userIdDataSessionMapping.TryRemove(userId, out var session)) return;
-        if (!_roomOwnerRecords.TryGetValue(userId, out _))
+        session.Close();
+    }
+
+    private void TryDestroyRelayWorkerSession(Guid userId)
+    {
+        bool relayDestroyed = false;
+
+        try
         {
             if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
+            if (_roomOwnerRecords.ContainsKey(userId))
+                if (!_roomOwnerRecords.TryRemove(userId, out _)) return;
 
+            if (!_userIdDataSessionMapping.TryGetValue(userId, out var session)) return; //session.Close();
+            if (!_workerSessionRouteMapping.TryRemove(session.Id, out var routingInfo)) return;
+            if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession)) return;
+
+            workerSession.Close();
+
+            relayDestroyed = true;
             _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
         }
-
-        // Because the session is already disconnected, we just recycle the link with it.
-        // No need to ask the client's current ref count
-        if (_userIdDataSessionMapping.Any(p => p.Value == session)) return;
-
-        session.Close();
-
-        if (!_workerSessionRouteMapping.TryRemove(session.Id, out var routingInfo))
-            return;
-        if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession))
-            return;
-
-        workerSession.Close();
+        finally
+        {
+            if (!relayDestroyed)
+                _logger.LogRelayDestroyFailed(userId);
+        }
     }
 }
 
@@ -230,8 +230,11 @@ internal static partial class RelayManagerLoggers
     [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] RelayTo is empty from session [{sessionId}], possible bug or wrong sender!")]
     public static partial void LogRelayToEmpty(this ILogger logger, SessionId sessionId);
 
-    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay destroyed, room [{roomId}], user [{userId}], state [{state}]")]
+    [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay worker session destroyed, room [{roomId}], user [{userId}], state [{state}]")]
     public static partial void LogRelayDestroyed(this ILogger logger, Guid roomId, Guid userId, GroupUserStates state);
+
+    [LoggerMessage(LogLevel.Warning, "[RELAY_MANAGER] Relay worker session could not be destroyed, user [{userId}]]")]
+    public static partial void LogRelayDestroyFailed(this ILogger logger, Guid userId);
 
     [LoggerMessage(LogLevel.Information, "[RELAY_MANAGER] Relay info added, user [{userId}], room [{roomId}], is room owner [{isRoomOwner}], registered mapping count: {mappingCount}")]
     public static partial void LogRelayInfoAdded(this ILogger logger, Guid userId, Guid roomId, int mappingCount, bool isRoomOwner);

@@ -45,7 +45,7 @@ public class RelayServerManager
 
         _logger.LogReceivedGroupOpMessageFromUnattachedSession(session.Id);
 
-        return true;
+        return false;
     }
 
     public IPEndPoint? GetRandomRelayServerAddress(int roomSeed)
