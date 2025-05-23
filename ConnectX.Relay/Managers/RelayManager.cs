@@ -21,6 +21,7 @@ public class RelayManager
     private readonly ConcurrentDictionary<Guid, Guid> _roomOwnerRecords = new();
 
     private readonly ConcurrentDictionary<Guid, ISession> _userIdDataSessionMapping = new();
+    private readonly ConcurrentDictionary<Guid, ConcurrentBag<SessionId>> _userIdWorkerSessionMapping = new();
 
     private readonly ConcurrentDictionary<SessionId, (Guid From, Guid To)> _workerSessionRouteMapping = new();
     private readonly ConcurrentDictionary<(Guid From, Guid To), ISession> _workerSessionMapping = new();
@@ -45,7 +46,6 @@ public class RelayManager
         _logger = logger;
 
         _clientManager.OnSessionDisconnected += ClientManagerOnSessionDisconnected;
-        _clientManager.OnSessionDisconnected += HandleWorkerOnSessionDisconnected;
 
         dispatcher.AddHandler<RelayDatagram>(OnRelayDatagramReceived);
         dispatcher.AddHandler<UpdateRelayUserRoomMappingMessage>(OnUpdateRelayUserRoomMappingMessageReceived);
@@ -104,6 +104,10 @@ public class RelayManager
 
         var pair = (userId, relayTo);
 
+        ConcurrentBag<SessionId> sessionIds = _userIdWorkerSessionMapping.GetValueOrDefault(userId) ?? [];
+        sessionIds.Add(session.Id);
+
+        _userIdWorkerSessionMapping.AddOrUpdate(userId, _ => sessionIds, (_, _) => sessionIds);
         _workerSessionRouteMapping.AddOrUpdate(session.Id, _ => pair, (_, _) => pair);
         _workerSessionMapping.AddOrUpdate(pair, _ => session, (_, _) => session);
 
@@ -186,26 +190,42 @@ public class RelayManager
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
+        void HandleDataSession(Guid userId)
+        {
+            if (!_userIdDataSessionMapping.TryRemove(userId, out var session)) return;
+
+            if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
+            if (_roomOwnerRecords.ContainsKey(userId))
+                if (!_roomOwnerRecords.TryRemove(userId, out _)) return;
+
+            _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
+
+            // Because the session is already disconnected, we just recycle the link with it.
+            // No need to ask the client's current ref count
+            if (_userIdDataSessionMapping.Any(p => p.Value == session)) return;
+
+            session.Close();
+        }
+
+        void HandleWorkerSession(Guid userId)
+        {
+            if (!_userIdWorkerSessionMapping.TryRemove(userId, out var sessionIds)) return;
+
+            foreach (var sessionId in sessionIds)
+            {
+                if (!_workerSessionRouteMapping.TryRemove(sessionId, out var routingInfo)) continue;
+                if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession)) continue;
+
+                workerSession.Close();
+            }
+
+            _logger.LogRelayWorkerDestroyed(sessionId);
+        }
+
         if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
-        if (!_userIdDataSessionMapping.TryRemove(userId, out var session)) return;
 
-        if (!_userIdToRoomMapping.TryRemove(userId, out var roomId)) return;
-        if (_roomOwnerRecords.ContainsKey(userId))
-            if (!_roomOwnerRecords.TryRemove(userId, out _)) return;
-
-        session.Close();
-
-        _logger.LogRelayDestroyed(roomId, userId, GroupUserStates.Disconnected);
-    }
-
-    private void HandleWorkerOnSessionDisconnected(SessionId sessionId)
-    {
-        if (!_workerSessionRouteMapping.TryGetValue(sessionId, out var routingInfo)) return;
-        if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession)) return;
-
-        workerSession.Close();
-
-        _logger.LogRelayWorkerDestroyed(sessionId);
+        HandleDataSession(userId);
+        HandleWorkerSession(userId);
     }
 }
 
