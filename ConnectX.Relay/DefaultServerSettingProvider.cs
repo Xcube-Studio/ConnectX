@@ -19,4 +19,8 @@ public class DefaultServerSettingProvider : IServerSettingProvider
 
     public required IPEndPoint EndPoint { get; init; }
     public required IPEndPoint RelayEndPoint { get; init; }
+
+    public int MaxReferenceConnectionCount { get; init; }
+
+    public uint ServerPriority { get; init; }
 }

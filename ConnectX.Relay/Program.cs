@@ -6,12 +6,13 @@ using System.Net;
 using ConnectX.Relay.Interfaces;
 using ConnectX.Relay.Managers;
 using Microsoft.Extensions.DependencyInjection;
+using ConnectX.Relay.Services;
 
 namespace ConnectX.Relay
 {
     internal static class Program
     {
-        private static IServerSettingProvider GetSettings(IConfiguration configuration)
+        private static DefaultServerSettingProvider GetSettings(IConfiguration configuration)
         {
             var listenAddressStr = configuration.GetValue<string>("Server:ListenAddress");
             var listenPort = configuration.GetValue<ushort>("Server:ListenPort");
@@ -22,6 +23,9 @@ namespace ConnectX.Relay
 
             var publicListenAddressStr = configuration.GetValue<string>("RelayServer:PublicListenAddress");
             var publicListenPort = configuration.GetValue<ushort>("RelayServer:PublicListenPort");
+
+            var serverPriority = configuration.GetValue<uint?>("RelayServer:ServerPriority");
+            var maxReferenceConnectionCount = configuration.GetValue<int?>("RelayServer:MaxReferenceConnectionCount");
 
             ArgumentException.ThrowIfNullOrEmpty(listenAddressStr);
             ArgumentException.ThrowIfNullOrEmpty(relayListenAddressStr);
@@ -42,7 +46,9 @@ namespace ConnectX.Relay
                 EndPoint = new IPEndPoint(serverAddress, listenPort),
                 RelayEndPoint = new IPEndPoint(relayServerAddress, relayServerPort),
                 PublicListenAddress = publicListenAddress,
-                PublicListenPort = publicListenPort
+                PublicListenPort = publicListenPort,
+                ServerPriority = serverPriority ?? 80,
+                MaxReferenceConnectionCount = maxReferenceConnectionCount ?? 50
             };
         }
 
@@ -56,7 +62,7 @@ namespace ConnectX.Relay
             builder.ConfigureServices((ctx, services) =>
             {
                 services.AddConnectXEssentials();
-                services.AddSingleton(_ => GetSettings(ctx.Configuration));
+                services.AddSingleton<IServerSettingProvider>(_ => GetSettings(ctx.Configuration));
 
                 services.AddSingleton<IServerLinkHolder, ServerLinkHolder>();
                 services.AddHostedService(sP => sP.GetRequiredService<IServerLinkHolder>());
@@ -67,6 +73,7 @@ namespace ConnectX.Relay
                 services.AddHostedService(sc => sc.GetRequiredService<ClientManager>());
 
                 services.AddHostedService<RelayServer>();
+                services.AddHostedService<RelayLoadReportService>();
             });
 
             var app = builder.Build();

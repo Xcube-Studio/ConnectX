@@ -48,6 +48,7 @@ internal static class Program
             services.AddSingleton<GroupManager>();
             services.AddSingleton<P2PManager>();
             services.AddSingleton<RelayServerManager>();
+            services.AddSingleton<RelayLoadManager>();
             services.AddSingleton<InterconnectServerManager>();
 
             services.AddHostedService<InterconnectServerLinkHolder>();

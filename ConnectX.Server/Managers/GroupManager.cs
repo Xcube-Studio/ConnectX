@@ -27,6 +27,7 @@ public class GroupManager
 {
     private readonly IZeroTierNodeInfoService _zeroTierNodeInfoService;
     private readonly RelayServerManager _relayServerManager;
+    private readonly RelayLoadManager _relayLoadManager;
     private readonly ClientManager _clientManager;
     private readonly RoomCreationRecordService _roomCreationRecordService;
     private readonly InterconnectServerManager _interconnectServerManager;
@@ -43,6 +44,7 @@ public class GroupManager
         IZeroTierNodeInfoService zeroTierNodeInfoService,
         IDispatcher dispatcher,
         RelayServerManager relayServerManager,
+        RelayLoadManager relayLoadManager,
         ClientManager clientManager,
         RoomCreationRecordService roomCreationRecordService,
         InterconnectServerManager interconnectServerManager,
@@ -52,6 +54,7 @@ public class GroupManager
         _zeroTierNodeInfoService = zeroTierNodeInfoService;
         _dispatcher = dispatcher;
         _relayServerManager = relayServerManager;
+        _relayLoadManager = relayLoadManager;
         _clientManager = clientManager;
         _roomCreationRecordService = roomCreationRecordService;
         _interconnectServerManager = interconnectServerManager;
@@ -323,11 +326,15 @@ public class GroupManager
         CreateRoomAsync(userId, ctx).Forget();
     }
 
-    private IPEndPoint? TryAssignRelayServerAddress<T>(Guid userId, int roomSeed, MessageContext<T> ctx)
-    {
-        var relayServerAddress = _relayServerManager.GetRandomRelayServerAddress(roomSeed);
+    private IPEndPoint? TryAssignRelayServerAddress<T>(Guid userId, MessageContext<T> ctx)
+    {        
+        if (!_relayLoadManager.TryGetMostAvailableRelaySession(out var sessionId))
+        {
+            _logger.LogFailedToGetRelayServerAddress();
+            return null;
+        }
 
-        if (relayServerAddress == null)
+        if (!_relayServerManager.TryGetRelayServerAddress(sessionId.Value, out var relayServerAddress))
         {
             _logger.LogFailedToGetRelayServerAddress();
             return null;
@@ -408,9 +415,8 @@ public class GroupManager
 
         var message = ctx.Message;
         var owner = _userMapping[userId];
-        var roomSeed = Random.Shared.Next(0, 114514);
         var assignedRelayServerAddress = ctx.Message.UseRelayServer
-            ? TryAssignRelayServerAddress(userId, roomSeed, ctx)
+            ? TryAssignRelayServerAddress(userId, ctx)
             : null;
         var ownerSession = new UserSessionInfo(owner, assignedRelayServerAddress);
 
@@ -420,7 +426,7 @@ public class GroupManager
             MaxUserCount = message.MaxUserCount <= 0 ? 10 : message.MaxUserCount,
             RoomDescription = message.RoomDescription,
             NetworkId = Convert.ToUInt64(networkDetail.Id, 16),
-            RelayServerSeed = roomSeed
+            AssignedRelayServer = assignedRelayServerAddress
         };
 
         if (assignedRelayServerAddress != null &&
@@ -534,8 +540,23 @@ public class GroupManager
         }
 
         var user = _userMapping[userId];
-        var assignedRelayServerAddress =
-            ctx.Message.UseRelayServer ? TryAssignRelayServerAddress(userId, group.RelayServerSeed, ctx) : null;
+        IPEndPoint? assignedRelayServerAddress = null;
+
+        if (ctx.Message.UseRelayServer)
+        {
+            if (group.AssignedRelayServer != null &&
+                _relayServerManager.TryGetRelayServerSession(group.AssignedRelayServer, out var session) &&
+                _clientManager.IsSessionAttached(session.Id))
+            {
+                assignedRelayServerAddress = group.AssignedRelayServer;
+            }
+            else
+            {
+                assignedRelayServerAddress = TryAssignRelayServerAddress(userId, ctx);
+                group.AssignedRelayServer = assignedRelayServerAddress;
+            }
+        }
+
         var info = new UserSessionInfo(user, assignedRelayServerAddress);
 
         group.Users.Add(info);
