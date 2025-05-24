@@ -2,9 +2,7 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using ConnectX.Server.Interfaces;
-using ConnectX.Server.Messages;
 using ConnectX.Server.Messages.Queries;
 using ConnectX.Server.Models;
 using ConnectX.Server.Models.ZeroTier;
@@ -349,68 +347,72 @@ public class GroupManager
 
     private async Task CreateRoomAsync(Guid userId, MessageContext<CreateGroup> ctx)
     {
-        if (_zeroTierNodeInfoService.NodeStatus == null)
+        NetworkDetailsModel? networkDetail = null;
+
+        if (!ctx.Message.UseRelayServer)
         {
-            var err = new GroupOpResult(GroupCreationStatus.NetworkControllerNotReady);
-            ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
-            return;
-        }
+            // Room owner asked to not use relay server, so we need to create a virtual network for the group.
+            if (_zeroTierNodeInfoService.NodeStatus == null)
+            {
+                var err = new GroupOpResult(GroupCreationStatus.NetworkControllerNotReady);
+                ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
+                return;
+            }
 
-        var networkId = $"{_zeroTierNodeInfoService.NodeStatus.Address}______";
-        var networkCreationReq = new NetworkDetailsReqModel
-        {
-            Name = GuidHelper.Hash($"GROUP: {ctx.Message.RoomName}{DateTime.Now.ToFileTimeUtc()}").ToString("N"),
-            EnableBroadcast = true,
-            IpAssignmentPools =
-            [
-                new IpAssignment
-                {
-                    IpRangeStart = "114.51.4.1",
-                    IpRangeEnd = "114.51.4.254"
-                }
-            ],
-            Mtu = 2800,
-            Private = false,
-            Routes =
-            [
-                new Route
-                {
-                    Target = "114.51.4.0/24"
-                }
-            ],
-            V4AssignMode = new V4AssignMode { Zt = true },
-            V6AssignMode = new V6AssignMode { Zt = false, Rfc4193 = false },
-            MulticastLimit = 32
-        };
+            var networkId = $"{_zeroTierNodeInfoService.NodeStatus.Address}______";
+            var networkCreationReq = new NetworkDetailsReqModel
+            {
+                Name = GuidHelper.Hash($"GROUP: {ctx.Message.RoomName}{DateTime.Now.ToFileTimeUtc()}").ToString("N"),
+                EnableBroadcast = true,
+                IpAssignmentPools =
+                [
+                    new IpAssignment
+                    {
+                        IpRangeStart = "114.51.4.1",
+                        IpRangeEnd = "114.51.4.254"
+                    }
+                ],
+                Mtu = 2800,
+                Private = false,
+                Routes =
+                [
+                    new Route
+                    {
+                        Target = "114.51.4.0/24"
+                    }
+                ],
+                V4AssignMode = new V4AssignMode { Zt = true },
+                V6AssignMode = new V6AssignMode { Zt = false, Rfc4193 = false },
+                MulticastLimit = 32
+            };
 
-        NetworkDetailsModel? networkDetail;
+            try
+            {
+                using var ct = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+                await using var scope = IZeroTierNodeInfoService.CreateZtApi(_serviceScopeFactory, out var zeroTierApiService);
 
-        try
-        {
-            using var ct = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            await using var scope = IZeroTierNodeInfoService.CreateZtApi(_serviceScopeFactory, out var zeroTierApiService);
+                networkDetail = await zeroTierApiService.CreateOrUpdateNetwork(networkId, networkCreationReq, ct.Token);
 
-            networkDetail = await zeroTierApiService.CreateOrUpdateNetwork(networkId, networkCreationReq, ct.Token);
+                ArgumentNullException.ThrowIfNull(networkDetail);
 
-            ArgumentNullException.ThrowIfNull(networkDetail);
+                _logger.LogNewNetworkCreated(networkDetail.Id);
+            }
+            catch (ArgumentNullException)
+            {
+                _logger.LogFailedToCreateNetwork("Network detail is null.");
 
-            _logger.LogNewNetworkCreated(networkDetail.Id);
-        }
-        catch (ArgumentNullException)
-        {
-            _logger.LogFailedToCreateNetwork("Network detail is null.");
+                var err = new GroupOpResult(GroupCreationStatus.NetworkControllerError);
+                ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
+                return;
+            }
+            catch (HttpRequestException e)
+            {
+                _logger.LogFailedToCreateNetwork(e.ToString());
 
-            var err = new GroupOpResult(GroupCreationStatus.NetworkControllerError);
-            ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
-            return;
-        }
-        catch (HttpRequestException e)
-        {
-            _logger.LogFailedToCreateNetwork(e.ToString());
-
-            var err = new GroupOpResult(GroupCreationStatus.NetworkControllerError, e.ToString());
-            ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
-            return;
+                var err = new GroupOpResult(GroupCreationStatus.NetworkControllerError, e.ToString());
+                ctx.Dispatcher.SendAsync(ctx.FromSession, err).Forget();
+                return;
+            }
         }
 
         var message = ctx.Message;
@@ -425,7 +427,7 @@ public class GroupManager
             IsPrivate = message.IsPrivate,
             MaxUserCount = message.MaxUserCount <= 0 ? 10 : message.MaxUserCount,
             RoomDescription = message.RoomDescription,
-            NetworkId = Convert.ToUInt64(networkDetail.Id, 16),
+            NetworkId = networkDetail == null ? 0 : Convert.ToUInt64(networkDetail.Id, 16),
             AssignedRelayServer = assignedRelayServerAddress
         };
 
@@ -454,7 +456,17 @@ public class GroupManager
             return;
         }
 
-        var success = new GroupOpResult(GroupCreationStatus.Succeeded) { RoomId = group.RoomId };
+        var success = new GroupOpResult(
+            GroupCreationStatus.Succeeded,
+            null,
+            [
+                new KeyValuePair<string, string>(GroupOpResult.UseRelayServerKey,
+                    assignedRelayServerAddress == null ? "false" : "true")
+            ])
+        {
+            RoomId = group.RoomId
+        };
+
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 
         _logger.LogGroupCreated(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
@@ -489,7 +501,10 @@ public class GroupManager
         var infoJson = JsonSerializer.Serialize(
             fetchRemoteRoomInfo,
             InterconnectServerRegistrationContexts.Default.InterconnectServerRegistration);
-        var redirectMsg = new GroupOpResult(GroupCreationStatus.NeedRedirect, infoJson);
+        var redirectMsg = new GroupOpResult(
+            GroupCreationStatus.NeedRedirect,
+            null, 
+            [new KeyValuePair<string, string>(GroupOpResult.RedirectInfoKey, infoJson)]);
 
         ctx.Dispatcher.SendAsync(ctx.FromSession, redirectMsg).Forget();
 
@@ -542,7 +557,8 @@ public class GroupManager
         var user = _userMapping[userId];
         IPEndPoint? assignedRelayServerAddress = null;
 
-        if (ctx.Message.UseRelayServer)
+        // If room owner is going to use relay server, we need to force all other member to use relay server too.
+        if (group.AssignedRelayServer != null)
         {
             if (group.AssignedRelayServer != null &&
                 _relayServerManager.TryGetRelayServerSession(group.AssignedRelayServer, out var session) &&
@@ -562,7 +578,14 @@ public class GroupManager
         group.Users.Add(info);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, info)).Forget();
 
-        var success = new GroupOpResult(GroupCreationStatus.Succeeded) { RoomId = group.RoomId };
+        var success = new GroupOpResult(
+            GroupCreationStatus.Succeeded,
+            null,
+            [
+                new KeyValuePair<string, string>(GroupOpResult.UseRelayServerKey,
+                    assignedRelayServerAddress == null ? "false" : "true")
+            ]) { RoomId = group.RoomId };
+
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 
         _logger.LogUserJoinedGroup(ctx.FromSession.Id, group.RoomName, group.RoomShortId);

@@ -104,7 +104,7 @@ public class RelayManager
 
         var pair = (userId, relayTo);
 
-        ConcurrentBag<SessionId> sessionIds = _userIdWorkerSessionMapping.GetValueOrDefault(userId) ?? [];
+        var sessionIds = _userIdWorkerSessionMapping.GetValueOrDefault(userId) ?? [];
         sessionIds.Add(session.Id);
 
         _userIdWorkerSessionMapping.AddOrUpdate(userId, _ => sessionIds, (_, _) => sessionIds);
@@ -204,6 +204,13 @@ public class RelayManager
 
     private void ClientManagerOnSessionDisconnected(SessionId sessionId)
     {
+        if (!_sessionUserIdMapping.TryRemove(sessionId, out var outUserId)) return;
+
+        HandleDataSession(outUserId);
+        HandleWorkerSession(outUserId);
+
+        return;
+
         void HandleDataSession(Guid userId)
         {
             if (!_userIdDataSessionMapping.TryRemove(userId, out var session)) return;
@@ -225,9 +232,9 @@ public class RelayManager
         {
             if (!_userIdWorkerSessionMapping.TryRemove(userId, out var sessionIds)) return;
 
-            foreach (var sessionId in sessionIds)
+            foreach (var workerSessionId in sessionIds)
             {
-                if (!_workerSessionRouteMapping.TryRemove(sessionId, out var routingInfo)) continue;
+                if (!_workerSessionRouteMapping.TryRemove(workerSessionId, out var routingInfo)) continue;
                 if (!_workerSessionMapping.TryRemove(routingInfo, out var workerSession)) continue;
 
                 workerSession.Close();
@@ -235,11 +242,6 @@ public class RelayManager
 
             _logger.LogRelayWorkerDestroyed(sessionId);
         }
-
-        if (!_sessionUserIdMapping.TryRemove(sessionId, out var userId)) return;
-
-        HandleDataSession(userId);
-        HandleWorkerSession(userId);
     }
 }
 
