@@ -456,13 +456,15 @@ public class GroupManager
             return;
         }
 
+        var metadata = new Dictionary<string, string>(1)
+        {
+            {GroupOpResult.UseRelayServerKey, (assignedRelayServerAddress == null).ToString()}
+        };
+
         var success = new GroupOpResult(
             GroupCreationStatus.Succeeded,
             null,
-            [
-                new KeyValuePair<string, string>(GroupOpResult.UseRelayServerKey,
-                    assignedRelayServerAddress == null ? "false" : "true")
-            ])
+            metadata)
         {
             RoomId = group.RoomId
         };
@@ -501,10 +503,14 @@ public class GroupManager
         var infoJson = JsonSerializer.Serialize(
             fetchRemoteRoomInfo,
             InterconnectServerRegistrationContexts.Default.InterconnectServerRegistration);
+        var metadata = new Dictionary<string, string>(1)
+        {
+            {GroupOpResult.RedirectInfoKey, infoJson}
+        };
         var redirectMsg = new GroupOpResult(
             GroupCreationStatus.NeedRedirect,
-            null, 
-            [new KeyValuePair<string, string>(GroupOpResult.RedirectInfoKey, infoJson)]);
+            null,
+            metadata);
 
         ctx.Dispatcher.SendAsync(ctx.FromSession, redirectMsg).Forget();
 
@@ -578,13 +584,15 @@ public class GroupManager
         group.Users.Add(info);
         NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Joined, info)).Forget();
 
+        var metadata = new Dictionary<string, string>(1)
+        {
+            {GroupOpResult.UseRelayServerKey, (assignedRelayServerAddress == null).ToString()}
+        };
+
         var success = new GroupOpResult(
             GroupCreationStatus.Succeeded,
             null,
-            [
-                new KeyValuePair<string, string>(GroupOpResult.UseRelayServerKey,
-                    assignedRelayServerAddress == null ? "false" : "true")
-            ]) { RoomId = group.RoomId };
+            metadata) { RoomId = group.RoomId };
 
         ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 
