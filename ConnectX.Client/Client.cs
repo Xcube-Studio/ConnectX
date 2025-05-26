@@ -159,7 +159,7 @@ public class Client
             if (opResult.Status != GroupCreationStatus.Succeeded)
                 return new OpResult(null, opResult.Status, ReadOnlyDictionary<string, string>.Empty, opResult.ErrorMessage);
 
-            if (opResult.Metadata.TryGetValue(GroupOpResult.UseRelayServerKey, out var useRelayServerStr) &&
+            if (opResult.Metadata.TryGetValue(GroupOpResult.MetadataUseRelayServer, out var useRelayServerStr) &&
                 bool.TryParse(useRelayServerStr, out var useRelayServer) &&
                 !useRelayServer)
             {

@@ -11,8 +11,8 @@ public partial class GroupOpResult(
     string? errorMessage = null,
     IReadOnlyDictionary<string, string>? metadata = null)
 {
-    public const string RedirectInfoKey = "RedirectInfo";
-    public const string UseRelayServerKey = "UseRelayServer";
+    public const string MetadataRedirectInfo = "RedirectInfo";
+    public const string MetadataUseRelayServer = "UseRelayServer";
 
     public string? ErrorMessage { get; } = errorMessage;
     public Guid RoomId { get; init; }

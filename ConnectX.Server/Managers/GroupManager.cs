@@ -458,7 +458,7 @@ public class GroupManager
 
         var metadata = new Dictionary<string, string>(1)
         {
-            {GroupOpResult.UseRelayServerKey, (assignedRelayServerAddress != null).ToString()}
+            {GroupOpResult.MetadataUseRelayServer, (assignedRelayServerAddress != null).ToString()}
         };
 
         var success = new GroupOpResult(
@@ -505,7 +505,7 @@ public class GroupManager
             InterconnectServerRegistrationContexts.Default.InterconnectServerRegistration);
         var metadata = new Dictionary<string, string>(1)
         {
-            {GroupOpResult.RedirectInfoKey, infoJson}
+            {GroupOpResult.MetadataRedirectInfo, infoJson}
         };
         var redirectMsg = new GroupOpResult(
             GroupCreationStatus.NeedRedirect,
@@ -592,7 +592,7 @@ public class GroupManager
 
         var metadata = new Dictionary<string, string>(1)
         {
-            {GroupOpResult.UseRelayServerKey, (assignedRelayServerAddress != null).ToString()}
+            {GroupOpResult.MetadataUseRelayServer, (assignedRelayServerAddress != null).ToString()}
         };
 
         var success = new GroupOpResult(

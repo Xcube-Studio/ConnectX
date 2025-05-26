@@ -1,15 +1,16 @@
-﻿using ConnectX.Relay.Interfaces;
-using ConnectX.Shared.Messages.Identity;
+﻿using ConnectX.Relay.Helpers;
+using ConnectX.Relay.Interfaces;
+using ConnectX.Shared;
+using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
+using ConnectX.Shared.Messages.Identity;
+using ConnectX.Shared.Messages.Relay;
 using Hive.Both.General.Dispatchers;
 using Hive.Network.Abstractions.Session;
 using Hive.Network.Tcp;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ConnectX.Shared.Helpers;
 using System.Net;
-using ConnectX.Relay.Helpers;
-using ConnectX.Shared.Messages.Relay;
 
 namespace ConnectX.Relay;
 
@@ -36,7 +37,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         _applicationLifetime = applicationLifetime;
         _logger = logger;
 
-        _dispatcher.AddHandler<SigninSucceeded>(OnSigninSucceededReceived);
         _dispatcher.AddHandler<HeartBeat>(OnHeartBeatReceived);
         _dispatcher.AddHandler<ShutdownMessage>(OnShutdownMessageReceived);
     }
@@ -96,13 +96,30 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         _logger.LogSendingSigninMessageToServer();
 
         await Task.Delay(1000, cancellationToken);
-        await _dispatcher.SendAsync(session, new SigninMessage
+
+        var signin = new SigninMessage
         {
             JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
-            DisplayName = session.RemoteEndPoint?.ToString() ?? Guid.CreateVersion7().ToString("N")
-        }, cancellationToken);
+            DisplayName = session.RemoteEndPoint?.ToString() ?? Guid.CreateVersion7().ToString("N"),
+            LinkProtocolMajor = LinkProtocolConstants.ProtocolMajor,
+            LinkProtocolMinor = LinkProtocolConstants.ProtocolMinor
+        };
 
-        await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
+        var result = await _dispatcher.SendAndListenOnce<SigninMessage, SigninResult>(session, signin, cancellationToken);
+
+        if (result == null)
+        {
+            _logger.LogWaitForSigninResultFailed(endPoint);
+            return;
+        }
+
+        if (!result.Succeeded)
+        {
+            _logger.LogServerRefusedClientToLogin(endPoint, result);
+            return;
+        }
+
+        IsSignedIn = result.Succeeded;
 
         _logger.LogConnectedAndSignedToServer(endPoint);
 
@@ -151,13 +168,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         IsSignedIn = false;
         IsConnected = false;
-    }
-
-    private void OnSigninSucceededReceived(MessageContext<SigninSucceeded> obj)
-    {
-        IsSignedIn = true;
-
-        _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
     }
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> ctx)
@@ -290,4 +300,10 @@ internal static partial class ServerLinkHolderLoggers
 
     [LoggerMessage(LogLevel.Critical, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
     public static partial void LogMainServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Wait for signin result failed at endpoint {endPoint}")]
+    public static partial void LogWaitForSigninResultFailed(this ILogger logger, IPEndPoint endPoint);
+
+    [LoggerMessage(LogLevel.Information, "[CLIENT] Server refused client to login at endpoint {endPoint}, {signinResult}")]
+    public static partial void LogServerRefusedClientToLogin(this ILogger logger, IPEndPoint endPoint, SigninResult signinResult);
 }
