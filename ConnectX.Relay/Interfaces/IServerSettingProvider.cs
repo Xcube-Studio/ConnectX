@@ -18,4 +18,9 @@ public interface IServerSettingProvider
 
     IPEndPoint EndPoint { get; }
     IPEndPoint RelayEndPoint { get; }
+
+    int MaxReferenceConnectionCount { get; }
+
+    // the value should be between 0-100
+    uint ServerPriority { get; }
 }

@@ -45,7 +45,7 @@ public class RelayServerManager
 
         _logger.LogReceivedGroupOpMessageFromUnattachedSession(session.Id);
 
-        return true;
+        return false;
     }
 
     public IPEndPoint? GetRandomRelayServerAddress(int roomSeed)
@@ -60,6 +60,14 @@ public class RelayServerManager
     public bool TryGetRelayServerSession(IPEndPoint endPoint, [NotNullWhen(true)] out ISession? session)
     {
         return _relayAddressSessionMapping.TryGetValue(endPoint, out session);
+    }
+
+    public bool TryGetRelayServerAddress(SessionId sessionId, [NotNullWhen(true)] out IPEndPoint? iPEndPoint)
+    {
+        iPEndPoint = null;
+
+        if (!_sessionIdMapping.TryGetValue(sessionId, out var userId)) return false;
+        return _serverAddressMapping.TryGetValue(userId, out iPEndPoint);
     }
 
     /// <summary>

@@ -1,5 +1,6 @@
 ﻿using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages.Group;
+using System.Net;
 
 namespace ConnectX.Server.Models;
 
@@ -10,7 +11,7 @@ public class Group(
     List<UserSessionInfo> users)
 {
     public Guid RoomId { get; } = Guid.CreateVersion7();
-    public required int RelayServerSeed { get; init; }
+    public IPEndPoint? AssignedRelayServer { get; set; }
     public UserSessionInfo RoomOwner { get; } = roomOwner;
     public string RoomShortId { get; } = RandomHelper.GetRandomString();
     public required ulong NetworkId { get; set; }
@@ -34,7 +35,8 @@ public class Group(
             RoomOwnerId = group.RoomOwner.UserId,
             RoomShortId = group.RoomShortId,
             RoomNetworkId = group.NetworkId,
-            Users = group.Users.Select(x => (UserInfo)x).ToArray()
+            Users = group.Users.Select(x => (UserInfo)x).ToArray(),
+            UseRelayServer = group.AssignedRelayServer != null
         };
     }
 }

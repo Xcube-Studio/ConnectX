@@ -102,8 +102,7 @@ public class ConsoleService(
         {
             Commands.Room.Join.RoomIdOption,
             Commands.Room.Join.RoomShortIdOption,
-            Commands.Room.PasswordOption,
-            Commands.Room.UseRelayServerOption
+            Commands.Room.PasswordOption
         };
 
         joinCommand.SetHandler(HandleRoomJoinAsync);
@@ -159,7 +158,6 @@ public class ConsoleService(
         var roomId = (Guid?)obj.ParseResult.GetValueForOption(Commands.Room.Join.RoomIdOption);
         var roomShortId = (string?)obj.ParseResult.GetValueForOption(Commands.Room.Join.RoomShortIdOption);
         var password = (string?)obj.ParseResult.GetValueForOption(Commands.Room.PasswordOption);
-        var useRelayServer = (bool)obj.ParseResult.GetValueForOption(Commands.Room.UseRelayServerOption)!;
 
         if (!roomId.HasValue && string.IsNullOrEmpty(roomShortId))
         {
@@ -172,12 +170,12 @@ public class ConsoleService(
             GroupId = roomId ?? Guid.Empty,
             RoomShortId = roomShortId,
             RoomPassword = password,
-            UseRelayServer = useRelayServer
+            // UseRelayServer = useRelayServer
         };
 
-        var (groupInfo, status, error) = await client.JoinGroupAsync(message, CancellationToken.None);
+        var (groupInfo, status, metadata, error) = await client.JoinGroupAsync(message, CancellationToken.None);
 
-        logger.LogInformation("Room join result received, {@info}, {status:G}, {error}", groupInfo, status, error);
+        logger.LogInformation("Room join result received, Info: {@info}, Status: {status:G}, Metadata: {@metadata}, Error: {error}", groupInfo, status, metadata, error);
 
         _lastGroupInfo = groupInfo;
     }
@@ -201,9 +199,9 @@ public class ConsoleService(
             UseRelayServer = useRelayServer
         };
 
-        var (groupInfo, status, error) = await client.CreateGroupAsync(message, CancellationToken.None);
-        
-        logger.LogInformation("Room created, {@info}, {status:G}, {error}", groupInfo, status, error);
+        var (groupInfo, status, metadata, error) = await client.CreateGroupAsync(message, CancellationToken.None);
+
+        logger.LogInformation("Room join result received, Info: {@info}, Status: {status:G}, Metadata: {@metadata}, Error: {error}", groupInfo, status, metadata, error);
 
         _lastGroupInfo = groupInfo;
     }

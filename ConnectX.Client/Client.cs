@@ -1,4 +1,5 @@
-﻿using ConnectX.Client.Interfaces;
+﻿using System.Collections.ObjectModel;
+using ConnectX.Client.Interfaces;
 using ConnectX.Client.Managers;
 using ConnectX.Client.Route;
 using ConnectX.Shared.Helpers;
@@ -13,6 +14,12 @@ namespace ConnectX.Client;
 public delegate void GroupStateChangedHandler(GroupUserStates state, UserInfo? userInfo);
 
 public record PartnerConnectionState(bool IsConnected, bool IsDirectConnection, int Latency);
+
+public record OpResult(
+    GroupInfo? Info,
+    GroupCreationStatus Status,
+    IReadOnlyDictionary<string, string> Metadata,
+    string? Error);
 
 public class Client
 {
@@ -112,12 +119,17 @@ public class Client
 
         switch (state)
         {
+            case GroupUserStates.Joined:
+                if (_isInGroup && _roomInfoManager.CurrentGroupInfo?.RoomId != null)
+                    _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
+                break;
             case GroupUserStates.Left:
             case GroupUserStates.Disconnected:
             case GroupUserStates.Kicked:
                 if (userInfo?.UserId == _serverLinkHolder.UserId)
                     ResetRoomState().Forget();
-                else _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
+                else if (_isInGroup && _roomInfoManager.CurrentGroupInfo?.RoomId != null)
+                    _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
                 break;
             case GroupUserStates.Dismissed:
                 ResetRoomState().Forget();
@@ -127,74 +139,84 @@ public class Client
         OnGroupStateChanged?.Invoke(state, userInfo);
     }
 
-    private async Task<(GroupInfo?, GroupCreationStatus, string?)> PerformOpAndGetRoomInfoAsync<T>(T message, CancellationToken ct)
+    private async Task<OpResult> PerformOpAndGetRoomInfoAsync<T>(T message, CancellationToken ct)
     {
-        var createResult = await PerformGroupOpAsync(message);
+        var opResult = await PerformGroupOpAsync(message);
 
-        if (createResult == null)
-            return (null, GroupCreationStatus.Other, null);
-        if (createResult.Status != GroupCreationStatus.Succeeded)
-            return (null, createResult.Status, createResult.ErrorMessage);
+        if (opResult == null)
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, null);
+        if (opResult.Status != GroupCreationStatus.Succeeded)
+            return new OpResult(null, opResult.Status, ReadOnlyDictionary<string, string>.Empty, opResult.ErrorMessage);
 
-        var groupInfo = await _roomInfoManager.AcquireGroupInfoAsync(createResult.RoomId);
+        var groupInfo = await _roomInfoManager.AcquireGroupInfoAsync(opResult.RoomId);
 
         if (groupInfo == null)
-            return (null, GroupCreationStatus.Other, "Failed to acquire group info");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Failed to acquire group info");
 
         if (OperatingSystem.IsWindows() &&
             message is JoinGroup or CreateGroup)
         {
-            if (createResult.Status != GroupCreationStatus.Succeeded)
-                return (null, createResult.Status, createResult.ErrorMessage);
+            if (opResult.Status != GroupCreationStatus.Succeeded)
+                return new OpResult(null, opResult.Status, ReadOnlyDictionary<string, string>.Empty, opResult.ErrorMessage);
 
-            _logger.LogJoiningNetwork(groupInfo.RoomNetworkId);
-
-            var networkResult = await _zeroTierNodeLinkHolder.JoinNetworkAsync(groupInfo.RoomNetworkId, ct);
-
-            if (!networkResult)
-                return (null, GroupCreationStatus.Other, "Failed to join the network");
-
-            await TaskHelper.WaitUntilAsync(_zeroTierNodeLinkHolder.IsNodeOnline, ct);
-
-            var nodeId = _zeroTierNodeLinkHolder.Node!.IdString;
-            var updateInfo = new UpdateRoomMemberNetworkInfo
+            if (opResult.Metadata.TryGetValue(GroupOpResult.UseRelayServerKey, out var useRelayServerStr) &&
+                bool.TryParse(useRelayServerStr, out var useRelayServer) &&
+                !useRelayServer)
             {
-                NetworkNodeId = nodeId,
-                NetworkIpAddresses = _zeroTierNodeLinkHolder.GetIpAddresses()
-            };
+                // If the group is not using relay server, we need to join the network
+                _logger.LogJoiningNetwork(groupInfo.RoomNetworkId);
 
-            var result = await _dispatcher.SendAndListenOnce<UpdateRoomMemberNetworkInfo, GroupOpResult>(
-                _serverLinkHolder.ServerSession!,
-                updateInfo, ct);
+                var networkResult = await _zeroTierNodeLinkHolder.JoinNetworkAsync(groupInfo.RoomNetworkId, ct);
 
-            if (result is not { Status: GroupCreationStatus.Succeeded })
-                return (null, result?.Status ?? GroupCreationStatus.Other, "Failed to update room member network info");
+                if (!networkResult)
+                    return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Failed to join the network");
+
+                await TaskHelper.WaitUntilAsync(_zeroTierNodeLinkHolder.IsNodeOnline, ct);
+
+                var nodeId = _zeroTierNodeLinkHolder.Node!.IdString;
+                var updateInfo = new UpdateRoomMemberNetworkInfo
+                {
+                    NetworkNodeId = nodeId,
+                    NetworkIpAddresses = _zeroTierNodeLinkHolder.GetIpAddresses()
+                };
+
+                var result = await _dispatcher.SendAndListenOnce<UpdateRoomMemberNetworkInfo, GroupOpResult>(
+                    _serverLinkHolder.ServerSession!,
+                    updateInfo, ct);
+
+                if (result is not { Status: GroupCreationStatus.Succeeded })
+                    return new OpResult(
+                        null,
+                        result?.Status ?? GroupCreationStatus.Other,
+                        ReadOnlyDictionary<string, string>.Empty,
+                        "Failed to update room member network info");
+            }
         }
 
         _isInGroup = true;
-        return (groupInfo, GroupCreationStatus.Succeeded, null);
+        return new OpResult(groupInfo, GroupCreationStatus.Succeeded, opResult.Metadata, null);
     }
 
-    public async Task<(GroupInfo? Info, GroupCreationStatus Status, string? Error)> CreateGroupAsync(CreateGroup createGroup, CancellationToken ct)
+    public async Task<OpResult> CreateGroupAsync(CreateGroup createGroup, CancellationToken ct)
     {
         if (!_serverLinkHolder.IsConnected)
-            return (null, GroupCreationStatus.Other, "Not connected to the server");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn)
-            return (null, GroupCreationStatus.Other, "Not signed in");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not signed in");
         if (!OperatingSystem.IsWindows() && !createGroup.UseRelayServer)
-            return (null, GroupCreationStatus.Other, "Only Windows platform supports direct connection");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Only Windows platform supports direct connection");
 
         return await PerformOpAndGetRoomInfoAsync(createGroup, ct);
     }
 
-    public async Task<(GroupInfo?, GroupCreationStatus, string?)> JoinGroupAsync(JoinGroup joinGroup, CancellationToken ct)
+    public async Task<OpResult> JoinGroupAsync(JoinGroup joinGroup, CancellationToken ct)
     {
         if (!_serverLinkHolder.IsConnected)
-            return (null, GroupCreationStatus.Other, "Not connected to the server");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn)
-            return (null, GroupCreationStatus.Other, "Not signed in");
-        if (!OperatingSystem.IsWindows() && !joinGroup.UseRelayServer)
-            return (null, GroupCreationStatus.Other, "Only Windows platform supports direct connection");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not signed in");
+        //if (!OperatingSystem.IsWindows() && !joinGroup.UseRelayServer)
+        //    return (null, GroupCreationStatus.Other, "Only Windows platform supports direct connection");
 
         return await PerformOpAndGetRoomInfoAsync(joinGroup, ct);
     }
