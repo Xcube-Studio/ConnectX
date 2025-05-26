@@ -69,11 +69,6 @@ public class Client
     private void OnRoomMemberInfoUpdated(MessageContext<RoomMemberInfoUpdated> obj)
     {
         _roomInfoManager.UpdateRoomMemberInfo(obj.Message.UserInfo);
-
-        if (!_isInGroup || _roomInfoManager.CurrentGroupInfo?.RoomId == null)
-            return;
-
-        _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo.RoomId).Forget();
     }
 
     private async Task<GroupOpResult?> PerformGroupOpAsync<T>(T message)
@@ -117,19 +112,10 @@ public class Client
         var state = ctx.Message.State;
         var userInfo = ctx.Message.UserInfo;
 
-        switch (state)
-        {
-            case GroupUserStates.Left:
-            case GroupUserStates.Disconnected:
-            case GroupUserStates.Kicked:
-                if (userInfo?.UserId == _serverLinkHolder.UserId)
-                    ResetRoomState().Forget();
-                else _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
-                break;
-            case GroupUserStates.Dismissed:
-                ResetRoomState().Forget();
-                break;
-        }
+        if ((state == GroupUserStates.Kicked && userInfo?.UserId == _serverLinkHolder.UserId) || state == GroupUserStates.Disconnected)
+            ResetRoomState().Forget();
+        else if (_isInGroup && _roomInfoManager.CurrentGroupInfo?.RoomId != null)
+            _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo.RoomId).Forget();
 
         OnGroupStateChanged?.Invoke(state, userInfo);
     }
