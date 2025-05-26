@@ -119,12 +119,17 @@ public class Client
 
         switch (state)
         {
+            case GroupUserStates.Joined:
+                if (_isInGroup && _roomInfoManager.CurrentGroupInfo?.RoomId != null)
+                    _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
+                break;
             case GroupUserStates.Left:
             case GroupUserStates.Disconnected:
             case GroupUserStates.Kicked:
                 if (userInfo?.UserId == _serverLinkHolder.UserId)
                     ResetRoomState().Forget();
-                else _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
+                else if (_isInGroup && _roomInfoManager.CurrentGroupInfo?.RoomId != null)
+                    _roomInfoManager.AcquireGroupInfoAsync(_roomInfoManager.CurrentGroupInfo!.RoomId).Forget();
                 break;
             case GroupUserStates.Dismissed:
                 ResetRoomState().Forget();
