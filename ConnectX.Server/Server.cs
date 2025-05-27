@@ -3,6 +3,7 @@ using System.Net;
 using ConnectX.Server.Interfaces;
 using ConnectX.Server.Managers;
 using ConnectX.Server.Messages;
+using ConnectX.Shared;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
@@ -150,6 +151,20 @@ public class Server : BackgroundService
         _interconnectServerManager.AttachSession(session.Id, session, ctx.Message);
     }
 
+    private static bool CheckProtocolCompatibility(
+        int protocolMajor,
+        int protocolMinor)
+    {
+        if (protocolMajor != LinkProtocolConstants.ProtocolMajor)
+            return false;
+        if (protocolMinor > LinkProtocolConstants.ProtocolMinor)
+            return false;
+        if (protocolMinor < LinkProtocolConstants.ProtocolMinor - LinkProtocolConstants.MaxAllowedMinorShiftCount)
+            return false;
+
+        return true;
+    }
+
     private void OnSigninMessageReceived(MessageContext<SigninMessage> ctx)
     {
         var session = ctx.FromSession;
@@ -157,6 +172,34 @@ public class Server : BackgroundService
         // Remove temp session mapping
         if (!_tempSessionMapping.TryRemove(session.Id, out _))
             return;
+
+        if (!CheckProtocolCompatibility(ctx.Message.LinkProtocolMajor, ctx.Message.LinkProtocolMinor))
+        {
+            var metadata = new Dictionary<string, string>(2)
+            {
+                {SigninResult.MetadataServerProtocolMajor, LinkProtocolConstants.ProtocolMajor.ToString("D")},
+                {SigninResult.MetadataServerProtocolMinor, LinkProtocolConstants.ProtocolMinor.ToString("D")}
+            };
+            var result = new SigninResult(
+                false,
+                Guid.Empty,
+                SigninResult.ErrorProtocolMismatch,
+                metadata);
+
+            _dispatcher
+                .SendAsync(session, result)
+                .AsTask()
+                .ContinueWith(_ => session.Close())
+                .Forget();
+
+            _logger.LogSessionProtocolMismatch(
+                session.RemoteEndPoint!,
+                session.Id,
+                ctx.Message.LinkProtocolMajor,
+                ctx.Message.LinkProtocolMinor);
+
+            return;
+        }
 
         var newVal = Interlocked.Increment(ref _currentSessionCount);
         _logger.LogCurrentOnline(newVal);
@@ -167,7 +210,7 @@ public class Server : BackgroundService
 
         var userId = _groupManager.AttachSession(session.Id, session, ctx.Message);
 
-        _dispatcher.SendAsync(session, new SigninSucceeded(userId)).Forget();
+        _dispatcher.SendAsync(session, new SigninResult(true, userId)).Forget();
 
         _relayServerManager.AttachSession(session.Id, userId, session);
         _p2pManager.AttachSession(session, userId, ctx.Message);
@@ -206,4 +249,7 @@ internal static partial class ServerLoggers
 
     [LoggerMessage(LogLevel.Information, "Server stopped.")]
     public static partial void LogServerStopped(this ILogger logger);
+
+    [LoggerMessage(LogLevel.Warning, "[CLIENT] Session protocol mismatch, EndPoint [{endPoint}] ID [{id}], Version [{protocolMajor}.{protocolMinor}], disconnecting from the server...")]
+    public static partial void LogSessionProtocolMismatch(this ILogger logger, IPEndPoint endPoint, SessionId id, int protocolMajor, int protocolMinor);
 }

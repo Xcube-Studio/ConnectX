@@ -1,4 +1,5 @@
-﻿using Hive.Network.Abstractions.Session;
+﻿using ConnectX.Shared.Messages.Identity;
+using Hive.Network.Abstractions.Session;
 using Microsoft.Extensions.Hosting;
 
 namespace ConnectX.Client.Interfaces;
@@ -12,6 +13,6 @@ public interface IServerLinkHolder : IHostedService
 
     event Action OnServerLinkDisconnected;
 
-    Task ConnectAsync(CancellationToken cancellationToken);
+    Task<SigninResult?> ConnectAsync(CancellationToken cancellationToken);
     Task DisconnectAsync(CancellationToken cancellationToken);
 }

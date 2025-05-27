@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using ConnectX.Client.Interfaces;
+using ConnectX.Shared;
 using ConnectX.Shared.Helpers;
 using ConnectX.Shared.Messages;
 using ConnectX.Shared.Messages.Identity;
@@ -83,48 +84,63 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
         }
     }
 
-    public async Task ConnectAsync(CancellationToken cancellationToken)
+    public async Task<SigninResult?> ConnectAsync(CancellationToken cancellationToken)
     {
-        _dispatcher.AddHandler<SigninSucceeded>(OnSigninSucceededReceived);
-
         _logger.LogConnectingToServer();
 
-        try
+        var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
+        var session = await _tcpConnector.ConnectAsync(endPoint, cancellationToken);
+
+        if (session == null)
         {
-            var endPoint = new IPEndPoint(_settingProvider.ServerAddress, _settingProvider.ServerPort);
-            var session = await _tcpConnector.ConnectAsync(endPoint, cancellationToken);
-
-            if (session == null)
-            {
-                _logger.LogFailedToConnectToServer(endPoint);
-                return;
-            }
-
-            session.BindTo(_dispatcher);
-            session.StartAsync(cancellationToken).Forget();
-
-            _logger.LogSendingSigninMessageToServer();
-
-            await Task.Delay(1000, cancellationToken);
-            await _dispatcher.SendAsync(session, new SigninMessage
-            {
-                JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
-                DisplayName = $"User-{Guid.CreateVersion7().ToString("N")[^6..]}"
-            }, cancellationToken);
-
-            await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
-
-            _logger.LogConnectedAndSignedToServer(endPoint);
-
-            ServerSession = session;
-            IsConnected = true;
-
-            Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => CheckServerLivenessAsync(cancellationToken));
+            _logger.LogFailedToConnectToServer(endPoint);
+            return null;
         }
-        finally
+
+        session.BindTo(_dispatcher);
+        session.StartAsync(cancellationToken).Forget();
+
+        _logger.LogSendingSigninMessageToServer();
+
+        await Task.Delay(1000, cancellationToken);
+
+        var signin = new SigninMessage
         {
-            _dispatcher.RemoveHandler<SigninSucceeded>(OnSigninSucceededReceived);
+            JoinP2PNetwork = _settingProvider.JoinP2PNetwork,
+            DisplayName = $"User-{Guid.CreateVersion7().ToString("N")[^6..]}",
+            LinkProtocolMajor = LinkProtocolConstants.ProtocolMajor,
+            LinkProtocolMinor = LinkProtocolConstants.ProtocolMinor
+        };
+
+        var result = await _dispatcher.SendAndListenOnce<SigninMessage, SigninResult>(session, signin, cancellationToken);
+
+        if (result == null)
+        {
+            _logger.LogWaitForSigninResultFailed(endPoint);
+            return null;
         }
+
+        if (!result.Succeeded)
+        {
+            _logger.LogServerRefusedClientToLogin(endPoint);
+            return result;
+        }
+
+        _logger.LogSuccessfullyLoggedIn(UserId);
+
+        IsSignedIn = result.Succeeded;
+        UserId = result.UserId;
+
+        await TaskHelper.WaitUntilAsync(() => IsSignedIn, cancellationToken);
+
+        _logger.LogConnectedAndSignedToServer(endPoint);
+
+        ServerSession = session;
+        IsConnected = true;
+
+        Hive.Common.Shared.Helpers.TaskHelper.FireAndForget(() => CheckServerLivenessAsync(cancellationToken));
+
+        return result;
     }
 
     public async Task DisconnectAsync(CancellationToken cancellationToken)
@@ -140,14 +156,6 @@ public class ServerLinkHolder : BackgroundService, IServerLinkHolder
 
         IsSignedIn = false;
         IsConnected = false;
-    }
-
-    private void OnSigninSucceededReceived(MessageContext<SigninSucceeded> obj)
-    {
-        IsSignedIn = true;
-        UserId = obj.Message.UserId;
-
-        _logger.LogSuccessfullyLoggedIn(UserId);
     }
 
     private void OnHeartBeatReceived(MessageContext<HeartBeat> ctx)
@@ -228,4 +236,10 @@ internal static partial class ServerLinkHolderLoggers
 
     [LoggerMessage(LogLevel.Critical, "[CLIENT] Link with server [{relayEndPoint}] is down, last heartbeat received [{seconds} seconds ago]")]
     public static partial void LogMainServerHeartbeatTimeout(this ILogger logger, IPEndPoint relayEndPoint, double seconds);
+
+    [LoggerMessage(LogLevel.Error, "[CLIENT] Wait for signin result failed, endpoint: {endPoint}")]
+    public static partial void LogWaitForSigninResultFailed(this ILogger logger, IPEndPoint endPoint);
+
+    [LoggerMessage(LogLevel.Error, "[CLIENT] Server refused client to login at endpoint {endPoint}")]
+    public static partial void LogServerRefusedClientToLogin(this ILogger logger, IPEndPoint endPoint);
 }
