@@ -684,10 +684,10 @@ public class GroupManager
         var group = _groupMappings.Values.First(g => g.Users.Any(u => u.UserId == userId));
         var success = new GroupOpResult(GroupCreationStatus.Succeeded);
 
-        ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
-
         if (group.RoomOwner.UserId == userId)
         {
+            ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
+
             _groupMappings.TryRemove(group.RoomId, out _);
             DeleteGroupNetworkAsync(group).Forget();
             NotifyGroupMembersAsync(group, new GroupUserStateChanged(GroupUserStates.Dismissed, null)).Forget();
@@ -698,6 +698,8 @@ public class GroupManager
         }
 
         RemoveUser(groupId, userId, ctx.Dispatcher, ctx.FromSession, GroupUserStates.Left);
+
+        ctx.Dispatcher.SendAsync(ctx.FromSession, success).Forget();
 
         _logger.LogUserLeftGroup(ctx.FromSession.Id, group.RoomName, group.RoomShortId);
     }
