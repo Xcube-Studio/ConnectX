@@ -50,7 +50,7 @@ jobs:
     needs: publish
     strategy:
       matrix:
-        server: [hangzhou, ningbo]
+        server: [hangzhou]
     runs-on: ubuntu-latest
     steps:
     - name: Download artifacts
@@ -93,7 +93,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        server: [hangzhou, ningbo, shiyan]
+        server: [hangzhou, shiyan]
     runs-on: ubuntu-latest
     steps:
     - name: Download artifacts
