@@ -146,18 +146,20 @@ public class Client
         if (opResult == null)
             return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, null);
         if (opResult.Status != GroupCreationStatus.Succeeded)
-            return new OpResult(null, opResult.Status, ReadOnlyDictionary<string, string>.Empty, opResult.ErrorMessage);
+            return new OpResult(null, opResult.Status, opResult.Metadata, opResult.ErrorMessage);
 
         var groupInfo = await _roomInfoManager.AcquireGroupInfoAsync(opResult.RoomId);
 
         if (groupInfo == null)
-            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Failed to acquire group info");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty,
+                "Failed to acquire group info");
 
         if (OperatingSystem.IsWindows() &&
             message is JoinGroup or CreateGroup)
         {
             if (opResult.Status != GroupCreationStatus.Succeeded)
-                return new OpResult(null, opResult.Status, ReadOnlyDictionary<string, string>.Empty, opResult.ErrorMessage);
+                return new OpResult(null, opResult.Status, ReadOnlyDictionary<string, string>.Empty,
+                    opResult.ErrorMessage);
 
             if (opResult.Metadata.TryGetValue(GroupOpResult.MetadataUseRelayServer, out var useRelayServerStr) &&
                 bool.TryParse(useRelayServerStr, out var useRelayServer) &&
@@ -169,7 +171,8 @@ public class Client
                 var networkResult = await _zeroTierNodeLinkHolder.JoinNetworkAsync(groupInfo.RoomNetworkId, ct);
 
                 if (!networkResult)
-                    return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Failed to join the network");
+                    return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty,
+                        "Failed to join the network");
 
                 await TaskHelper.WaitUntilAsync(_zeroTierNodeLinkHolder.IsNodeOnline, ct);
 
@@ -200,11 +203,14 @@ public class Client
     public async Task<OpResult> CreateGroupAsync(CreateGroup createGroup, CancellationToken ct)
     {
         if (!_serverLinkHolder.IsConnected)
-            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not connected to the server");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty,
+                "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn)
-            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not signed in");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty,
+                "Not signed in");
         if (!OperatingSystem.IsWindows() && !createGroup.UseRelayServer)
-            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Only Windows platform supports direct connection");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty,
+                "Only Windows platform supports direct connection");
 
         return await PerformOpAndGetRoomInfoAsync(createGroup, ct);
     }
@@ -212,9 +218,11 @@ public class Client
     public async Task<OpResult> JoinGroupAsync(JoinGroup joinGroup, CancellationToken ct)
     {
         if (!_serverLinkHolder.IsConnected)
-            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not connected to the server");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty,
+                "Not connected to the server");
         if (!_serverLinkHolder.IsSignedIn)
-            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty, "Not signed in");
+            return new OpResult(null, GroupCreationStatus.Other, ReadOnlyDictionary<string, string>.Empty,
+                "Not signed in");
         //if (!OperatingSystem.IsWindows() && !joinGroup.UseRelayServer)
         //    return (null, GroupCreationStatus.Other, "Only Windows platform supports direct connection");
 
@@ -312,7 +320,8 @@ public class Client
 
 internal static partial class ClientLoggers
 {
-    [LoggerMessage(LogLevel.Information, "[CLIENT] Network info received [0x{roomId:X}], trying to join the network...")]
+    [LoggerMessage(LogLevel.Information,
+        "[CLIENT] Network info received [0x{roomId:X}], trying to join the network...")]
     public static partial void LogJoiningNetwork(this ILogger logger, ulong roomId);
 
     [LoggerMessage(LogLevel.Error, "[CLIENT] Failed to acquire group info, group id: {groupId}")]
