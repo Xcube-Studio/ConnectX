@@ -93,26 +93,28 @@ public class ZeroTierNodeLinkHolder(ILogger<ZeroTierNodeLinkHolder> logger) : Ba
 
     public async Task<bool> JoinNetworkAsync(ulong networkId, CancellationToken cancellationToken)
     {
-        if (Node == null) return false;
+        var node = Node;
 
-        await TaskHelper.WaitUtil(() => Node?.Online ?? false, cancellationToken);
+        if (node == null) return false;
 
-        Node.Join(networkId);
+        await TaskHelper.WaitUtil(() => node.Online, cancellationToken);
 
-        await TaskHelper.WaitUtil(() => Node?.Networks.Count != 0, cancellationToken);
+        node.Join(networkId);
+
+        await TaskHelper.WaitUtil(() => node.Networks.Count != 0, cancellationToken);
 
         logger.LogZeroTierConnected(
-            Node!.IdString,
-            Node.Version,
-            Node.PrimaryPort,
-            Node.SecondaryPort,
-            Node.TertiaryPort);
+            node.IdString,
+            node.Version,
+            node.PrimaryPort,
+            node.SecondaryPort,
+            node.TertiaryPort);
 
-        await TaskHelper.WaitUtil(() => Node.IsNetworkTransportReady(networkId), cancellationToken);
+        await TaskHelper.WaitUtil(() => node.IsNetworkTransportReady(networkId), cancellationToken);
 
         logger.LogNetworkJoined();
 
-        var addresses = Node.GetNetworkAddresses(networkId);
+        var addresses = node.GetNetworkAddresses(networkId);
 
         ArgumentNullException.ThrowIfNull(addresses);
         ArgumentOutOfRangeException.ThrowIfEqual(addresses.Count, 0);
